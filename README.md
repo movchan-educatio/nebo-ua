@@ -16,6 +16,9 @@
 - premium bottom sheet «Чому це показано?» з freshness та source fields.
 - локальні звукові сигнали для вибраної області з явним дозволом, deduplication, тихими годинами та тестовим режимом;
 - підготовлений, але вимкнений рекламний шар (`adsEnabled=false`) без рекламних ID чи мереж.
+- локальний пошук області/району/населеного пункту через явний запит до OpenStreetMap Nominatim;
+- privacy-first relevance engine і локальні foreground-сповіщення без push-backend;
+- PWA shortcuts та compact web-view `/widget/` для майбутньої native wrapper інтеграції.
 
 ## Джерела
 

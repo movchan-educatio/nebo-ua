@@ -1,0 +1,8 @@
+import{fetchJson}from'./http.js';
+const ENDPOINT='https://nominatim.openstreetmap.org';
+export async function searchUkrainianPlaces(query){const q=String(query||'').trim();if(q.length<2)return[];const url=`${ENDPOINT}/search?format=jsonv2&addressdetails=1&countrycodes=ua&accept-language=uk&limit=8&q=${encodeURIComponent(q)}`;const rows=await fetchJson(url,{timeout:10000});return rows.map(normalizePlace).filter(x=>x.oblast||x.settlement)}
+export async function reverseUkrainianPlace(lat,lon){const url=`${ENDPOINT}/reverse?format=jsonv2&addressdetails=1&accept-language=uk&zoom=14&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;return normalizePlace(await fetchJson(url,{timeout:10000}))}
+export function normalizePlace(row){const a=row?.address||{},settlement=a.city||a.town||a.village||a.hamlet||a.municipality||null,oblast=a.state||a.region||null,raion=a.county||a.district||null,community=a.city_district||a.municipality||null;return{id:String(row?.place_id||`${settlement}|${raion}|${oblast}`),settlement,community,raion,oblast,country:a.country||'Україна',lat:num(row?.lat),lon:num(row?.lon),label:[settlement,raion,oblast].filter(Boolean).join(' · '),source:'OpenStreetMap Nominatim'}}
+export function loadSelectedPlace(storage=localStorage){try{return JSON.parse(storage.getItem('nebo-location')||'null')}catch{return null}}
+export function saveSelectedPlace(place,storage=localStorage){storage.setItem('nebo-location',JSON.stringify(place));if(place?.oblast)storage.setItem('nebo-region',place.oblast)}
+function num(v){const n=Number(v);return Number.isFinite(n)?n:null}

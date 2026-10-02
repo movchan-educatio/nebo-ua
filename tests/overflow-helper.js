@@ -1,0 +1,2 @@
+export function measureViewportBounds(elements,viewport){return elements.filter(Boolean).map(element=>{const rect=element.getBoundingClientRect();return{element,left:rect.left,right:rect.right,top:rect.top,bottom:rect.bottom,inBounds:rect.left>=0&&rect.right<=viewport.width&&rect.top>=0&&rect.bottom<=viewport.height}})}
+export function unexpectedOverflow(result){return result.filter(item=>!item.inBounds)}
