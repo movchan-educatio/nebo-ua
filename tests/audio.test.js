@@ -1,0 +1,12 @@
+import test from'node:test';import assert from'node:assert/strict';import{audioTransitions,snapshotForRegion,DEFAULT_AUDIO_PREFS,isQuietTime}from'../services/audio.js';
+const region='Київська область',on={...DEFAULT_AUDIO_PREFS,enabled:true};
+const snap=(alert=false,events=[])=>snapshotForRegion({alerts:alert?[{region}]:[],events},region);
+test('official alert start plays once and same polling does not repeat',()=>{const a=snap(false),b=snap(true);assert.deepEqual(audioTransitions(a,b,on),['officialStart']);assert.deepEqual(audioTransitions(b,b,on),[])});
+test('official alert end plays once',()=>assert.deepEqual(audioTransitions(snap(true),snap(false),on),['officialEnd']));
+test('new UAV plays once; coordinate update with same id does not repeat',()=>{const a=snap(),b=snap(false,[{id:'u1',category:'uav',region,lat:50}]),c=snap(false,[{id:'u1',category:'uav',region,lat:51}]);assert.deepEqual(audioTransitions(a,b,on),['uav']);assert.deepEqual(audioTransitions(b,c,on),[])});
+test('missile and ballistic share one monitoring sound per refresh',()=>{const b=snap(false,[{id:'m1',category:'missile',region},{id:'b1',category:'ballistic',region}]);assert.deepEqual(audioTransitions(snap(),b,on),['missile'])});
+test('outside selected region does not play',()=>{const b=snapshotForRegion({alerts:[],events:[{id:'u1',category:'uav',region:'Одеська область'}]},region);assert.deepEqual(audioTransitions(snap(),b,on),[])});
+test('disabled audio never plays',()=>assert.deepEqual(audioTransitions(snap(),snap(true),{...on,enabled:false}),[]));
+test('reload baseline with existing events does not replay',()=>{const current=snap(false,[{id:'u1',category:'uav',region}]);assert.deepEqual(audioTransitions(current,current,on),[])});
+test('quiet hours mute monitoring but not official by default',()=>{const prefs={...on,quietHoursEnabled:true,quietStart:'23:00',quietEnd:'07:00'},now=new Date('2026-01-01T23:30:00');const b=snap(true,[{id:'u1',category:'uav',region}]);assert.equal(isQuietTime(prefs,now),true);assert.deepEqual(audioTransitions(snap(),b,prefs,now),['officialStart'])});
+test('official source outage never creates a false all-clear sound',()=>{const previous=snap(true),current=snapshotForRegion({health:{OFFICIAL:{status:'offline'}},alerts:[],events:[]},region);assert.deepEqual(audioTransitions(previous,current,on),[])});

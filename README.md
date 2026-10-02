@@ -14,6 +14,8 @@
 - fullscreen dark map, marker clustering, area-only/uncertainty protection;
 - Radar-візуалізація, «Моє небо», live timeline, session history і OLED Quiet Mode;
 - premium bottom sheet «Чому це показано?» з freshness та source fields.
+- локальні звукові сигнали для вибраної області з явним дозволом, deduplication, тихими годинами та тестовим режимом;
+- підготовлений, але вимкнений рекламний шар (`adsEnabled=false`) без рекламних ID чи мереж.
 
 ## Джерела
 
@@ -48,6 +50,8 @@ npm test
 - iPhone/Safari: Share → «На початковий екран».
 
 Service worker працює лише на HTTPS або localhost.
+
+Звукові сигнали працюють лише після прямої дії користувача. Закритий браузер і фонові обмеження мобільних ОС, особливо iOS, не гарантують виконання JavaScript чи відтворення звуку. Походження сигналів описано в [docs/AUDIO.md](docs/AUDIO.md).
 
 ## Обмеження
 
