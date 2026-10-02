@@ -1,0 +1,1 @@
+{"name":"nebo-ua","version":"1.0.0","private":true,"type":"module","scripts":{"serve":"npx serve . -l 4173 --no-clipboard","test":"node --test tests/*.test.js"},"devDependencies":{"@playwright/test":"^1.55.0","serve":"^14.2.4"}}

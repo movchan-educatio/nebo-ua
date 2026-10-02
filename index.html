@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#071018">
+  <meta name="description" content="Карта актуальних повітряних тривог та моніторингової інформації про повітряні загрози в Україні.">
+  <meta property="og:title" content="НЕБО UA — повітряна обстановка України">
+  <meta property="og:description" content="Карта актуальних повітряних тривог та моніторингової інформації про повітряні загрози в Україні.">
+  <meta property="og:type" content="website">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" href="./assets/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png">
+  <link rel="preconnect" href="https://tile.openstreetmap.org">
+  <link rel="stylesheet" href="./assets/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="./assets/css/styles.css">
+  <title>НЕБО UA — повітряна обстановка України</title>
+</head>
+<body>
+  <a class="skip-link" href="#main">До основного вмісту</a>
+  <header class="topbar">
+    <div><h1>НЕБО <span>UA</span></h1><p>Повітряна обстановка України</p></div>
+    <div class="live-block"><span id="liveBadge" class="status-badge pending">● ОЧІКУВАННЯ</span><time id="updatedAt">Ще не оновлено</time></div>
+  </header>
+  <div id="networkNotice" class="notice danger" role="alert" hidden></div>
+  <main id="main">
+    <section id="mapView" class="view active" aria-labelledby="mapTitle">
+      <div class="section-heading"><div><p class="eyebrow">ОПЕРАТИВНА КАРТА</p><h2 id="mapTitle">Поточна обстановка</h2></div><button id="refreshButton" class="icon-button" aria-label="Оновити дані">↻</button></div>
+      <div class="source-separation">
+        <span><b>🔴 Офіційні сигнали тривоги</b></span>
+        <span><b>🛸 Моніторингова інформація</b></span>
+      </div>
+      <div class="map-shell">
+        <div id="map" aria-label="Інтерактивна карта України"></div>
+        <button id="layerToggle" class="map-control" aria-expanded="false">Шари</button>
+        <fieldset id="layerPanel" class="layer-panel" hidden><legend>Шари карти</legend></fieldset>
+        <div class="map-legend"><span><i class="dot alert"></i> Тривога</span><span><i class="dot threat"></i> Моніторинг</span></div>
+      </div>
+      <p class="attribution">Дані: <a href="https://neptun.in.ua/" target="_blank" rel="noopener">Карта повітряних тривог — NEPTUN</a>. Карта © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.</p>
+      <div class="disclaimer compact"><b>Важливо.</b> НЕБО UA не замінює офіційні системи оповіщення. У разі тривоги виконуйте рекомендації органів влади та цивільного захисту.</div>
+    </section>
+
+    <section id="threatsView" class="view" aria-labelledby="threatsTitle" hidden>
+      <p class="eyebrow">МОНІТОРИНГОВА ІНФОРМАЦІЯ</p><h2 id="threatsTitle">Активні загрози</h2>
+      <p class="muted">Дані з відкритих моніторингових джерел можуть бути неповними, неточними або надходити із затримкою. Орієнтуйтеся насамперед на офіційні сигнали.</p>
+      <div id="filters" class="filter-row" aria-label="Фільтри загроз"></div>
+      <div id="threatList" class="card-list" aria-live="polite"></div>
+    </section>
+
+    <section id="regionView" class="view" aria-labelledby="regionTitle" hidden>
+      <p class="eyebrow">ПЕРСОНАЛІЗАЦІЯ БЕЗ РЕЄСТРАЦІЇ</p><h2 id="regionTitle">Мій регіон</h2>
+      <label for="regionSelect">Оберіть область</label><select id="regionSelect"></select>
+      <button id="locateButton" class="primary-button">Визначити моє місцезнаходження</button>
+      <p class="muted">Геолокація запитується лише після натискання. Точні координати не зберігаються й не надсилаються на наш сервер.</p>
+      <div id="regionStatus" class="region-card"></div>
+    </section>
+
+    <section id="settingsView" class="view" aria-labelledby="settingsTitle" hidden>
+      <p class="eyebrow">ПАРАМЕТРИ</p><h2 id="settingsTitle">Налаштування</h2>
+      <div class="settings-card">
+        <label class="switch-row">Автооновлення <input id="autoRefresh" type="checkbox" checked></label>
+        <label class="switch-row">Компактний режим <input id="compactMode" type="checkbox"></label>
+      </div>
+      <details><summary>Пояснення джерел</summary><p>NEPTUN агрегує офіційні сигнали тривог і відкриті моніторингові повідомлення. Це не державна система оповіщення.</p></details>
+      <details><summary>Про застосунок</summary><p>НЕБО UA — безкоштовна PWA без акаунтів, аналітики та збору персональних даних.</p><p><a href="./PRIVACY.md">Політика конфіденційності</a> · <a href="./docs/DATA_SOURCES.md">Джерела даних</a></p></details>
+    </section>
+  </main>
+  <nav class="bottom-nav" aria-label="Основна навігація">
+    <button class="nav-item active" data-view="mapView" aria-current="page"><span>⌖</span>Карта</button>
+    <button class="nav-item" data-view="threatsView"><span>≋</span>Загрози</button>
+    <button class="nav-item" data-view="regionView"><span>◎</span>Мій регіон</button>
+    <button class="nav-item" data-view="settingsView"><span>⚙</span>Налаштування</button>
+  </nav>
+  <script src="./assets/vendor/leaflet/leaflet.js"></script>
+  <script type="module" src="./assets/js/app.js"></script>
+</body>
+</html>
