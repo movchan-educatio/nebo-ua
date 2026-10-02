@@ -1,0 +1,3 @@
+// Push-ready business events. No subscription or backend is enabled in this build.
+export const NOTIFICATION_CATEGORIES=Object.freeze({OFFICIAL_ALERT_START:'official-alert-start',OFFICIAL_ALERT_END:'official-alert-end',NEW_MONITORING_CATEGORY:'new-monitoring-category',SOURCE_OUTAGE:'source-outage'});
+export function deriveNotificationCandidates(previous,current,region){const out=[];const before=previous?.alerts?.some(a=>a.region===region),after=current?.alerts?.some(a=>a.region===region);if(!before&&after)out.push({type:NOTIFICATION_CATEGORIES.OFFICIAL_ALERT_START,region});if(before&&!after)out.push({type:NOTIFICATION_CATEGORIES.OFFICIAL_ALERT_END,region});return out}

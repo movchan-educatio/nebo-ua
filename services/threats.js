@@ -5,7 +5,7 @@ export async function fetchThreats(signal) {
   const data = await fetchJson(URL, { signal, timeout: 9000 });
   const serverTime = validDate(data.serverTime);
   const threats = Array.isArray(data.threats) ? data.threats : [];
-  return {serverTime, threats: dedupe(threats.map(normalize).filter(Boolean))};
+  return {serverTime, stale:data.stale===true, threats: dedupe(threats.map(normalize).filter(Boolean))};
 }
 function normalize(t){
   if(!t || !t.id || !TYPES.has(t.type) || t.status === 'resolved') return null;

@@ -19,3 +19,4 @@ function New-NeboIcon([int]$Size, [string]$Path) {
 }
 New-NeboIcon 192 (Join-Path $PSScriptRoot '..\assets\icons\icon-192.png')
 New-NeboIcon 512 (Join-Path $PSScriptRoot '..\assets\icons\icon-512.png')
+New-NeboIcon 512 (Join-Path $PSScriptRoot '..\assets\icons\icon-maskable-512.png')

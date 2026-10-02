@@ -1,35 +1,36 @@
 # Джерела даних
 
-Перевірено 2 жовтня 2026 року реальними HTTP-запитами та за актуальною документацією.
+Останній live-аудит: 2–3 жовтня 2026 року. Перевірено документацію, JSON-відповіді, CORS і HTTP cache headers.
 
 ## NEPTUN — використовується
 
-- Дає: агреговані офіційні сигнали тривог (`/api/v1/alerts`) і моніторингові повітряні об’єкти (`/api/v1/threats`). Сам NEPTUN не є офіційною системою оповіщення.
-- Отримання: REST GET; доступний WebSocket `wss://neptun.in.ua/api/v1/stream`. У MVP — REST polling раз на 60 секунд із незалежними запитами та timeout.
-- Доступ: без ключа, CORS `*`, браузерний доступ підтверджено. REST не слід опитувати частіше ніж раз на 5 секунд.
-- Формат: JSON; загрози мають тип, координати (або `areaOnly`), timestamp, status, direction/heading та confidence за наявності.
-- Умови: безкоштовне комерційне й некомерційне використання, обов’язкове видиме посилання на NEPTUN.
-- Fallback: кожен потік помилок ізолюється; UI показує «Не вдалося оновити дані». Старі дані не позначаються LIVE.
-- Межі: `https://neptun.in.ua/oblasts.geojson`, локальна копія для стабільності та офлайн-оболонки.
+- Інформаційний агрегатор, не державна система оповіщення.
+- `GET https://neptun.in.ua/api/v1/alerts`: агреговані активні сигнали по районах/областях, `key`, `since`, `level`, `reasons`.
+- `GET https://neptun.in.ua/api/v1/threats`: active `uav`, `recon`, `missile`, `ballistic`, `kab`, `mig31k`, `unknown`.
+- Можливі поля: id, lat/lon або areaOnly, region/district/locality, heading, timestamp, status, advisory, confidenceLevel, positionQuality, uncertaintyKm, sourceCount.
+- REST і WebSocket; MVP polling 60 с. CORS `*`, ключ не потрібен, CDN max-age 5 с.
+- Обов’язкове видиме посилання. Комерційне й некомерційне використання дозволене умовами API.
+- Failure ізольований; API responses не кешуються service worker-ом.
 
-## MAPA.UA — перевірено, резерв
+## MAPA.UA — використовується
 
-- Дає: моніторингові активні об’єкти через `GET https://mapa.ua/api/v1/current`.
-- Доступ: без автентифікації, JSON, CORS `*` підтверджено.
-- Обмеження: джерело моніторингове, не офіційне оповіщення; у MVP не підмішується до NEPTUN, щоб уникнути дублікатів і суперечливих об’єктів.
-- Fallback: може бути підключене окремим адаптером у майбутньому.
+- Monitoring, не офіційна система оповіщення.
+- `GET https://mapa.ua/api/v1/current`.
+- Object id, kind/subkind, status, lat/lon, heading, speed_kmh, source-provided `to_city`, first_seen/last_seen, `trail`.
+- У live UI залишаються лише `status=active`; завершені записи не показуються active.
+- `predicted_lat`/`predicted_lon` не використовуються. Trail називається історією позицій джерела, не прогнозованою траєкторією.
+- REST polling 60 с; CORS `*`; cache max-age 5 с; ключ не потрібен.
 
-## alerts.in.ua — перевірено, не використовується
+## alerts.in.ua — не використовується
 
-- Агрегує дані з офіційних та інших джерел, але вимагає секретний API token і прямо рекомендує proxy для публічних сервісів.
-- Ліміти: soft 8–10, hard 12 запитів/хв з IP; 429 при перевищенні.
-- Відхилено: GitHub Pages не має backend, а ключ не можна вбудовувати у frontend.
+Потребує секретний token, має soft limit 8–10 і hard limit 12 запитів/хв/IP та вимагає proxy для публічного frontend. GitHub Pages не має backend; вбудовування ключа заборонене.
 
-## Ukraine Alarm API — перевірено, не використовується
+## Ukraine Alarm API — офіційне, не використовується
 
-- Офіційний API має endpoint-и v3 для статусів регіонів, але вимагає Token.
-- Відхилено з тієї ж причини: секрет неможливо безпечно використати у статичному застосунку без proxy.
+Потребує Token, який видається за заявкою. Безпечне використання зі статичного GitHub Pages неможливе без proxy.
 
 ## Карта
 
-OpenStreetMap tiles через Leaflet. Attribution відображається постійно. У production слід дотримуватися tile usage policy; для великого навантаження потрібен окремий сумісний tile provider.
+Leaflet + стандартні raster tiles OpenStreetMap. Dark appearance створюється локальним CSS filter. Attribution постійно видима. CARTO Dark Matter відхилено: актуальні умови не гарантують безкоштовне комерційне використання без enterprise license/grant.
+
+Детальна матриця: [SOURCE_COVERAGE.md](SOURCE_COVERAGE.md).

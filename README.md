@@ -9,10 +9,15 @@
 - шари, фільтри, стрічка, «Мій регіон», необов’язкова геолокація;
 - незалежна обробка помилок, offline shell, контроль свіжості;
 - installable PWA, адаптація для iPhone, Android і desktop.
+- multi-source normalization: NEPTUN + MAPA без змішування з official status;
+- conservative correlation, disagreement/coverage awareness і source health;
+- fullscreen dark map, marker clustering, area-only/uncertainty protection;
+- Radar-візуалізація, «Моє небо», live timeline, session history і OLED Quiet Mode;
+- premium bottom sheet «Чому це показано?» з freshness та source fields.
 
 ## Джерела
 
-Детально: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md). NEPTUN є агрегатором, не офіційною системою оповіщення. OpenStreetMap використовується з attribution.
+Детально: [docs/DATA_SOURCES.md](docs/DATA_SOURCES.md) і [docs/SOURCE_COVERAGE.md](docs/SOURCE_COVERAGE.md). NEPTUN і MAPA є monitoring/aggregation sources; офіційний статус у UI завжди відокремлений. OpenStreetMap використовується з attribution.
 
 ## Локальний запуск
 
@@ -54,4 +59,12 @@ Service worker працює лише на HTTPS або localhost.
 
 ## Майбутній Telegram bot
 
-Модулі `services/` відокремлені від UI; для бота слід винести адаптери у спільний package або backend. Базові попередження завжди мають залишатися безкоштовними.
+Модулі `services/` відокремлені від UI та експортують `getOfficialAlert`, `getRegionStatus`, `getActiveThreats`, `getRecentChanges`, `getSourceHealth`. Для бота слід винести їх у спільний package або backend. `services/notifications.js` містить push-ready категорії без платного backend. Базові попередження завжди мають залишатися безкоштовними.
+
+## Безпека даних
+
+Застосунок не використовує MAPA `predicted_lat/predicted_lon`, не виконує dead reckoning, не прогнозує ціль, ETA чи маршрут. Area-only events не стають точковими marker-ами. Відсутність monitoring event не означає безпеку.
+
+## Screenshots
+
+Контрольні знімки зберігаються в `docs/screenshots/final/`: mobile map, Radar, threat detail, My Sky, Quiet Mode, desktop map/Radar і tablet.
