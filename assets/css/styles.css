@@ -63,6 +63,14 @@
 .satellite-on .leaflet-tile-pane{filter:none}
 .radar-stage .leaflet-tile-pane{filter:grayscale(.9) invert(.92) hue-rotate(180deg) brightness(.68) contrast(1.3) saturate(.5)}
 #radarMap.satellite-on .leaflet-tile-pane{filter:none}
+#scopeCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:5}
+.scope-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+.seg{display:flex;background:#0b131bcc;border:1px solid var(--line);border-radius:999px;padding:3px}
+.seg button{border:0;background:none;color:var(--muted);font-size:11px;font-weight:800;padding:8px 14px;border-radius:999px;cursor:pointer;min-height:36px}
+.seg button.active{background:linear-gradient(180deg,#ffd97a,#e8a91f);color:#231603;box-shadow:0 4px 14px #e8a91f44}
+.scope-readout{margin-left:auto;font-size:11px;color:#9fd8f5;font-variant-numeric:tabular-nums}
+.radar-stage:not(.mode-map) #radarMap,.radar-stage:not(.mode-map) .radar-overlay,.radar-stage:not(.mode-map) .range-labels{display:none}
+.radar-stage.mode-map #scopeCanvas{display:none}
 :root{--gold:#f5c04a;--gold-soft:#f5c04a2e}
 body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(1200px 600px at 50% -10%,#10283a66,transparent 60%),radial-gradient(900px 500px at 85% 110%,#0f312744,transparent 60%)}
 .app-shell{position:relative;z-index:1}
