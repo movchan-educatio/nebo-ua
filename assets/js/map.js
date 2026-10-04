@@ -68,17 +68,19 @@ export function createSituationMap(el,onSelect){
       const list=alerts.filter(x=>x.key===key||x.region===n);
       // Oblast-wide alert: ONLY if there's an alert WITHOUT district (true oblast alert)
       const wide=list.some(x=>!x.district);
-      // Raion-specific alerts: alerts that have a district
-      const raionAlerts=list.filter(x=>x.district);
-      const a=wide?list.find(x=>!x.district):(raionAlerts[0]||list[0]);
-      // Style: only paint whole oblast RED if there's a true oblast-wide alert
-      // For raion-only alerts: subtle border, no fill
-      const color=wide?'#ff7e89':raionAlerts.length?'#efb55b':'#29485c';
-      const weight=wide?1.8:raionAlerts.length?1.4:.8;
-      const fillColor=wide?'#c44150':raionAlerts.length?'#1a3a4a':'#0d2635';
-      const fillOpacity=wide?.34:raionAlerts.length?.08:.12;
-      layer.setStyle({color,weight,fillColor,fillOpacity});
-      layer.on('click',()=>onSelect(a?{...a,raions:raionAlerts.map(x=>x.district).filter(Boolean),partial:!wide}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
+      // Base style: always neutral dark borders, no fill
+      const color='#29485c';
+      const weight=.8;
+      const fillColor='#0d2635';
+      const fillOpacity=.12;
+      // Only override for TRUE oblast-wide alert
+      if(wide){
+        layer.setStyle({color:'#ff7e89',weight:1.8,fillColor:'#c44150',fillOpacity:.34});
+      }else{
+        layer.setStyle({color,weight,fillColor,fillOpacity});
+      }
+      const a=wide?list.find(x=>!x.district):(list[0]||null);
+      layer.on('click',()=>onSelect(a?{...a,raions:list.filter(x=>x.district).map(x=>x.district).filter(Boolean),partial:!wide}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
     });
     if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),{padding:[8,8]})}
   }
@@ -143,7 +145,22 @@ export function createSituationMap(el,onSelect){
 
   function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){for(const poly of r.polys||[])L.polygon(poly,{color:'#ffa3ad',weight:2,fillColor:'#c44150',fillOpacity:.38}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
 
-  function setRaionShapes(items){shapes.clearLayers();for(const r of items||[]){const col=r.status==='alert'?'#ff5568':r.status==='mon'?'#efb55b':'#3d5a74';for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:r.status==='alert'?1.8:1.1,opacity:r.status==='calm'?.45:.85,interactive:false}).addTo(shapes)}}
+  function setRaionShapes(items){
+    shapes.clearLayers();
+    for(const r of items||[]){
+      // Only show alert raions prominently; calm raions get very subtle neutral border
+      if(r.status==='alert'){
+        const col='#ff5568';
+        for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:1.8,opacity:.9,interactive:false}).addTo(shapes);
+      }else if(r.status==='mon'){
+        const col='#efb55b';
+        for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:1.2,opacity:.6,interactive:false}).addTo(shapes);
+      }else{
+        // Calm raions: extremely subtle, only visible at high zoom
+        for(const ring of r.rings||[])L.polyline(ring,{color:'#1a3a4a',weight:.6,opacity:.15,interactive:false}).addTo(shapes);
+      }
+    }
+  }
 
   function setRaionDots(items,onPick){
     dots.clearLayers();
@@ -245,21 +262,20 @@ function eventIcon(e,ac,fs){
     e.advisory?'advisory':'',
     e.confirmed?'confirmed':'',
   ].filter(Boolean).join(' ');
+  // Clean SVG-only marker: no circular background, no label clutter at overview zoom
   return L.divIcon({
     className:'',
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:${opacity}" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
-      <svg><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
-      <div class="pulse"></div>
-      <b class="mk-label">${m.label}</b>
+      <svg class="threat-svg"><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
     </div>`,
-    iconSize:[36,44],iconAnchor:[18,22],
+    iconSize:[32,32],iconAnchor:[16,16],
   });
 }
 
 function blipIcon(e){
   const m=iconFor(e);
   const cls=['radar-blip','cat-'+(e.category||'other'),'kind-'+m.kind,e._distKm!=null&&e._distKm<25?'near':'',e._lvl==='red'?'lvl-red':''].filter(Boolean).join(' ');
-  return L.divIcon({className:'',html:`<div class="${cls}" style="--c:${m.color}"><i></i><svg><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg><b class="mk-label">${m.label}</b></div>`,iconSize:[40,54],iconAnchor:[20,27]});
+  return L.divIcon({className:'',html:`<div class="${cls}" style="--c:${m.color}"><svg class="threat-svg"><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg></div>`,iconSize:[36,36],iconAnchor:[18,18]});
 }
 
 function userIcon(){return L.divIcon({className:'',html:`<div class="user-pos-dot" title="Ваше положення"></div>`,iconSize:[16,16],iconAnchor:[8,8]})}

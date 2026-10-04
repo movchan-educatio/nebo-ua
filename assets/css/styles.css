@@ -52,13 +52,34 @@
 .raion-tip{background:#0b131bee!important;border:1px solid var(--line)!important;color:var(--text)!important;font-size:10px;font-weight:700;border-radius:8px;padding:2px 7px}
 .raion-tip::before{display:none}
 .mk-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--c,#efb55b);background:#0b131bd9;padding:1px 6px;border-radius:6px;white-space:nowrap;line-height:1.5}
-.radar-blip{position:relative;width:26px;height:26px;border-radius:50%;background:#0b131bd9;border:1.5px solid var(--c,#efb55b);color:var(--c,#efb55b);display:grid;place-items:center;box-shadow:0 0 12px var(--c,#efb55b)}
-.threat-marker[data-directed="true"]>svg{transform:rotate(var(--heading,0deg))}
-.radar-blip svg{width:14px;height:14px;fill:currentColor;stroke:currentColor;stroke-width:1.2}
-.radar-blip i{position:absolute;inset:-6px;border:1.5px solid var(--c,#efb55b);border-radius:50%;animation:blip 2.4s ease-out infinite;pointer-events:none}
-.radar-blip.cat-missile,.radar-blip.cat-ballistic{width:30px;height:30px;border-width:2px}
-.radar-blip.near{outline:2px solid #fff;outline-offset:2px}
-@keyframes blip{0%{transform:scale(.6);opacity:.9}70%{opacity:.25}100%{transform:scale(1.9);opacity:0}}
+/* Radar blip: clean SVG */
+.radar-blip {
+  width: 30px; height: 30px;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.radar-blip svg {
+  width: 24px; height: 24px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+}
+.radar-blip i {
+  position: absolute;
+  inset: -6px;
+  border: 1.5px solid var(--c,#efb55b);
+  border-radius: 50%;
+  animation: blip 2.4s ease-out infinite;
+  pointer-events: none;
+}
+.radar-blip.cat-missile, .radar-blip.cat-ballistic { width: 34px; height: 34px; }
+.radar-blip.near { outline: 2px solid #fff; outline-offset: 2px; border-radius: 4px; }
+@keyframes blip { 0% { transform: scale(.6); opacity: .9 } 70% { opacity: .25 } 100% { transform: scale(1.9); opacity: 0 } }
 .radar-overlay b{inset:0;width:auto;height:auto;border-radius:50%;border:0;transform-origin:center;background:conic-gradient(from 0deg,#66c7ff00 0deg,#66c7ff10 290deg,#66c7ff38 350deg,#66c7ff9e 359deg,#66c7ff 360deg);animation:sweep 5s linear infinite}
 .radar-overlay::before,.radar-overlay::after{content:"";position:absolute;background:#66c7ff1f;pointer-events:none}
 .radar-overlay::before{left:0;right:0;top:50%;height:1px}
@@ -255,81 +276,44 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .threat-marker[data-accuracy="area"]{border-style:dashed;opacity:.65}
 .threat-marker[data-accuracy="report"]{border-style:dotted;opacity:.45}
 
-/* ── Per-kind shape differentiation ─────────────────────────────────────────
-   Shahed = Rotated Gold Diamond (45deg)
-   UAV = Amber Rounded Square
-   Recon = Purple Hexagon / Leaf
-   Cruise Missile = Red Capsule
-   Ballistic = Crimson Large Pulsing Shield
-   KAB = Orange Sharp Bomb Square
-   Aviation = Sky Blue Circle */
-.threat-marker.kind-shahed {
-  width: 30px; height: 30px;
-  border-radius: 6px;
-  transform: rotate(45deg);
-  background: #241c08;
-  border: 2px solid #f5c04a;
-  color: #f5c04a;
-  box-shadow: 0 0 12px rgba(245, 192, 74, 0.6);
-}
-.threat-marker.kind-shahed svg {
-  transform: rotate(-45deg);
-  width: 18px; height: 18px;
-}
-.threat-marker.kind-shahed .mk-label {
-  transform: rotate(-45deg) translateX(-50%);
-  left: 50%;
-}
-
-.threat-marker.kind-uav {
-  width: 28px; height: 28px;
-  border-radius: 10px;
-  background: #1c170b;
-  border: 1.5px solid #efb55b;
-  color: #efb55b;
-}
-
-.threat-marker.kind-recon {
-  width: 28px; height: 28px;
-  border-radius: 14px 4px 14px 4px;
-  background: #141226;
-  border: 2px solid #9d91ff;
-  color: #9d91ff;
-}
-
-.threat-marker.kind-missile, .threat-marker.cat-missile {
+/* ── Per-kind SVG silhouettes ────────────────────────────────────────────────
+   Clean SVG-only markers: no background shapes, no fixed rotations.
+   Color comes from --c CSS variable. Rotation via --heading for exact coords. */
+.threat-marker {
   width: 32px; height: 32px;
-  border-radius: 50% 50% 8px 8px;
-  background: #281014;
-  border: 2px solid #ff6f7d;
-  color: #ff6f7d;
-  box-shadow: 0 0 12px rgba(255, 111, 125, 0.4);
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.threat-marker svg.threat-svg {
+  width: 28px; height: 28px;
+  fill: currentColor;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  transition: transform 0.15s ease-out;
+}
+.threat-marker[data-directed="true"] > svg.threat-svg {
+  transform: rotate(var(--heading, 0deg));
+  transform-origin: center center;
 }
 
-.threat-marker.kind-ballistic, .threat-marker.cat-ballistic {
-  width: 36px; height: 36px;
-  border-radius: 50% 50% 4px 4px;
-  background: #33080c;
-  border: 2.5px solid #ff2233;
-  color: #ff8f9a;
-  box-shadow: 0 0 16px rgba(255, 34, 51, 0.7);
-  animation: pulse-red 1.2s infinite;
-}
+/* Color is set via --c variable from JS; no per-kind background/border needed */
+/* Subtle glow for critical types */
+.threat-marker.kind-shahed { filter: drop-shadow(0 0 4px rgba(245, 192, 74, 0.5)); }
+.threat-marker.kind-missile { filter: drop-shadow(0 0 4px rgba(255, 111, 125, 0.5)); }
+.threat-marker.kind-ballistic { filter: drop-shadow(0 0 6px rgba(255, 34, 51, 0.7)); animation: pulse-red 1.2s infinite; }
+.threat-marker.kind-kab { filter: drop-shadow(0 0 4px rgba(242, 144, 93, 0.5)); }
+.threat-marker.kind-aviation { filter: drop-shadow(0 0 4px rgba(125, 185, 255, 0.5)); }
 
-.threat-marker.kind-kab, .threat-marker.cat-kab {
-  width: 30px; height: 30px;
-  border-radius: 4px 12px 4px 12px;
-  background: #24140a;
-  border: 2px solid #f2905d;
-  color: #f2905d;
-}
-
-.threat-marker.kind-aviation, .threat-marker.cat-aviation {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: #0a1826;
-  border: 2px solid #7db9ff;
-  color: #7db9ff;
+/* Near threat outline */
+.threat-marker.near {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 /* ── Cluster summary ─────────────────────────────────────────────────────────
