@@ -1,0 +1,35 @@
+# nebo-ua aggregator (Cloudflare Workers + KV + D1)
+# 1) npm i -g wrangler && wrangler login
+# 2) wrangler kv:namespace create NEBO_STATE        -> paste id() below
+#    wrangler kv:namespace create NEBO_STATE --preview -> paste preview_id() below
+# 3) wrangler d1 create nebo-journal                 -> paste database_id below
+# 4) wrangler d1 execute nebo-journal --file=./schema.sql
+#    (optional) wrangler secret put OFFICIAL_API_TOKEN   # only if you got an official token
+# 5) wrangler deploy
+name = "check-ua-proxy"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[vars]
+# Optional official alerts endpoint (generic JSON, see README). Leave empty to disable.
+OFFICIAL_API_URL = ""
+NEPTUN_ALERTS_URL = "https://neptun.in.ua/api/v1/alerts"
+NEPTUN_THREATS_URL = "https://neptun.in.ua/api/v1/threats"
+MAPA_URL = "https://mapa.ua/api/v1/current"
+# How many consecutive successful cycles an alert may be missing before it is closed.
+ALERT_MISS_LIMIT = "3"
+# Same for monitoring threats (1 miss -> stale, 3 misses -> dropped).
+THREAT_MISS_LIMIT = "3"
+
+[triggers]
+crons = ["*/1 * * * *"]
+
+[[kv_namespaces]]
+binding = "STATE"
+id = "PASTE_KV_ID"
+preview_id = "PASTE_KV_PREVIEW_ID"
+
+[[d1_databases]]
+binding = "JOURNAL"
+database_name = "nebo-journal"
+database_id = "PASTE_D1_ID"
