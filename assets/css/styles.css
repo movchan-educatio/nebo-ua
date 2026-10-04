@@ -9,6 +9,7 @@
 .threat-card.cat-kab .event-icon{color:#f2905d}
 .threat-card.cat-aviation .event-icon{color:var(--blue)}
 .threat-card.cat-uav .event-icon{color:var(--amber)}
+.threat-card.is-stale{opacity:.55}
 .dist-badge{display:inline-block;margin-top:4px;font-size:11px;font-weight:800;color:#9fe8c6}
 .dist-badge.far{color:var(--muted);font-weight:600}
 .dist-badge.closing{color:#ff9ca5}
