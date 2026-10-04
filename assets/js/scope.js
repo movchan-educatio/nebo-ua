@@ -108,10 +108,16 @@ export function createScope(canvas, { onSelect } = {}) {
     const size = Math.min(W, H);
     S.pts = [];
     const reds = [];
+    const edge = [];
+    let nearest = null;
     for (const e of S.events) {
       if (e.lat == null || e.lon == null) continue;
       const p = project(e.lat, e.lon, S.center, S.range, size);
-      if (!p.inside) continue;
+      if (p.distKm < (nearest == null ? Infinity : nearest)) nearest = p.distKm;
+      if (!p.inside) {
+        if (p.distKm <= S.range * 3) edge.push(p);
+        continue;
+      }
       const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
       const m = iconFor(e);
       const boost = sweepBoost(sweep, p.bearing);
@@ -144,6 +150,20 @@ export function createScope(canvas, { onSelect } = {}) {
       ctx.fillText(p.label, p.x + 7, p.y - 6);
     }
     ctx.globalAlpha = 1;
+    const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
+    for (const p of edge) {
+      const a = (p.bearing - 90) * Math.PI / 180;
+      ctx.globalAlpha = 0.55;
+      ctx.strokeStyle = '#66c7ff';
+      ctx.beginPath(); ctx.arc(cx0 + Math.cos(a) * (RR - 12), cy0 + Math.sin(a) * (RR - 12), 3, 0, 7); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    if (!S.pts.length) {
+      ctx.fillStyle = '#9fd8f5'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('Цілей у радіусі ' + S.range + ' км немає', cx0, cy0 - 8);
+      if (nearest != null && Number.isFinite(nearest)) ctx.fillText('Найближча: ' + (nearest < 10 ? nearest.toFixed(1).replace('.', ',') : Math.round(nearest)) + ' км — збільш дальність', cx0, cy0 + 12);
+      ctx.textAlign = 'left';
+    }
     if (S.pin) {
       const p = project(S.pin.lat, S.pin.lon, S.center, S.range, size);
       if (p.inside) {
