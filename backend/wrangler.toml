@@ -26,8 +26,8 @@ THREAT_MISS_LIMIT = "3"
 # Web Push (VAPID). Generate once locally, then:
 #   wrangler secret put VAPID_PRIVATE_KEY
 # VAPID_SUBJECT must be a mailto: or https: URL identifying the operator.
-VAPID_PUBLIC_KEY = ""
-VAPID_SUBJECT = "mailto:CHANGE-ME@example.com"
+VAPID_PUBLIC_KEY = "BONfYH0I6KBsYDJ-D9r2D8ltf0x1ValoAgJMGvOnfpAMidm9jUCbfTL-0pOZ2_wHoli7RBgB1h3WVd5dpeVVAx8"
+VAPID_SUBJECT = "mailto:kykyyzka@gmail.com"
 
 [triggers]
 crons = ["*/1 * * * *"]

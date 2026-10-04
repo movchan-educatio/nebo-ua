@@ -32,30 +32,61 @@ export function urlBase64ToUint8Array(base64) {
   return out;
 }
 
+function apiError(code, message) {
+  const e = new Error(message);
+  e.code = code;
+  return e;
+}
+
 async function api(path, body) {
-  return fetchJson(apiRoot() + path, {
-    timeout: 12000,
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  try {
+    return await fetchJson(apiRoot() + path, {
+      timeout: 12000,
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  } catch (e) {
+    throw apiError('backend', 'Сервер недоступний. Перевірте з’єднання або зачекайте.');
+  }
 }
 
 export async function getVapidKey() {
-  const data = await fetchJson(apiRoot() + '/v1/push/vapid-public-key', { timeout: 8000 });
+  let data;
+  try {
+    data = await fetchJson(apiRoot() + '/v1/push/vapid-public-key', { timeout: 8000 });
+  } catch (e) {
+    throw apiError('backend', 'Push-backend недоступний або не оновлений. Завершіть деплой бекенда.');
+  }
   if (!data || typeof data.publicKey !== 'string' || !data.publicKey) {
-    throw new Error('VAPID-ключ не налаштовано на сервері');
+    throw apiError('vapid', 'VAPID-ключ не налаштовано на сервері.');
   }
   return data.publicKey;
 }
 
+async function swReady(timeoutMs = 10000) {
+  let timer;
+  try {
+    return await Promise.race([
+      navigator.serviceWorker.ready,
+      new Promise((_, rej) => { timer = setTimeout(() => rej(apiError('sw', 'Service Worker не активувався вчасно. Перезавантажте сторінку.')), timeoutMs); }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function ensurePushSubscription() {
-  if (!pushSupported()) throw new Error('Push не підтримується цим браузером');
-  const reg = await navigator.serviceWorker.ready;
+  if (!pushSupported()) throw apiError('unsupported', 'Push не підтримується цим браузером');
+  const reg = await swReady();
   const existing = await reg.pushManager.getSubscription();
   if (existing) return existing;
   const key = await getVapidKey();
-  return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+  try {
+    return await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+  } catch (e) {
+    throw apiError('subscribe', 'Не вдалося створити push-підписку: ' + (e?.name || 'невідома помилка'));
+  }
 }
 
 export function buildSubscribeBody({ subscription, places, categories, quiet }) {
@@ -80,7 +111,9 @@ export async function syncPushToBackend({ places, categories, quiet }) {
 export async function sendPushTest() {
   const sub = await ensurePushSubscription();
   const endpoint = sub.endpoint || sub.toJSON?.().endpoint;
-  return api('/v1/push/test', { endpoint });
+  const res = await api('/v1/push/test', { endpoint });
+  if (!res || res.ok !== true) throw apiError('backend', 'Сервер не зміг доставити тест. Спробуйте пізніше.');
+  return res;
 }
 
 export async function disablePush() {

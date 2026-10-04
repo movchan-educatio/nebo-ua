@@ -139,7 +139,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS' } });
+      return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' } });
     }
     if (url.pathname === '/v1/state') {
       if (!env.NEBO_STATE) return json({ error: 'Storage binding NEBO_STATE is not configured' }, 503, 5);
