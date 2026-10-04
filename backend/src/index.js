@@ -4,6 +4,8 @@ import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
 import { loadPrev, saveState, loadLatest, journalUpsert, journalEnd, recordCheck, sourceMetrics } from './store.js';
+import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid } from './push.js';
+import { validateSubscribe } from './notify.js';
 
 const SOURCES = ['OFFICIAL', 'NEPTUN', 'MAPA'];
 
@@ -106,6 +108,12 @@ async function runPipeline(env) {
     await journalEnd(env.nebo_journal, [...protAlerts.ended, ...protThreats.ended], nowIso);
     await saveState(env.NEBO_STATE, snapshot, { alerts: protAlerts.active, threats: protThreats.active });
   } catch (e) { console.error('persist failed', e); }
+  try {
+    const prevIds = prev
+      ? { alerts: prev.alerts.map(a => a.id), threats: prev.threats.map(e => e.id) }
+      : null;
+    await dispatchPush(env, { snapshot, prevIds, endedAlerts: protAlerts.ended });
+  } catch (e) { console.error('push dispatch failed', e); }
   return snapshot;
 }
 
@@ -146,6 +154,51 @@ export default {
     if (url.pathname === '/v1/refresh' && request.method === 'POST') {
       const snap = await runPipeline(env);
       return json({ ok: true, serverTime: snap.serverTime, alerts: snap.alerts.length, events: snap.events.length });
+    }
+    if (url.pathname === '/v1/push/vapid-public-key') {
+      return json({ publicKey: env.VAPID_PUBLIC_KEY || null });
+    }
+    if (url.pathname === '/v1/push/subscribe' && request.method === 'POST') {
+      let body = null;
+      try { body = await request.json(); } catch { return json({ error: 'Bad JSON' }, 400, 5); }
+      const v = validateSubscribe(body);
+      if (!v.ok) return json({ error: 'Invalid subscription', details: v.errors }, 400, 5);
+      const now = new Date().toISOString();
+      try {
+        await env.nebo_journal.prepare(
+          `INSERT INTO push_subscriptions (endpoint, p256dh, auth, places, categories, quiet, oblast_norm, created_at, last_seen, failures)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+           ON CONFLICT(endpoint) DO UPDATE SET p256dh=excluded.p256dh, auth=excluded.auth, places=excluded.places, categories=excluded.categories, quiet=excluded.quiet, oblast_norm=excluded.oblast_norm, last_seen=excluded.last_seen`
+        ).bind(body.subscription.endpoint, body.subscription.keys.p256dh, body.subscription.keys.auth, JSON.stringify(v.places), JSON.stringify(v.categories), JSON.stringify(v.quiet), v.oblastNorm, now, now).run();
+      } catch (e) { return json({ error: 'Storage unavailable' }, 503, 5); }
+      return json({ ok: true });
+    }
+    if (url.pathname === '/v1/push/unsubscribe' && request.method === 'POST') {
+      let body = null;
+      try { body = await request.json(); } catch { return json({ error: 'Bad JSON' }, 400, 5); }
+      if (typeof body?.endpoint !== 'string') return json({ error: 'Bad endpoint' }, 400, 5);
+      try { await deleteSubscription(env.nebo_journal, body.endpoint); }
+      catch (e) { return json({ error: 'Storage unavailable' }, 503, 5); }
+      return json({ ok: true });
+    }
+    if (url.pathname === '/v1/push/test' && request.method === 'POST') {
+      let body = null;
+      try { body = await request.json(); } catch { return json({ error: 'Bad JSON' }, 400, 5); }
+      if (typeof body?.endpoint !== 'string') return json({ error: 'Bad endpoint' }, 400, 5);
+      try {
+        const row = await env.nebo_journal.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE endpoint=?`).bind(body.endpoint).all();
+        const found = row?.results?.[0];
+        if (!found) return json({ error: 'Unknown subscription' }, 404, 5);
+        configureVapid(env);
+        const res = await sendToSubscription(
+          env,
+          { endpoint: found.endpoint, keys: { p256dh: found.p256dh, auth: found.auth } },
+          { title: 'Небо.UA', body: 'Тестове push-сповіщення. Все працює.', tag: 'nebo-test', url: './#skyView' },
+          { attempts: 1 },
+        );
+        if (res.deleted) await deleteSubscription(env.nebo_journal, found.endpoint).catch(() => {});
+        return json({ ok: res.ok, status: res.statusCode ?? undefined });
+      } catch (e) { return json({ error: String(e?.message || e) }, 502, 5); }
     }
     const legacy = LEGACY[url.pathname];
     if (legacy) {

@@ -30,7 +30,7 @@ function codeEnvNames() {
   return names;
 }
 // Secrets live in the dashboard, not in wrangler.toml.
-const SECRET_ALLOWLIST = new Set(['OFFICIAL_API_TOKEN']);
+const SECRET_ALLOWLIST = new Set(['OFFICIAL_API_TOKEN', 'VAPID_PRIVATE_KEY']);
 
 test('every env.* used in src exists as a binding, var, or known secret', () => {
   const available = new Set([...tomlBindings(), ...tomlVars(), ...SECRET_ALLOWLIST]);

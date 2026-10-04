@@ -11,6 +11,7 @@
 name = "check-ua-proxy"
 main = "src/index.js"
 compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # Optional official alerts endpoint (generic JSON, see README). Leave empty to disable.
@@ -22,6 +23,11 @@ MAPA_URL = "https://mapa.ua/api/v1/current"
 ALERT_MISS_LIMIT = "3"
 # Same for monitoring threats (1 miss -> stale, 3 misses -> dropped).
 THREAT_MISS_LIMIT = "3"
+# Web Push (VAPID). Generate once locally, then:
+#   wrangler secret put VAPID_PRIVATE_KEY
+# VAPID_SUBJECT must be a mailto: or https: URL identifying the operator.
+VAPID_PUBLIC_KEY = ""
+VAPID_SUBJECT = "mailto:CHANGE-ME@example.com"
 
 [triggers]
 crons = ["*/1 * * * *"]

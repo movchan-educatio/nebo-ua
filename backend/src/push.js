@@ -1,0 +1,157 @@
+// Web Push delivery. 'web-push' is imported lazily so unit tests and config
+// checks run without the npm package (it is installed at deploy time).
+import { categoryOf, buildPayload, shouldDeliver, diffStarted } from './notify.js';
+
+let vapidReady = false;
+async function vapidSender(env) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+    throw new Error('VAPID is not configured (VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT)');
+  }
+  const { default: webpush } = await import('web-push');
+  if (!vapidReady) {
+    webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
+    vapidReady = true;
+  }
+  return webpush;
+}
+export function configureVapid(env) {
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+    throw new Error('VAPID is not configured (VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT)');
+  }
+}
+
+export async function endpointHash(endpoint) {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(String(endpoint || '')));
+  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+}
+
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Sends one push with retries. 410/404 -> subscription is dead (delete it).
+// Returns { ok, deleted, attempts, statusCode, error, latencyMs }.
+export async function sendToSubscription(env, subscription, payload, { attempts = 3 } = {}) {
+  const started = Date.now();
+  const delays = [0, 1000, 4000];
+  let lastErr = null, statusCode = null;
+  let webpush;
+  try {
+    webpush = await vapidSender(env);
+  } catch (e) {
+    return { ok: false, deleted: false, attempts: 0, statusCode: null, error: String(e?.message || e), latencyMs: Date.now() - started };
+  }
+  for (let i = 0; i < attempts; i++) {
+    if (delays[i]) await sleep(delays[i]);
+    try {
+      await webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 3600 });
+      return { ok: true, deleted: false, attempts: i + 1, statusCode: 201, error: null, latencyMs: Date.now() - started };
+    } catch (e) {
+      lastErr = e;
+      statusCode = e?.statusCode ?? null;
+      if (statusCode === 404 || statusCode === 410) {
+        return { ok: false, deleted: true, attempts: i + 1, statusCode, error: 'subscription gone', latencyMs: Date.now() - started };
+      }
+    }
+  }
+  return { ok: false, deleted: false, attempts, statusCode, error: String(lastErr?.message || lastErr), latencyMs: Date.now() - started };
+}
+
+export async function loadSubscriptions(db) {
+  // Full scan is deliberate: one subscription may follow several oblasts,
+  // and correctness beats index tricks at this scale. Revisit past ~10k rows.
+  const rows = await db.prepare(
+    `SELECT endpoint, p256dh, auth, places, categories, quiet, created_at FROM push_subscriptions`
+  ).all();
+  return (rows?.results || []).map(r => ({
+    ...r,
+    places: safeJson(r.places, []),
+    categories: safeJson(r.categories, {}),
+    quiet: safeJson(r.quiet, {}),
+  }));
+}
+
+function safeJson(raw, fallback) {
+  try {
+    const v = JSON.parse(raw);
+    return v ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+export async function deleteSubscription(db, endpoint) {
+  await db.prepare(`DELETE FROM push_subscriptions WHERE endpoint=?`).bind(endpoint).run();
+}
+
+export async function logDeliveries(db, rows) {
+  if (!rows.length) return;
+  const stmt = db.prepare(
+    `INSERT INTO push_log (ts, endpoint_hash, event_id, category, status, attempts, error, latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  );
+  await db.batch(rows.map(r => stmt.bind(r.ts, r.endpoint_hash, r.event_id || null, r.category || null, r.status, r.attempts || 1, r.error || null, r.latency_ms ?? null)));
+  await db.prepare(`DELETE FROM push_log WHERE ts < datetime('now', '-30 days')`).run();
+}
+
+// Main dispatch: called once per pipeline with protected lists.
+// Returns {sent, failed, skipped} counts. Never throws.
+export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = new Date() }) {
+  const out = { sent: 0, failed: 0, skipped: 0 };
+  try {
+    configureVapid(env);
+  } catch (e) {
+    console.error('push disabled:', e.message);
+    return { ...out, disabled: true };
+  }
+  try {
+    const startedThreats = diffStarted(prevIds?.threats, snapshot.events.filter(e => !e.stale));
+    const startedAlerts = diffStarted(prevIds?.alerts, snapshot.alerts);
+    const jobs = [];
+    for (const e of startedAlerts) jobs.push({ event: e, kind: 'officialStart', category: 'officialStart' });
+    for (const a of endedAlerts) jobs.push({ event: a, kind: 'officialEnd', category: 'officialEnd' });
+    for (const e of startedThreats) {
+      const category = categoryOf(e);
+      if (category) jobs.push({ event: e, kind: 'threat', category });
+    }
+    if (!jobs.length) return out;
+    const firstSeen = await firstSeenMap(env.nebo_journal, jobs.map(j => j.event.id));
+    const subs = await loadSubscriptions(env.nebo_journal);
+    const logs = [];
+    const ts = now.toISOString();
+    const concurrency = 20;
+    for (let i = 0; i < subs.length; i += concurrency) {
+      const batch = subs.slice(i, i + concurrency);
+      await Promise.all(batch.map(async (sub) => {
+        for (const job of jobs) {
+          const reason = shouldDeliver(sub, job.event, job.category, { now, firstSeen: firstSeen.get(job.event.id) || null });
+          const hash = await endpointHash(sub.endpoint);
+          if (reason) {
+            out.skipped++;
+            logs.push({ ts, endpoint_hash: hash, event_id: job.event.id, category: job.category, status: reason, attempts: 0, error: null, latency_ms: null });
+            continue;
+          }
+          const payload = buildPayload(job.kind, job.event);
+          const res = await sendToSubscription(env, { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload);
+          if (res.ok) out.sent++;
+          else out.failed++;
+          logs.push({ ts, endpoint_hash: hash, event_id: job.event.id, category: job.category, status: res.ok ? 'sent' : res.deleted ? 'gone' : 'failed', attempts: res.attempts, error: res.error, latency_ms: res.latencyMs });
+          if (res.deleted) await deleteSubscription(env.nebo_journal, sub.endpoint).catch(() => {});
+        }
+      }));
+    }
+    await logDeliveries(env.nebo_journal, logs).catch(e => console.error('push log failed', e));
+  } catch (e) {
+    console.error('dispatchPush failed', e);
+  }
+  return out;
+}
+
+async function firstSeenMap(db, ids) {
+  const map = new Map();
+  const list = [...new Set((ids || []).filter(Boolean))].slice(0, 500);
+  if (!list.length) return map;
+  const placeholders = list.map(() => '?').join(',');
+  try {
+    const rows = await db.prepare(`SELECT id, first_seen FROM journal WHERE id IN (${placeholders})`).bind(...list).all();
+    for (const r of rows?.results || []) map.set(r.id, r.first_seen);
+  } catch { /* journal hiccup must not block push */ }
+  return map;
+}

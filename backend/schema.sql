@@ -22,3 +22,33 @@ CREATE TABLE IF NOT EXISTS checks (
   error TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_checks_source_ts ON checks(source, ts);
+
+-- Web Push subscriptions. No accounts: the endpoint IS the identity.
+-- places: JSON [{oblast, raion?, hromada?, settlement?}] (several allowed).
+-- categories: JSON {officialStart, officialEnd, uav, missile, ballistic, kab, aviation}.
+-- quiet: JSON {enabled, start "HH:MM", end "HH:MM"}.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  endpoint TEXT PRIMARY KEY,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  places TEXT NOT NULL DEFAULT '[]',
+  categories TEXT NOT NULL DEFAULT '{}',
+  quiet TEXT NOT NULL DEFAULT '{}',
+  oblast_norm TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  last_seen TEXT,
+  failures INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_push_subs_oblast ON push_subscriptions(oblast_norm);
+
+CREATE TABLE IF NOT EXISTS push_log (
+  ts TEXT NOT NULL,
+  endpoint_hash TEXT NOT NULL,
+  event_id TEXT,
+  category TEXT,
+  status TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 1,
+  error TEXT,
+  latency_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_push_log_ts ON push_log(ts);
