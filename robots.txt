@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://movchan-educatio.github.io/nebo-ua/sitemap.xml
