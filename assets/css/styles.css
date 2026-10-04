@@ -45,6 +45,10 @@
 #radarMap.satellite-on .leaflet-tile-pane{filter:none}
 .radar-pin{width:16px;height:16px;border-radius:50% 50% 50% 4px;background:#66c7ff;border:2px solid #fff;box-shadow:0 0 14px #66c7ff;transform:rotate(-45deg)}
 .radar-search{margin:10px 0 0}
+.radar-stage::after{content:"";position:absolute;inset:0;z-index:800;pointer-events:none;background:repeating-linear-gradient(0deg,#00000030 0 1px,transparent 1px 3px);box-shadow:inset 0 0 120px #000d}
+.threat-cluster{background:linear-gradient(145deg,#10283add,#0a1721f2);box-shadow:0 0 0 1px var(--c),0 0 18px #000c}
+.threat-marker{box-shadow:0 0 0 1px #00000088,0 6px 18px #000b}
+#map .leaflet-overlay-pane path{filter:drop-shadow(0 0 3px #000000aa)}
 .satellite-on .sat-tiles{filter:saturate(.92) brightness(.82)}
 .reduce-motion .radar-blip i{animation:none}
 .reduce-motion .radar-overlay b{animation:none}
