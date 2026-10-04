@@ -37,22 +37,25 @@ export function createSituationMap(el,onSelect){
   const ashapes=L.layerGroup().addTo(map);
   const clusters=L.markerClusterGroup({
     showCoverageOnHover:false,
-    maxClusterRadius:64,
+    maxClusterRadius:80,
+    disableClusteringAtZoom:11,
     spiderfyOnMaxZoom:true,
     iconCreateFunction:clusterIcon,
   });
   map.addLayer(clusters);
   let geo=null,fitted=false;
 
-  // Zoom-dependent label visibility
+  // Zoom-dependent label visibility class on map container
   function applyZoomClass(){
     const z=map.getZoom();
     const c=map.getContainer();
-    c.className=c.className.replace(/\bmap-zoom-\d+\b/g,'');
+    if(!c)return;
+    c.className=c.className.replace(/\bmap-zoom-\d+\b/g,'').trim();
     c.classList.add('map-zoom-'+z);
   }
   map.on('zoomend',applyZoomClass);
-  // defer until container is in DOM
+  map.on('viewreset',applyZoomClass);
+  map.on('load',applyZoomClass);
   setTimeout(applyZoomClass,0);
 
   function setRegions(g,alerts){
@@ -70,6 +73,7 @@ export function createSituationMap(el,onSelect){
   }
 
   function setEvents(events,visible){
+    applyZoomClass();
     clusters.clearLayers();
     areas.clearLayers();
     reported.clearLayers();
@@ -80,14 +84,13 @@ export function createSituationMap(el,onSelect){
       if(!visible.has(e.category))continue;
       const tier=accuracyTier(e);
 
-      // ── Area-only: dashed region outline ─────────────────────────────────
+      // ── Area-only / Imprecise: dashed region outline ONLY ────────────────
       if(tier==='area'||tier==='report'){
         if(e.areaOnly&&geo){
           const f=geo.features.find(x=>regionName(x)===e.region);
           if(f)L.geoJSON(f,{style:{color:META[classifyThreat(e)]?.color||'#efb55b',dashArray:'6 7',weight:1.4,fillOpacity:.06}}).addTo(areas);
         }
-        // For area/report threats with known region but no exact point,
-        // skip adding a fake point marker entirely.
+        // FOR AREA/REPORT THREATS: SKIP ADDING POINT MARKERS ENTIRELY
         continue;
       }
 
@@ -114,8 +117,6 @@ export function createSituationMap(el,onSelect){
       }
 
       // Heading arrow – only when source has reliable position AND direction.
-      // shouldShowHeading() checks COORDINATE precision, !areaOnly, !stale.
-      // Additional inline guard: heading must be finite (Number.isFinite(e.heading)).
       if(Number.isFinite(e.heading)&&shouldShowHeading(e)){
         const rad=(90-Number(e.heading))*(Math.PI/180);
         const km10=Number(e.speed)/6;
@@ -133,7 +134,16 @@ export function createSituationMap(el,onSelect){
 
   function setRaionShapes(items){shapes.clearLayers();for(const r of items||[]){const col=r.status==='alert'?'#ff5568':r.status==='mon'?'#efb55b':'#3d5a74';for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:r.status==='alert'?1.8:1.1,opacity:r.status==='calm'?.45:.85,interactive:false}).addTo(shapes)}}
 
-  function setRaionDots(items,onPick){dots.clearLayers();for(const r of items||[]){if(!Number.isFinite(r.lat)||!Number.isFinite(r.lon))continue;const _m=L.marker([r.lat,r.lon],{icon:raionDotIcon(r.status)}).on('click',()=>onPick&&onPick(r));if(r.status==='alert')_m.bindTooltip(r.name||'Район',{permanent:true,direction:'top',offset:[0,-12],className:'raion-tip'});_m.addTo(dots)}}
+  function setRaionDots(items,onPick){
+    dots.clearLayers();
+    for(const r of items||[]){
+      if(!Number.isFinite(r.lat)||!Number.isFinite(r.lon))continue;
+      const _m=L.marker([r.lat,r.lon],{icon:raionDotIcon(r.status)}).on('click',()=>onPick&&onPick(r));
+      // NON-PERMANENT TOOLTIP: shows on hover/click, does not clutter overview map permanently
+      if(r.status==='alert')_m.bindTooltip(r.name||'Район',{permanent:false,direction:'top',offset:[0,-12],className:'raion-tip'});
+      _m.addTo(dots);
+    }
+  }
 
   function setReports(items,onReport){reports.clearLayers();for(const r of items||[]){if(!Number.isFinite(r.lat)||!Number.isFinite(r.lon))continue;L.marker([r.lat,r.lon],{icon:reportIcon()}).on('click',()=>onReport&&onReport(r)).addTo(reports)}}
 
@@ -183,7 +193,6 @@ export function createRadarMap(el,onSelect){
     L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#66c7ff',fillOpacity:1,weight:2}).addTo(rings);
     events.filter(e=>e.lat!=null&&e.lon!=null&&accuracyTier(e)==='exact').slice(0,300).forEach(e=>{
       L.marker([e.lat,e.lon],{icon:blipIcon(e),category:e.category,threatKind:classifyThreat(e)}).on('click',()=>onSelect(e)).addTo(layer);
-      // Heading vector only when source has reliable position AND direction (Number.isFinite(e.heading))
       if(Number.isFinite(e.heading)&&shouldShowHeading(e)){
         const h=Number(e.heading),s=Number(e.speed);
         const rad=(90-h)*(Math.PI/180),km10=s/6,cosLat=Math.cos(e.lat*Math.PI/180)||1;
@@ -252,18 +261,21 @@ function graticule(){const lines=[];for(let lon=20;lon<=42;lon+=2)lines.push([[4
 // ── Cluster icon with threat-type composition ─────────────────────────────────
 function clusterIcon(cluster){
   const children=cluster.getAllChildMarkers();
-  // Count by threatKind (set on marker options) for composition summary
   const counts={};
   for(const c of children){
     const k=c.options.threatKind||c.options.category||'other';
     counts[k]=(counts[k]||0)+1;
   }
   const n=cluster.getChildCount();
-  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,2);
-  const summary=sorted.map(([k,v])=>`${v} ${META[k]?.label||k}`).join(' · ');
+  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const summaryParts=[];
+  for(const [k,v] of sorted){
+    summaryParts.push(`${v} ${META[k]?.label||k}`);
+  }
+  const summary=summaryParts.slice(0,2).join(' · ');
   const dom=sorted[0]?.[0]||'other';
   const m=META[dom]||META.other;
-  const title=`${n} повідомлень: ${summary}`;
+  const title=`${n} повідомлень: ${summaryParts.join(', ')}`;
   return L.divIcon({
     className:'',
     html:`<div class="threat-cluster" style="--c:${m.color}" title="${title}" aria-label="${title}">
@@ -271,7 +283,7 @@ function clusterIcon(cluster){
       <b>${n}</b>
       <small class="cluster-summary">${summary}</small>
     </div>`,
-    iconSize:[60,50],iconAnchor:[30,25],
+    iconSize:[64,48],iconAnchor:[32,24],
   });
 }
 

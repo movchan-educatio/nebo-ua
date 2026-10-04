@@ -13,22 +13,45 @@ export const TTL_MINUTES = {
 };
 
 /**
+ * Text-based threat kind detector from title, subtype, or sourceType.
+ */
+export function detectKind(parts) {
+  const s = (Array.isArray(parts) ? parts : [parts]).filter(Boolean).join(' ');
+  if (!s) return null;
+  if (/shahed|шахед|герань|geran|камикадзе/i.test(s)) return 'shahed';
+  if (/баліст|баллист|ballistic|кинжал|кинджал|іскандер-м|искандер-м|kn-23|кн-23|s-300|с-300|s-400|с-400/i.test(s)) return 'ballistic';
+  if (/крилат|крылат|cruise|х-101|х-59|х-69|калібр|калибр|іскандер-к|искандер-к/i.test(s)) return 'missile';
+  if (/каб|фаб|авіабомб|авиабомб|bomb|умпк/i.test(s)) return 'kab';
+  if (/розвід|развед|recon|орлан|supercam|zala|зала|форпост/i.test(s)) return 'recon';
+  if (/авіаці|авиаци|міг|миг|mig|су-34|су-35|су-57|ту-22|ту-95|ту-160/i.test(s)) return 'aviation';
+  return null;
+}
+
+/**
  * Accuracy tier of a threat event.
- * 'exact'  → source has real GPS coordinates (COORDINATE precision, !areaOnly, lat/lon valid).
- * 'area'   → source reports a settlement / raion / oblast area.
+ * 'exact'  → source has real GPS coordinates (COORDINATE precision, !areaOnly, high position quality).
+ * 'area'   → source reports a settlement / raion / oblast area or low position quality.
  * 'report' → unknown location or direction-only report.
  */
 export function accuracyTier(event) {
   if (!event) return 'report';
-  const { locationPrecision, areaOnly, lat, lon } = event;
+  const { locationPrecision, areaOnly, lat, lon, positionQuality, uncertaintyKm } = event;
+  
+  if (areaOnly) return 'area';
+  
+  const lowQuality = positionQuality === 'area' || positionQuality === 'raion' ||
+    positionQuality === 'district' || positionQuality === 'region';
+  if (lowQuality) return 'area';
+
+  if (uncertaintyKm != null && Number(uncertaintyKm) >= 20) return 'area';
+
   const hasCoord = lat != null && lon != null &&
     Number.isFinite(Number(lat)) && Number.isFinite(Number(lon));
-  if (locationPrecision === 'COORDINATE' && !areaOnly && hasCoord) return 'exact';
+  
+  if (locationPrecision === 'COORDINATE' && hasCoord) return 'exact';
   if (locationPrecision === 'SETTLEMENT' ||
       locationPrecision === 'RAION' ||
       locationPrecision === 'OBLAST') return 'area';
-  // areaOnly with any precision → area
-  if (areaOnly) return 'area';
   return 'report';
 }
 
@@ -39,8 +62,22 @@ export function accuracyTier(event) {
 export function classifyThreat(event) {
   if (!event) return 'other';
   if (event.kind === 'shahed') return 'shahed';
+  if (event.kind && event.kind !== 'other' && event.kind !== 'unknown') {
+    const MAP_KIND = {
+      shahed: 'shahed', uav: 'uav', recon: 'recon',
+      missile: 'missile', ballistic: 'ballistic', kab: 'kab',
+      aviation: 'aviation', other: 'other',
+    };
+    if (MAP_KIND[event.kind]) return MAP_KIND[event.kind];
+  }
+
+  // Parse text fields (subtype, title, sourceType, rawExplanation, category)
+  const detected = detectKind([
+    event.kind, event.subtype, event.sourceType, event.title, event.rawExplanation,
+  ]);
+  if (detected) return detected;
+
   const cat = event.category || 'other';
-  // Map category values to display kinds (missile stays 'missile', not 'missile_cruise')
   const MAP = {
     uav:       'uav',
     recon:     'recon',
