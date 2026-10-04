@@ -172,3 +172,33 @@ test('Production fixture: uncertainty >= 20km forces area tier', () => {
   const norm = normalizeNeptunThreat(raw);
   assert.equal(accuracyTier(norm), 'area');
 });
+
+// ── Uman / Raion Alert vs Oblast Alert Tests ──────────────────────────────────
+
+test('Alert hierarchy: Raion alert (Uman) does NOT set wide/oblast-wide flag', () => {
+  const alerts = [
+    { key: 'cherkasy_uman', region: 'Черкаська область', district: 'Уманський район', official: true }
+  ];
+  const list = alerts.filter(x => x.region === 'Черкаська область');
+  const wide = list.some(x => !x.district);
+  assert.equal(wide, false, 'Uman raion alert must not be considered an oblast-wide alert');
+});
+
+test('Alert hierarchy: Oblast-wide alert (no district) sets wide flag', () => {
+  const alerts = [
+    { key: 'cherkasy_all', region: 'Черкаська область', district: null, official: true }
+  ];
+  const list = alerts.filter(x => x.region === 'Черкаська область');
+  const wide = list.some(x => !x.district);
+  assert.equal(wide, true, 'Oblast alert with no district must set wide=true');
+});
+
+test('Heading behavior: Heading present and valid -> shouldShowHeading is true', () => {
+  const e = { locationPrecision: 'COORDINATE', areaOnly: false, stale: false, heading: 180, speed: 200 };
+  assert.equal(shouldShowHeading(e), true);
+});
+
+test('Heading behavior: Heading missing/null -> shouldShowHeading is false', () => {
+  const e = { locationPrecision: 'COORDINATE', areaOnly: false, stale: false, heading: null, speed: 200 };
+  assert.equal(shouldShowHeading(e), false);
+});

@@ -66,7 +66,15 @@ export function createSituationMap(el,onSelect){
       const n=regionName(layer.feature),key=layer.feature.properties?.key;
       const list=alerts.filter(x=>x.key===key||x.region===n);
       const wide=list.some(x=>!x.district),a=list[0];
-      layer.setStyle({color:wide?'#ff7e89':list.length?'#efb55b':'#29485c',weight:list.length?1.6:.8,fillColor:wide?'#c44150':'#0d2635',fillOpacity:wide?.34:.12});
+      // Only apply alert styling to oblast polygon if there is an OBLAST-WIDE alert (wide === true).
+      // Raion-level alerts (wide === false) ONLY color the raion polygon via setAlertShapes/raionFillItems.
+      const hasOblastAlert=wide;
+      layer.setStyle({
+        color:hasOblastAlert?'#ff7e89':'#29485c',
+        weight:hasOblastAlert?1.6:.8,
+        fillColor:hasOblastAlert?'#c44150':'#0d2635',
+        fillOpacity:hasOblastAlert?.34:.12
+      });
       layer.on('click',()=>onSelect(a?{...a,raions:list.map(x=>x.district).filter(Boolean),partial:!wide}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
     });
     if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),{padding:[8,8]})}
@@ -234,10 +242,11 @@ function eventIcon(e,ac,fs){
     e.advisory?'advisory':'',
     e.confirmed?'confirmed':'',
   ].filter(Boolean).join(' ');
+  const svgStyle=heading!==null?`transform:rotate(${heading}deg)`:'';
   return L.divIcon({
     className:'',
-    html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:${opacity}" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
-      <svg><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
+    html:`<div class="${cls}" style="--c:${m.color};opacity:${opacity}" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
+      <svg style="${svgStyle}"><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
       <div class="pulse"></div>
       <b class="mk-label">${m.label}</b>
     </div>`,
