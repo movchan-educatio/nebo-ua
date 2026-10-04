@@ -7,7 +7,8 @@
     "test": "node --test test/*.test.js",
     "deploy": "wrangler deploy"
   },
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "web-push": "^3.6.7"
   }
 }
