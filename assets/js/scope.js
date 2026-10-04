@@ -50,10 +50,7 @@ export function createScope(canvas, { onSelect } = {}) {
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
     sctx.save();
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.clip();
-    const alertSet = S.alertRegions || [];
     for (const feat of (S.geo && S.geo.features) || []) {
-      const nm = regionName(feat);
-      const isAlert = alertSet.indexOf(nm) >= 0;
       const polys = feat.geometry && feat.geometry.type === 'Polygon' ? [feat.geometry.coordinates] : (feat.geometry && feat.geometry.coordinates) || [];
       for (const poly of polys) {
         for (const ring of poly) {
@@ -64,11 +61,26 @@ export function createScope(canvas, { onSelect } = {}) {
             if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
           });
           sctx.closePath();
-          if (isAlert) { sctx.fillStyle = 'rgba(255,60,80,0.10)'; sctx.fill(); }
-          sctx.strokeStyle = isAlert ? 'rgba(255,120,135,0.5)' : 'rgba(120,170,210,0.28)';
-          sctx.lineWidth = isAlert ? 1.2 : 0.8;
+          sctx.strokeStyle = 'rgba(120,170,210,0.28)';
+          sctx.lineWidth = 0.8;
           sctx.stroke();
         }
+      }
+    }
+    for (const rf of S.raionFills || []) {
+      for (const poly of rf.polys || []) {
+        sctx.beginPath();
+        poly.forEach((pt, idx) => {
+          const p = project(pt[1], pt[0], S.center, S.range, Math.min(W, H));
+          const ox = (W - Math.min(W, H)) / 2 + p.x, oy = (H - Math.min(W, H)) / 2 + p.y;
+          if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
+        });
+        sctx.closePath();
+        sctx.fillStyle = 'rgba(255,60,80,0.16)';
+        sctx.fill();
+        sctx.strokeStyle = 'rgba(255,140,155,0.85)';
+        sctx.lineWidth = 1.1;
+        sctx.stroke();
       }
     }
     sctx.restore();
@@ -240,6 +252,7 @@ export function createScope(canvas, { onSelect } = {}) {
       S.geo = opts.geo || null;
       S.alertRegions = opts.alertRegions || [];
       S.geoSig = opts.geoSig || '';
+      S.raionFills = opts.raionFills || [];
     },
     pick(x, y) {
       let best = null, bd = 22;
