@@ -48,7 +48,7 @@ export function createScope(canvas, { onSelect } = {}) {
     bg.addColorStop(0, '#0b1a28'); bg.addColorStop(1, '#03070c');
     sctx.fillStyle = bg;
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
-    sctx.save();
+    try{sctx.save();
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.clip();
     for (const feat of (S.geo && S.geo.features) || []) {
       const polys = feat.geometry && feat.geometry.type === 'Polygon' ? [feat.geometry.coordinates] : (feat.geometry && feat.geometry.coordinates) || [];
@@ -83,7 +83,7 @@ export function createScope(canvas, { onSelect } = {}) {
         sctx.stroke();
       }
     }
-    sctx.restore();
+    sctx.restore();}catch(_g){}
     sctx.strokeStyle = '#66c7ff';
     [0.25, 0.5, 0.75, 1].forEach((f, i) => {
       sctx.globalAlpha = i === 3 ? 0.7 : 0.35; sctx.lineWidth = i === 3 ? 1.6 : 1;
