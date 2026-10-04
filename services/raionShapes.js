@@ -9,6 +9,36 @@ const ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
 ];
+export function assembleRings(members) {
+  const ways = (members || [])
+    .filter(m => m && m.role !== 'inner' && Array.isArray(m.geometry))
+    .map(m => m.geometry.map(p => [p.lat, p.lon]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1])))
+    .filter(w => w.length > 1);
+  const key = p => p[0].toFixed(7) + ',' + p[1].toFixed(7);
+  const rings = [];
+  const used = new Array(ways.length).fill(false);
+  for (let i = 0; i < ways.length; i++) {
+    if (used[i]) continue;
+    used[i] = true;
+    let ring = [...ways[i]];
+    let extended = true;
+    while (extended) {
+      extended = false;
+      const sKey = key(ring[0]), eKey = key(ring[ring.length - 1]);
+      if (sKey === eKey) break;
+      for (let j = 0; j < ways.length; j++) {
+        if (used[j]) continue;
+        const w = ways[j];
+        if (key(w[0]) === eKey) { ring = ring.concat(w.slice(1)); used[j] = true; extended = true; break; }
+        if (key(w[w.length - 1]) === eKey) { ring = ring.concat(w.slice(0, -1).reverse()); used[j] = true; extended = true; break; }
+        if (key(w[w.length - 1]) === sKey) { ring = w.slice(0, -1).concat(ring); used[j] = true; extended = true; break; }
+        if (key(w[0]) === sKey) { ring = w.slice(1).reverse().concat(ring); used[j] = true; extended = true; break; }
+      }
+    }
+    if (ring.length > 3 && key(ring[0]) === key(ring[ring.length - 1])) rings.push(ring);
+  }
+  return rings;
+}
 export function overpassToRings(data) {
   const out = [];
   for (const el of data?.elements || []) {
@@ -20,7 +50,7 @@ export function overpassToRings(data) {
       const pts = (m.geometry || []).map(p => [p.lat, p.lon]).filter(p => Number.isFinite(p[0]) && Number.isFinite(p[1]));
       if (pts.length > 1) rings.push(pts);
     }
-    if (name && rings.length) out.push({ name, rings });
+    if (name && rings.length) out.push({ name, rings, polys: assembleRings(el.members) });
   }
   return out;
 }
