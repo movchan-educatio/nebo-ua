@@ -1,0 +1,4 @@
+import test from'node:test';import assert from'node:assert/strict';import{selectGuardTargets}from'../services/guard.js';import{speak,voiceSupported}from'../services/voice.js';
+test('guard selects only targets inside radius, ETA first',()=>{const events=[{id:'far',_distKm:80,_closing:false,_etaMin:null},{id:'near',_distKm:12,_closing:false,_etaMin:null},{id:'hot',_distKm:20,_closing:true,_etaMin:6},{id:'nocoords',_distKm:null}];const r=selectGuardTargets(events,30);assert.deepEqual(r.map(x=>x.e.id),['hot','near'])});
+test('guard needs positive radius and user position context',()=>{assert.deepEqual(selectGuardTargets([{id:'a',_distKm:5}],0),[]);assert.deepEqual(selectGuardTargets([{id:'a',_distKm:5}],-3),[])});
+test('voice never throws without browser speech',()=>{assert.equal(typeof voiceSupported(),'boolean');assert.equal(speak('тест'),false)});
