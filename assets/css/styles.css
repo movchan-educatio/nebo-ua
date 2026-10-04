@@ -26,6 +26,13 @@
 .raion-row i{width:10px;height:10px;border-radius:50%;flex:none}
 .dot-alert{background:var(--red);box-shadow:0 0 8px var(--red)}
 .dot-mon{background:var(--amber)}.dot-calm{background:var(--green)}
+.oblast-details{border:1px solid var(--line);border-radius:13px;background:var(--solid);margin-bottom:6px}
+.oblast-details summary{display:flex;align-items:center;gap:10px;min-height:52px;padding:8px 12px;cursor:pointer;list-style:none}
+.oblast-details summary::-webkit-details-marker{display:none}
+.oblast-details summary i{width:10px;height:10px;border-radius:50%;flex:none}
+.oblast-details summary b{font-size:13px}
+.oblast-details summary small{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
+.oblast-raions{display:grid;gap:6px;padding:0 8px 8px}
 .lvl-badge{display:inline-block;margin-top:4px;font-size:10px;font-weight:900;letter-spacing:.08em;padding:2px 8px;border-radius:999px}
 .lvl-red{background:#ff22331f;color:#ff8f9a;border:1px solid #ff223388}
 .lvl-yellow{background:#efb55b1a;color:#f3d6a6;border:1px solid #efb55b66}

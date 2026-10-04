@@ -1,4 +1,4 @@
-import test from'node:test';import assert from'node:assert/strict';import{normRaion,normOblast,matchRaion,raionDirectory,oblastRaions}from'../services/districts.js';
+import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import{normRaion,normOblast,matchRaion,raionDirectory,oblastRaions}from'../services/districts.js';
 const CHERKASY = raionDirectory('Черкаська область');
 test('raion directory covers Cherkasy with Uman',()=>{assert.ok(CHERKASY.includes('Уманський'));assert.equal(CHERKASY.length,4)});
 test('normRaion strips suffixes and case',()=>{assert.equal(normRaion('Уманський район'),'уманський');assert.equal(normRaion('Р-Н Звенигородський'),'звенигородський')});
@@ -25,3 +25,11 @@ test('no directory falls back to stream rows',()=>{
   const snap={alerts:[{region:'Севастополь',district:'Центр',subtype:'Тривога'}],events:[]};
   const view=oblastRaions(snap,'Севастополь');
   assert.equal(view.hasDirectory,false);assert.equal(view.rows.length,1)});
+test('every geo oblast except special cities has a raion directory',()=>{
+  const g=JSON.parse(fs.readFileSync(new URL('../data/ukraine-regions.geojson',import.meta.url),'utf8'));
+  const skip=new Set(['м. київ','Севастополь','Автономна Республіка Крим']);
+  for(const f of g.features){
+    const name=f.properties.region||f.properties.key;
+    if(skip.has(name))continue;
+    assert.ok(raionDirectory(name),name);
+  }});
