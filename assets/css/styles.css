@@ -206,3 +206,48 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;bac
 #skySources .source-row small{margin-left:auto;color:var(--muted);text-align:right}
 .source-state.online{color:var(--green)}
 .source-state.offline{color:#ff9ca5}
+
+/* ── Zoom-dependent marker labels ────────────────────────────────────────────
+   Hide .mk-label at country-level zoom; show at district-level zoom.
+   map.js sets class map-zoom-N on the Leaflet container. */
+.map-zoom-5 .mk-label,.map-zoom-6 .mk-label{display:none}
+.map-zoom-7 .mk-label,.map-zoom-8 .mk-label{display:block;font-size:8px;max-width:54px;overflow:hidden;text-overflow:ellipsis}
+.map-zoom-9 .mk-label,.map-zoom-10 .mk-label,.map-zoom-11 .mk-label,.map-zoom-12 .mk-label{display:block;font-size:10px}
+/* ── Freshness / age fade ─────────────────────────────────────────────────── */
+.threat-marker.age-fresh{opacity:1}
+.threat-marker.age-recent{opacity:.88}
+.threat-marker.age-aging{opacity:.70}
+.threat-marker.age-old{opacity:.50;filter:grayscale(.4)}
+.threat-marker.age-fresh .pulse{animation:pulse-red 2s infinite}
+.threat-marker:not(.age-fresh) .pulse{animation:none;opacity:0}
+/* ── Accuracy-tier visual cues ──────────────────────────────────────────────
+   Exact (COORDINATE) → solid. Area → dashed. Report → dotted+dim. */
+.threat-marker[data-accuracy="area"]{border-style:dashed;opacity:.65}
+.threat-marker[data-accuracy="report"]{border-style:dotted;opacity:.45}
+/* ── Per-kind shape differentiation ─────────────────────────────────────────
+   Shahed=rotated square, missile=capsule, ballistic=larger pulsing,
+   kab=square, aviation=circle, recon=diamond(tbd).*/
+.threat-marker.kind-shahed{border-radius:6px;transform:rotate(45deg)}
+.threat-marker.kind-shahed svg{transform:rotate(-45deg)}
+.threat-marker.kind-shahed .mk-label{transform:rotate(-45deg) translateX(-50%);left:50%}
+.threat-marker.kind-missile,.threat-marker.cat-missile{border-radius:50% 50% 8px 8px;width:34px;height:34px;border-width:2px}
+.threat-marker.kind-ballistic,.threat-marker.cat-ballistic{width:36px;height:36px;border-width:2.5px;animation:pulse-red 1.2s infinite}
+.threat-marker.kind-kab,.threat-marker.cat-kab{border-radius:6px}
+.threat-marker.kind-aviation,.threat-marker.cat-aviation{border-radius:50%}
+.threat-marker.kind-recon{border-radius:4px}
+/* ── Cluster summary ─────────────────────────────────────────────────────────
+   Shows "7 БПЛА · 2 РАКЕТА" below the count number. */
+.cluster-summary{display:block;font-size:8.5px;line-height:1.15;max-width:90px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;opacity:.78;color:var(--text);margin-top:1px}
+.threat-cluster{flex-direction:column;gap:2px;padding:5px 10px;min-width:52px;height:auto;min-height:44px}
+.threat-cluster>b{line-height:1}
+/* ── Compact map controls on mobile ──────────────────────────────────────────
+   Icon-only on narrow screens. */
+@media(max-width:719px){
+  .map-button span{display:none}
+  .map-button{width:40px;min-height:40px;padding:0;justify-content:center}
+  .map-button.home-button{top:calc(216px + env(safe-area-inset-top))}
+  .map-button.gps-button{top:calc(264px + env(safe-area-inset-top))}
+}
+/* ── Source disabled state ───────────────────────────────────────────────────
+   "Не налаштовано" — muted, italic, not scary red. */
+.source-state.disabled{color:var(--muted);font-style:italic}
