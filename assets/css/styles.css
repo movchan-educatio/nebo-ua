@@ -53,6 +53,43 @@
 .satellite-on .leaflet-tile-pane{filter:none}
 .radar-stage .leaflet-tile-pane{filter:grayscale(.9) invert(.92) hue-rotate(180deg) brightness(.68) contrast(1.3) saturate(.5)}
 #radarMap.satellite-on .leaflet-tile-pane{filter:none}
+:root{--gold:#f5c04a;--gold-soft:#f5c04a2e}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(1200px 600px at 50% -10%,#10283a66,transparent 60%),radial-gradient(900px 500px at 85% 110%,#0f312744,transparent 60%)}
+.app-shell{position:relative;z-index:1}
+.glass{background:linear-gradient(160deg,#101f2cf2,#070f16e6);border:1px solid #ffffff1f;box-shadow:0 16px 44px #000a,inset 0 1px 0 #ffffff14}
+.kicker{color:var(--gold)}
+.primary{background:linear-gradient(180deg,#ffd97a,#e8a91f);color:#231603;border:0;border-radius:13px;min-height:48px;font-weight:800;padding:0 18px;cursor:pointer;box-shadow:0 8px 24px #e8a91f44,inset 0 1px 0 #ffffff88;position:relative;overflow:hidden}
+.primary::after{content:"";position:absolute;top:0;bottom:0;left:-60%;width:40%;background:linear-gradient(100deg,transparent,#ffffff88,transparent);transform:skewX(-20deg);animation:shine 3.5s ease-in-out infinite}
+.primary:active{transform:scale(.98)}
+.round-button{transition:border-color .2s,box-shadow .2s,transform .15s}
+.round-button:hover{border-color:#66c7ff88;box-shadow:0 0 16px #66c7ff33}
+.round-button:active{transform:scale(.94)}
+.nav-item{position:relative;transition:color .2s}
+.nav-item.active{color:var(--gold)}
+.nav-item.active::before{content:"";position:absolute;top:5px;left:50%;transform:translateX(-50%);width:26px;height:3px;border-radius:3px;background:linear-gradient(90deg,#ffd97a,#e8a91f);box-shadow:0 0 10px #e8a91f88}
+.live-pill.live{box-shadow:0 0 12px #57d5a055}
+.section-top h2{background:linear-gradient(180deg,#ffffff,#9fc9e8);-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:.01em}
+.view{animation:viewIn .32s ease}
+.filter-row button{transition:border-color .2s,box-shadow .2s}
+.filter-row button.active{border-color:#f5c04a88;background:#241d0e;box-shadow:0 0 14px #f5c04a22}
+.threat-card{background:linear-gradient(165deg,#101d29,#0b131b);transition:transform .18s ease,border-color .18s,box-shadow .18s}
+.threat-card:hover{transform:translateY(-2px);border-color:#66c7ff66;box-shadow:0 14px 30px #000c}
+.metric{background:linear-gradient(165deg,#101d29,#0a1219);position:relative;overflow:hidden}
+.metric b{text-shadow:0 0 22px #66c7ff44}
+.metric::after{content:"";position:absolute;left:0;right:0;top:0;height:2px;background:linear-gradient(90deg,transparent,#66c7ff88,transparent)}
+.map-hud .hud-label,.status-label{color:var(--gold)}
+#layerPanel label:hover{color:#fff}
+.place-search input:focus,.raion-select:focus{outline:none;border-color:#66c7ffaa;box-shadow:0 0 0 3px #66c7ff22}
+.radar-stage{box-shadow:0 0 0 1px #66c7ff2e,0 0 70px #66c7ff0f}
+.range-labels span{font-variant-numeric:tabular-nums;color:#9fd8f5;border:1px solid #66c7ff2e}
+.skeleton{position:relative;overflow:hidden}
+.skeleton::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 30%,#ffffff14 50%,transparent 70%);animation:shimmer 1.6s linear infinite}
+.detail-grid .detail-field{background:#0e1a23;border:1px solid #ffffff10;border-radius:11px;padding:9px 11px}
+@keyframes viewIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes shine{0%,60%{left:-60%}100%{left:130%}}
+@keyframes shimmer{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.reduce-motion .view{animation:none}
+.reduce-motion .primary::after,.reduce-motion .skeleton::after{animation:none}
 .radar-pin{width:16px;height:16px;border-radius:50% 50% 50% 4px;background:#66c7ff;border:2px solid #fff;box-shadow:0 0 14px #66c7ff;transform:rotate(-45deg)}
 .radar-search{margin:10px 0 0}
 .radar-stage::after{content:"";position:absolute;inset:0;z-index:800;pointer-events:none;background:repeating-linear-gradient(0deg,#00000030 0 1px,transparent 1px 3px);box-shadow:inset 0 0 120px #000d}
