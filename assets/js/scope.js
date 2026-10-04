@@ -29,15 +29,20 @@ export function createScope(canvas, { onSelect } = {}) {
   const S = { events: [], center: [49, 31], range: 200, guardKm: null, pin: null, pts: [] };
   let sweep = 0, last = 0, raf = 0, active = false, W = 0, H = 0, staticKey = '';
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let pw = 0, ph = 0;
   function resize() {
     const r = canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const w = Math.max(50, Math.round(r.width)), h = Math.max(50, Math.round(r.height));
-    if (canvas.width === w * dpr && canvas.height === h * dpr) return false;
-    canvas.width = w * dpr; canvas.height = h * dpr;
-    for (const c of [staticC, echoC]) { c.width = w * dpr; c.height = h * dpr; }
-    W = w; H = h;
-    return true;
+    if (canvas.width === w * dpr && canvas.height === h * dpr) { pw = 0; ph = 0; W = w; H = h; return false; }
+    if (w === pw && h === ph) {
+      canvas.width = w * dpr; canvas.height = h * dpr;
+      for (const c of [staticC, echoC]) { c.width = w * dpr; c.height = h * dpr; }
+      W = w; H = h; pw = 0; ph = 0; staticKey = '';
+      return true;
+    }
+    pw = w; ph = h;
+    return false;
   }
   function rebuildStatic() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
