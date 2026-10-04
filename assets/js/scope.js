@@ -45,7 +45,7 @@ export function createScope(canvas, { onSelect } = {}) {
     const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 6;
     sctx.clearRect(0, 0, W, H);
     const bg = sctx.createRadialGradient(cx, cy, 10, cx, cy, R);
-    bg.addColorStop(0, '#06121b'); bg.addColorStop(1, '#020609');
+    bg.addColorStop(0, '#0b1a28'); bg.addColorStop(1, '#03070c');
     sctx.fillStyle = bg;
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
     sctx.save();
@@ -86,22 +86,22 @@ export function createScope(canvas, { onSelect } = {}) {
     sctx.restore();
     sctx.strokeStyle = '#66c7ff';
     [0.25, 0.5, 0.75, 1].forEach((f, i) => {
-      sctx.globalAlpha = i === 3 ? 0.5 : 0.22; sctx.lineWidth = i === 3 ? 1.6 : 1;
+      sctx.globalAlpha = i === 3 ? 0.7 : 0.35; sctx.lineWidth = i === 3 ? 1.6 : 1;
       sctx.beginPath(); sctx.arc(cx, cy, R * f, 0, 7); sctx.stroke();
-      sctx.globalAlpha = 0.75; sctx.fillStyle = '#9fd8f5'; sctx.font = '10px system-ui';
+      sctx.globalAlpha = 0.95; sctx.fillStyle = '#bfe3fa'; sctx.font = '10px system-ui';
       sctx.fillText(Math.round(S.range * f) + '', cx + 4, cy - R * f - 3);
     });
     sctx.globalAlpha = 0.9;
     for (let a = 0; a < 360; a += 10) {
       const major = a % 30 === 0;
       const r0 = R - (a % 90 === 0 ? 9 : major ? 6 : 3), rad = (a - 90) * Math.PI / 180;
-      sctx.globalAlpha = 0.5; sctx.lineWidth = 1;
+      sctx.globalAlpha = 0.7; sctx.lineWidth = 1;
       sctx.beginPath();
       sctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
       sctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R);
       sctx.stroke();
     }
-    sctx.globalAlpha = 0.14;
+    sctx.globalAlpha = 0.25;
     sctx.beginPath(); sctx.moveTo(cx - R, cy); sctx.lineTo(cx + R, cy);
     sctx.moveTo(cx, cy - R); sctx.lineTo(cx, cy + R); sctx.stroke();
     sctx.globalAlpha = 0.85; sctx.fillStyle = '#9fc9e8'; sctx.font = 'bold 11px system-ui';
@@ -210,11 +210,19 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.globalAlpha = 1;
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
+    let edgeNear = null;
     for (const p of edge) {
+      if (!edgeNear || p.distKm < edgeNear.distKm) edgeNear = p;
       const a = (p.bearing - 90) * Math.PI / 180;
-      ctx.globalAlpha = 0.55;
+      ctx.globalAlpha = 0.8;
       ctx.strokeStyle = '#66c7ff';
-      ctx.beginPath(); ctx.arc(cx0 + Math.cos(a) * (RR - 12), cy0 + Math.sin(a) * (RR - 12), 3, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx0 + Math.cos(a) * (RR - 12), cy0 + Math.sin(a) * (RR - 12), 4.5, 0, 7); ctx.stroke();
+    }
+    if (edgeNear) {
+      const a = (edgeNear.bearing - 90) * Math.PI / 180;
+      ctx.globalAlpha = 1; ctx.fillStyle = '#9fd8f5'; ctx.font = '10px system-ui';
+      const t = (edgeNear.distKm < 10 ? edgeNear.distKm.toFixed(1).replace('.', ',') : Math.round(edgeNear.distKm)) + ' км';
+      ctx.fillText(t, cx0 + Math.cos(a) * (RR - 34) - 10, cy0 + Math.sin(a) * (RR - 34));
     }
     ctx.globalAlpha = 1;
     if (!S.pts.length) {
