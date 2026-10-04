@@ -10,5 +10,9 @@ export function normalizeMapa(raw,receivedAt=new Date()){
   return {id:`mapa:${raw.id}`,source:'MAPA',sourceEventId:String(raw.id),sourceType:raw.kind??null,official:false,category:TYPE_MAP[raw.kind]||'other',subtype:raw.title||raw.subkind||null,lat,lon,region:null,district:null,settlement:null,locationPrecision:'COORDINATE',heading:num(raw.heading),direction:null,speed:num(raw.speed_kmh),destination:raw.to_city||null,timestamp:ts,receivedAt,confidence:null,positionQuality:'source-position',uncertaintyKm:null,sourceCount:null,areaOnly:false,advisory:false,status:'active',stale:false,trail,sourceUrl:'https://mapa.ua/',rawExplanation:raw.title||null};
 }
 export function normalizeAlert(raw,receivedAt=new Date()){if(!raw?.name)return null;return{id:`official:${raw.key||raw.name}`,source:'NEPTUN / офіційні канали',sourceEventId:String(raw.key||raw.name),sourceType:'air_raid',official:true,category:'alert',subtype:raw.reasons?.[0]||'Повітряна тривога',lat:null,lon:null,region:raw.oblast||raw.name,district:raw.oblast?raw.name:null,settlement:null,locationPrecision:raw.oblast?'RAION':'OBLAST',heading:null,direction:null,speed:null,destination:null,timestamp:date(raw.since),receivedAt,confidence:null,positionQuality:'area',uncertaintyKm:null,sourceCount:null,areaOnly:true,advisory:false,status:'active',stale:false,trail:[],sourceUrl:'https://neptun.in.ua/',level:raw.level||null,key:raw.key||null};}
-export function isFresh(e,now=Date.now(),minutes=10){return !!e.timestamp&&now-e.timestamp.getTime()<=minutes*60000}
+export function isFresh(e,now=Date.now()){
+  const minutes=e.category==='missile'||e.category==='ballistic'?2:5;
+  const t=e.timestamp instanceof Date?e.timestamp.getTime():new Date(e.timestamp).getTime();
+  return Number.isFinite(t)&&now-t<=minutes*60000
+}
 function num(v){if(v===null||v===undefined||v==='')return null;const n=Number(v);return Number.isFinite(n)?n:null}function date(v){const d=new Date(v);return Number.isFinite(d.getTime())?d:null}function unix(v){return v?date(Number(v)*1000):null}function validCoord(lat,lon){return Number.isFinite(lat)&&Number.isFinite(lon)&&lat>=43&&lat<=53&&lon>=20&&lon<=42}

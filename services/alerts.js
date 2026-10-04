@@ -1,5 +1,5 @@
 import { fetchJson } from './http.js';
-const ALERTS_URL = 'https://neptun.in.ua/api/v1/alerts';
+const ALERTS_URL = 'https://check-ua-proxy.kykyyzka.workers.dev/alerts';
 export async function fetchAlerts(signal) {
   const data = await fetchJson(ALERTS_URL, { signal, timeout: 9000 });
   const raions = Array.isArray(data.raions) ? data.raions : [];

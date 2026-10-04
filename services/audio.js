@@ -18,7 +18,11 @@ export function audioTransitions(previous,current,prefs=DEFAULT_AUDIO_PREFS,now=
   if(current.officialKnown&&!previous.officialActive&&current.officialActive&&prefs.officialStart)result.push('officialStart');
   if(current.officialKnown&&previous.officialActive&&!current.officialActive&&prefs.officialEnd)result.push('officialEnd');
   const quiet=isQuietTime(prefs,now);
-  for(const type of AUDIO_TYPES.slice(2)){const before=new Set(previous.eventIds?.[type]||[]),hasNew=(current.eventIds?.[type]||[]).some(id=>!before.has(id));if(hasNew&&prefs[type]&&!quiet)result.push(type)}
+  for(const type of AUDIO_TYPES.slice(2)){
+    const before=new Set(previous.eventIds?.[type]||[]),hasNew=(current.eventIds?.[type]||[]).some(id=>!before.has(id));
+    const critical=type==='missile';
+    if(hasNew&&prefs[type]&&(critical||!quiet))result.push(type);
+  }
   return quiet&&prefs.muteOfficialInQuiet?result.filter(t=>!t.startsWith('official')):result;
 }
 export function loadAudioPreferences(storage=localStorage){try{return{...DEFAULT_AUDIO_PREFS,...JSON.parse(storage.getItem(PREF_KEY)||'{}')}}catch{return{...DEFAULT_AUDIO_PREFS}}}
