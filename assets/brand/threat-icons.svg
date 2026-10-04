@@ -1,9 +1,9 @@
 <svg xmlns="http://www.w3.org/2000/svg">
-  <symbol id="uav" viewBox="0 0 24 24"><path d="M12 2 22 18l-10-4-10 4L12 2Zm0 4v8"/></symbol>
+  <symbol id="uav" viewBox="0 0 24 24"><circle cx="5" cy="5" r="2.4"/><circle cx="19" cy="5" r="2.4"/><circle cx="5" cy="19" r="2.4"/><circle cx="19" cy="19" r="2.4"/><path d="M6.7 6.7 10 10m4-3.3L10 10m-3.3 4L10 10m4 0 3.3-3.3M10 10l-3.3 4m3.3-4 3.3 4M12 8.5V12"/></symbol>
   <symbol id="missile" viewBox="0 0 24 24"><path d="M12 2c2.8 2.6 4.2 6.2 4.2 10.8L12 18l-4.2-5.2C7.8 8.2 9.2 4.6 12 2Z"/><path d="m8 13-4 3v3l5-2m7-4 4 3v3l-5-2M10 20h4"/></symbol>
   <symbol id="kab" viewBox="0 0 24 24"><path d="M12 2c2.2 3 3.3 6.4 3.3 10.3V17L12 22 8.7 17v-4.7C8.7 8.4 9.8 5 12 2Z"/><path d="m8.8 14-4 2.8V19l4.2-1.2m6.2-3.8 4 2.8V19L15 17.8"/></symbol>
   <symbol id="aircraft" viewBox="0 0 24 24"><path d="M12 2c1 0 1.7.8 1.7 1.8V10l7.8 5v2.4l-7.8-2.1v4.2l2.2 1.7V23L12 21.8 8.1 23v-1.8l2.2-1.7v-4.2l-7.8 2.1V15l7.8-5V3.8C10.3 2.8 11 2 12 2Z"/></symbol>
   <symbol id="other" viewBox="0 0 24 24"><path d="M12 3 2.5 21h19L12 3Z"/><path d="M12 9v5m0 3h.01"/></symbol>
-  <symbol id="shahed" viewBox="0 0 24 24"><path d="M12 2l10 18-10-3.6L2 20 12 2Z"/><path d="M12 2v11m0 0-3.2 3.2M12 13l3.2 3.2"/></symbol>
+  <symbol id="shahed" viewBox="0 0 24 24"><path d="M12 2.5 21 18l-9-2.6L3 18 12 2.5Z"/><path d="M12 2.5V14M5.4 14.4v3.8M18.6 14.4v3.8M9.5 17.2h5"/></symbol>
   <symbol id="ballistic" viewBox="0 0 24 24"><path d="M12 1c2.4 2.4 3.6 5.6 3.6 9.4L12 15l-3.6-4.6C8.4 6.6 9.6 3.4 12 1Z"/><path d="M10 16.5 8 20m6-3.5L16 20M12 15v6"/></symbol>
 </svg>

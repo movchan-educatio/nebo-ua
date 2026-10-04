@@ -17,6 +17,7 @@
 .guard-digest b{color:#ff9ca5;letter-spacing:.08em}
 .mk-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--c,#efb55b);background:#0b131bd9;padding:1px 6px;border-radius:6px;white-space:nowrap;line-height:1.5}
 .radar-blip{position:relative;width:30px;height:30px;border-radius:50%;background:#0b131bd9;border:1.5px solid var(--c,#efb55b);color:var(--c,#efb55b);display:grid;place-items:center;box-shadow:0 0 12px var(--c,#efb55b)}
+.threat-marker[data-directed="true"]>svg{transform:rotate(var(--heading,0deg))}
 .radar-blip svg{width:16px;height:16px;fill:currentColor;stroke:currentColor;stroke-width:1.2}
 .radar-blip i{position:absolute;inset:-6px;border:1.5px solid var(--c,#efb55b);border-radius:50%;animation:blip 2.4s ease-out infinite;pointer-events:none}
 .radar-blip.cat-missile,.radar-blip.cat-ballistic{width:34px;height:34px;border-width:2px}
