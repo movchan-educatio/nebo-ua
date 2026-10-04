@@ -23,6 +23,16 @@
 .raion-row i{width:10px;height:10px;border-radius:50%;flex:none}
 .dot-alert{background:var(--red);box-shadow:0 0 8px var(--red)}
 .dot-mon{background:var(--amber)}.dot-calm{background:var(--green)}
+.lvl-badge{display:inline-block;margin-top:4px;font-size:10px;font-weight:900;letter-spacing:.08em;padding:2px 8px;border-radius:999px}
+.lvl-red{background:#ff22331f;color:#ff8f9a;border:1px solid #ff223388}
+.lvl-yellow{background:#efb55b1a;color:#f3d6a6;border:1px solid #efb55b66}
+.threat-marker.lvl-red{outline:2px solid #ff2233;outline-offset:3px;animation:pulse-red 1s infinite}
+.radar-blip.lvl-red{outline:2px solid #ff2233;outline-offset:2px}
+.official-panel.watch{border-color:#efb55b88}
+.raion-dot{width:14px;height:14px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 10px #000c}
+.raion-dot.st-alert{background:#ff2233;animation:pulse-red 1.4s infinite}
+.raion-dot.st-mon{background:#efb55b}
+.raion-dot.st-calm{background:#57d5a0;opacity:.7}
 .mk-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--c,#efb55b);background:#0b131bd9;padding:1px 6px;border-radius:6px;white-space:nowrap;line-height:1.5}
 .radar-blip{position:relative;width:30px;height:30px;border-radius:50%;background:#0b131bd9;border:1.5px solid var(--c,#efb55b);color:var(--c,#efb55b);display:grid;place-items:center;box-shadow:0 0 12px var(--c,#efb55b)}
 .threat-marker[data-directed="true"]>svg{transform:rotate(var(--heading,0deg))}

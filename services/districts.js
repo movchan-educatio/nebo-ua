@@ -109,3 +109,21 @@ export function oblastRaions(snapshot, oblast) {
   rows.sort((a, b) => rank[a.status] - rank[b.status] || a.name.localeCompare(b.name, 'uk'));
   return { rows, unassignedMon, hasDirectory: !!dir, oblastWide: !!oblastWide };
 }
+const CENTER_KEY = 'nebo-raion-centers-v1', CENTER_TTL = 30 * 24 * 3600000;
+export function loadCenterCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(CENTER_KEY) || '{}');
+    return c && typeof c === 'object' ? c : {};
+  } catch (e) { return {}; }
+}
+export function saveCenterCache(c) {
+  try { localStorage.setItem(CENTER_KEY, JSON.stringify(c)); } catch (e) {}
+}
+export function getCachedCenter(cache, oblast, name) {
+  const hit = cache && cache[oblast + '||' + name];
+  if (!hit || !Number.isFinite(hit.lat) || !Number.isFinite(hit.lon)) return null;
+  try {
+    if (Date.now() - new Date(hit.at).getTime() > CENTER_TTL) return null;
+  } catch (e) { return null; }
+  return hit;
+}
