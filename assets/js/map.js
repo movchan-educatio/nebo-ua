@@ -15,6 +15,28 @@ const META={
   other:    {label:'Інше',    icon:'other',    color:'#a6b3bc'},
 };
 
+// ── Territorial danger colors ──────────────────────────────────────────────────
+// Two-tier: oblast danger (red) > raion danger (orange/yellow)
+const DANGER_STYLE = {
+  // Oblast-level danger: missile, ballistic, oblast-wide official alert
+  oblastCritical: { color:'#ff3344', weight:2.0, fillColor:'#cc0011', fillOpacity:0.38 },
+  // Raion-level danger: shahed, uav, kab with raion precision
+  raionHigh:      { color:'#ff8800', weight:1.6, fillColor:'#cc5500', fillOpacity:0.35 },
+  // Raion-level monitoring: recon, aviation, other with raion precision
+  raionMedium:    { color:'#ffaa00', weight:1.2, fillColor:'#aa6600', fillOpacity:0.25 },
+  // Neutral: no active danger
+  neutral:        { color:'#29485c', weight:0.8, fillColor:'#0d2635', fillOpacity:0.12 },
+};
+
+// Categories that trigger OBLAST-level danger (highest priority)
+const OBLAST_DANGER_CATEGORIES = new Set(['missile', 'ballistic']);
+
+// Categories that trigger RAION-level danger (shahed/uav/kab with areaOnly+district)
+const RAION_DANGER_CATEGORIES = new Set(['shahed', 'uav', 'kab']);
+
+// Categories that trigger RAION-level monitoring (lower priority)
+const RAION_MONITORING_CATEGORIES = new Set(['recon', 'aviation', 'other']);
+
 function iconFor(e){
   const kind=classifyThreat(e);
   const m=META[kind]||META.other;
@@ -46,6 +68,74 @@ export function createSituationMap(el,onSelect){
   map.addLayer(clusters);
   let geo=null,fitted=false;
 
+  // ── Compute territorial danger from alerts + events ──────────────────────────
+  // Returns { oblastDanger: Set<oblastName>, raionDanger: Map<oblast, Map<raion, level>> }
+  // level: 'critical' (missile/ballistic) | 'high' (shahed/uav/kab) | 'medium' (recon/aviation/other)
+  function computeTerritorialDanger(alerts, events) {
+    const oblastDanger = new Set();
+    const raionDanger = new Map(); // oblast -> Map<raion, level>
+
+    // 1. Official alerts: oblast-wide (no district) = oblastCritical
+    //    Raion-specific alert = raionHigh (for that raion only)
+    for (const a of alerts || []) {
+      const oblast = a.region;
+      if (!oblast) continue;
+      if (!a.district) {
+        // Oblast-wide alert
+        oblastDanger.add(oblast);
+      } else {
+        // Raion-specific alert
+        let oblastMap = raionDanger.get(oblast);
+        if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
+        oblastMap.set(a.district, 'high');
+      }
+    }
+
+    // 2. Monitoring events: compute territorial danger from threat categories
+    //    Priority: oblastCritical (missile/ballistic) > raionHigh (shahed/uav/kab areaOnly) > raionMedium
+    for (const e of events || []) {
+      if (e.official) continue; // already handled by alerts
+      const oblast = e.region || e.derivedRegion;
+      if (!oblast) continue;
+      const kind = classifyThreat(e);
+      const cat = e.category;
+      const isAreaOnly = e.areaOnly === true;
+      const district = e.district;
+
+      // Missile/ballistic → oblastCritical (highest priority, overrides everything)
+      if (OBLAST_DANGER_CATEGORIES.has(cat)) {
+        oblastDanger.add(oblast);
+        // Clear any raion danger for this oblast since oblastCritical takes precedence
+        raionDanger.delete(oblast);
+        continue;
+      }
+
+      // Raion-level precision: areaOnly=true + district specified
+      if (isAreaOnly && district) {
+        if (RAION_DANGER_CATEGORIES.has(kind) || RAION_DANGER_CATEGORIES.has(cat)) {
+          // shahed/uav/kab → raionHigh
+          let oblastMap = raionDanger.get(oblast);
+          if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
+          const existing = oblastMap.get(district);
+          if (existing !== 'high') oblastMap.set(district, 'high');
+        } else if (RAION_MONITORING_CATEGORIES.has(kind) || RAION_MONITORING_CATEGORIES.has(cat)) {
+          // recon/aviation/other → raionMedium (only if not already high)
+          let oblastMap = raionDanger.get(oblast);
+          if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
+          const existing = oblastMap.get(district);
+          if (!existing) oblastMap.set(district, 'medium');
+        }
+      }
+    }
+
+    // PRIORITY FIX: oblastCritical clears ALL raion danger for that oblast (absolute priority)
+    for (const oblast of oblastDanger) {
+      raionDanger.delete(oblast);
+    }
+
+    return { oblastDanger, raionDanger };
+  }
+
   // Zoom-dependent label visibility class on map container
   function applyZoomClass(){
     const z=map.getZoom();
@@ -59,28 +149,43 @@ export function createSituationMap(el,onSelect){
   map.on('load',applyZoomClass);
   setTimeout(applyZoomClass,0);
 
-  function setRegions(g,alerts){
+  function setRegions(g,alerts,events){
     geo=g;
+    // Compute territorial danger from alerts + events
+    const { oblastDanger, raionDanger } = computeTerritorialDanger(alerts, events);
+    
     regions.clearLayers();
     regions.addData(g);
     regions.eachLayer(layer=>{
       const n=regionName(layer.feature),key=layer.feature.properties?.key;
       const list=alerts.filter(x=>x.key===key||x.region===n);
-      // Oblast-wide alert: ONLY if there's an alert WITHOUT district (true oblast alert)
-      const wide=list.some(x=>!x.district);
-      // Base style: always neutral dark borders, no fill
-      const color='#29485c';
-      const weight=.8;
-      const fillColor='#0d2635';
-      const fillOpacity=.12;
-      // Only override for TRUE oblast-wide alert
-      if(wide){
-        layer.setStyle({color:'#ff7e89',weight:1.8,fillColor:'#c44150',fillOpacity:.34});
-      }else{
-        layer.setStyle({color,weight,fillColor,fillOpacity});
+      
+      // Determine style based on territorial danger (priority: oblastCritical > raionHigh > raionMedium > neutral)
+      let style = DANGER_STYLE.neutral;
+      
+      if (oblastDanger.has(n)) {
+        // Oblast-level critical danger (missile/ballistic/oblast-wide alert)
+        style = DANGER_STYLE.oblastCritical;
+      } else {
+        // Check raion-level danger for this oblast
+        const oblastRaions = raionDanger.get(n);
+        if (oblastRaions && oblastRaions.size > 0) {
+          // Has raion-level danger - check if any 'high'
+          let hasHigh = false;
+          for (const level of oblastRaions.values()) {
+            if (level === 'high') { hasHigh = true; break; }
+          }
+          style = hasHigh ? DANGER_STYLE.raionHigh : DANGER_STYLE.raionMedium;
+        }
       }
-      const a=wide?list.find(x=>!x.district):(list[0]||null);
-      layer.on('click',()=>onSelect(a?{...a,raions:list.filter(x=>x.district).map(x=>x.district).filter(Boolean),partial:!wide}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
+      
+      layer.setStyle(style);
+      
+      // Click handler: show raion details if partial (raion-only danger)
+      const a=list[0]||null;
+      const raionList = list.filter(x=>x.district).map(x=>x.district).filter(Boolean);
+      const partial = !list.some(x=>!x.district) && raionList.length > 0;
+      layer.on('click',()=>onSelect(a?{...a,raions:raionList,partial}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
     });
     if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),{padding:[8,8]})}
   }
