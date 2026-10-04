@@ -55,8 +55,9 @@ export function createScope(canvas, { onSelect } = {}) {
       sctx.fillText(Math.round(S.range * f) + '', cx + 4, cy - R * f - 3);
     });
     sctx.globalAlpha = 0.9;
-    for (let a = 0; a < 360; a += 30) {
-      const r0 = R - (a % 90 === 0 ? 9 : 5), rad = (a - 90) * Math.PI / 180;
+    for (let a = 0; a < 360; a += 10) {
+      const major = a % 30 === 0;
+      const r0 = R - (a % 90 === 0 ? 9 : major ? 6 : 3), rad = (a - 90) * Math.PI / 180;
       sctx.globalAlpha = 0.5; sctx.lineWidth = 1;
       sctx.beginPath();
       sctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
@@ -87,7 +88,9 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.5, 0); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(140,220,255,0.9)'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(140,220,255,0.8)'; ctx.shadowBlur = 8;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R, 0); ctx.stroke();
+    ctx.shadowBlur = 0;
     ctx.restore();
   }
   function frame(t) {
@@ -122,9 +125,22 @@ export function createScope(canvas, { onSelect } = {}) {
       const m = iconFor(e);
       const boost = sweepBoost(sweep, p.bearing);
       S.pts.push({ e, x: ox, y: oy, label: m.label });
-      ectx.globalAlpha = 0.45 + 0.55 * boost;
+      const R0 = e._lvl === 'red' ? 4.5 : 3.2;
+      const glow = 0.45 + 0.55 * boost;
+      ectx.globalAlpha = glow * 0.22;
       ectx.fillStyle = m.color;
-      ectx.beginPath(); ectx.arc(ox, oy, e._lvl === 'red' ? 4.5 : 3.2, 0, 7); ectx.fill();
+      ectx.beginPath(); ectx.arc(ox, oy, R0 * 2.6, 0, 7); ectx.fill();
+      ectx.globalAlpha = glow;
+      ectx.beginPath(); ectx.arc(ox, oy, R0, 0, 7); ectx.fill();
+      ectx.fillStyle = '#fff';
+      ectx.globalAlpha = 0.5 + 0.5 * boost;
+      ectx.beginPath(); ectx.arc(ox, oy, 1.1, 0, 7); ectx.fill();
+      const hd = Number(e.heading);
+      if (Number.isFinite(hd)) {
+        const hr = (hd - 90) * Math.PI / 180;
+        ectx.globalAlpha = 0.85; ectx.strokeStyle = m.color; ectx.lineWidth = 1.4;
+        ectx.beginPath(); ectx.moveTo(ox, oy); ectx.lineTo(ox + Math.cos(hr) * 9, oy + Math.sin(hr) * 9); ectx.stroke();
+      }
       if (e._lvl === 'red') reds.push([ox, oy]);
     }
     ectx.globalAlpha = 1;
@@ -178,6 +194,8 @@ export function createScope(canvas, { onSelect } = {}) {
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 3.5, 0, 7); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 3.5, 0, 7); ctx.stroke();
+    ctx.strokeStyle = 'rgba(102,199,255,0.35)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 8, 0, 7); ctx.stroke();
     if (!reduced) drawSweep();
     raf = requestAnimationFrame(frame);
   }
