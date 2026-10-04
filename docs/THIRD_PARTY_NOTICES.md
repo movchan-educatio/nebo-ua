@@ -4,4 +4,4 @@
 - Leaflet.markercluster 1.5.3 — MIT.
 - OpenStreetMap map data and raster tiles — © OpenStreetMap contributors, ODbL/data and tile usage policies apply.
 
-Використані SVG бренду та інтерфейсу створені спеціально для НЕБО UA і не копіюють сторонні знаки.
+Використані SVG бренду та інтерфейсу створені спеціально для Небо.UA і не копіюють сторонні знаки.

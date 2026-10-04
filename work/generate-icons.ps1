@@ -17,10 +17,20 @@ function New-NeboIcon([int]$Size, [string]$Path) {
   $goldBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(245,192,74))
   $redBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::FromArgb(255,111,125))
   $whiteBrush = [System.Drawing.SolidBrush]::new([System.Drawing.Color]::White)
-  $bd = [float]($Size * 0.085)
-  $graphics.FillEllipse($goldBrush, $c + $R * 0.34 - $bd / 2, $c - $R * 0.34 - $bd / 2, $bd, $bd)
-  $rd = [float]($Size * 0.065)
-  $graphics.FillEllipse($redBrush, $c - $R * 0.3 - $rd / 2, $c + $R * 0.3 - $rd / 2, $rd, $rd)
+  $delta = [System.Drawing.Drawing2D.GraphicsPath]::new()
+  $delta.AddPolygon(@(
+    [System.Drawing.PointF]::new($c + $R * 0.08, $c - $R * 0.52),
+    [System.Drawing.PointF]::new($c + $R * 0.5, $c - $R * 0.1),
+    [System.Drawing.PointF]::new($c + $R * 0.14, $c - $R * 0.14)
+  ))
+  $graphics.FillPath($goldBrush, $delta)
+  $rocket = [System.Drawing.Drawing2D.GraphicsPath]::new()
+  $rocket.AddPolygon(@(
+    [System.Drawing.PointF]::new($c - $R * 0.32, $c + $R * 0.05),
+    [System.Drawing.PointF]::new($c - $R * 0.05, $c + $R * 0.32),
+    [System.Drawing.PointF]::new($c - $R * 0.2, $c + $R * 0.12)
+  ))
+  $graphics.FillPath($redBrush, $rocket)
   $cd = [float]($Size * 0.05)
   $graphics.FillEllipse($whiteBrush, $c - $cd / 2, $c - $cd / 2, $cd, $cd)
   $bitmap.Save($Path, [System.Drawing.Imaging.ImageFormat]::Png)
