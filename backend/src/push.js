@@ -55,6 +55,22 @@ export async function sendToSubscription(env, subscription, payload, { attempts 
   return { ok: false, deleted: false, attempts, statusCode, error: String(lastErr?.message || lastErr), latencyMs: Date.now() - started };
 }
 
+// Maps a send result to an HTTP-safe test response.
+// Never includes secrets: only code/message/status, no keys or endpoints.
+export function toTestResult(res) {
+  if (!res) return { http: 502, body: { ok: false, code: 'send-failed', message: 'Немає результату відправки.' } };
+  if (res.ok) return { http: 200, body: { ok: true } };
+  if (res.deleted) return { http: 200, body: { ok: false, code: 'gone', message: 'Підписка застаріла і видалена. Увімкніть Push заново.' } };
+  const st = res.statusCode ?? null;
+  if (st === 401 || st === 403) {
+    return { http: 200, body: { ok: false, code: 'send-failed', message: 'Push-провайдер відхилив авторизацію (VAPID).', status: st } };
+  }
+  if (st === 429) {
+    return { http: 200, body: { ok: false, code: 'send-failed', message: 'Push-провайдер обмежив частоту. Спробуйте пізніше.', status: st } };
+  }
+  return { http: 200, body: { ok: false, code: 'send-failed', message: 'Не вдалося доставити. Спробуйте пізніше.', ...(st == null ? {} : { status: st }) } };
+}
+
 export async function loadSubscriptions(db) {
   // Full scan is deliberate: one subscription may follow several oblasts,
   // and correctness beats index tricks at this scale. Revisit past ~10k rows.

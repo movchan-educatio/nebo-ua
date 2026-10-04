@@ -4,7 +4,7 @@ import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
 import { loadPrev, saveState, loadLatest, journalUpsert, journalEnd, recordCheck, sourceMetrics } from './store.js';
-import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid } from './push.js';
+import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
 
 const SOURCES = ['OFFICIAL', 'NEPTUN', 'MAPA'];
@@ -156,7 +156,7 @@ export default {
       return json({ ok: true, serverTime: snap.serverTime, alerts: snap.alerts.length, events: snap.events.length });
     }
     if (url.pathname === '/v1/push/vapid-public-key') {
-      return json({ publicKey: env.VAPID_PUBLIC_KEY || null });
+      return json({ publicKey: env.VAPID_PUBLIC_KEY || null, hasPrivateKey: !!env.VAPID_PRIVATE_KEY });
     }
     if (url.pathname === '/v1/push/subscribe' && request.method === 'POST') {
       let body = null;
@@ -186,19 +186,33 @@ export default {
       try { body = await request.json(); } catch { return json({ error: 'Bad JSON' }, 400, 5); }
       if (typeof body?.endpoint !== 'string') return json({ error: 'Bad endpoint' }, 400, 5);
       try {
+        configureVapid(env);
+      } catch (e) {
+        console.error('[push:test] vapid-missing');
+        return json({ ok: false, code: 'vapid-missing', message: 'VAPID-ключ не налаштовано на сервері.' }, 502, 5);
+      }
+      try {
         const row = await env.nebo_journal.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE endpoint=?`).bind(body.endpoint).all();
         const found = row?.results?.[0];
-        if (!found) return json({ error: 'Unknown subscription' }, 404, 5);
-        configureVapid(env);
+        if (!found) return json({ ok: false, code: 'unknown-subscription', message: 'Підписку не знайдено. Увімкніть Push заново.' }, 404, 5);
         const res = await sendToSubscription(
           env,
           { endpoint: found.endpoint, keys: { p256dh: found.p256dh, auth: found.auth } },
           { title: 'Небо.UA', body: 'Тестове push-сповіщення. Все працює.', tag: 'nebo-test', url: './#skyView' },
           { attempts: 1 },
         );
+        const out = toTestResult(res);
+        if (!res.ok) {
+          let hash = '?';
+          try { hash = await endpointHash(found.endpoint); } catch { /* ignore */ }
+          console.error('[push:test] send failed', JSON.stringify({ endpoint: hash, code: out.body.code, status: res.statusCode ?? null }));
+        }
         if (res.deleted) await deleteSubscription(env.nebo_journal, found.endpoint).catch(() => {});
-        return json({ ok: res.ok, status: res.statusCode ?? undefined });
-      } catch (e) { return json({ error: String(e?.message || e) }, 502, 5); }
+        return json(out.body, out.http, 5);
+      } catch (e) {
+        console.error('[push:test] internal error');
+        return json({ ok: false, code: 'internal', message: 'Внутрішня помилка сервера.' }, 502, 5);
+      }
     }
     const legacy = LEGACY[url.pathname];
     if (legacy) {

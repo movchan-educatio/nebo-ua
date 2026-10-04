@@ -120,3 +120,27 @@ VAPID_SUBJECT = "mailto:you@example.com"
 - `POST /v1/push/test` шле тестове повідомлення на збережену підписку.
 - `DELETE /v1/push/unsubscribe` стирає підписку (те саме робить вимкнення
   тумблера в застосунку).
+
+## Діагностика `{"ok":false}` у /v1/push/test
+
+Кожна гілка має свій код (секрети ніколи не повертаються і не логуються —
+лише хеш endpoint):
+
+| code | HTTP | Значення | Що робити |
+|---|---|---|---|
+| `unknown-subscription` | 404 | підписки нема в D1 | увімкніть Push заново (створить запис) |
+| `vapid-missing` | 502 | нема `VAPID_*` у Worker | `wrangler secret put VAPID_PRIVATE_KEY` + `VAPID_PUBLIC_KEY`/`VAPID_SUBJECT` у toml, redeploy |
+| `gone` | 200 | провайдер відповів 404/410, підписку видалено | увімкніть Push заново |
+| `send-failed` + `status` 401/403 | 200 | провайдер відхилив VAPID-авторизацію | перевірте пару ключів і subject |
+| `send-failed` без `status` | 200 | помилка до провайдера (мережа/імпорт) | дивіться `wrangler tail` |
+| `internal` | 502 | неочікувана помилка | дивіться `wrangler tail` |
+
+Перевірити, чи підписка реально в D1 (без виводу повних endpoint — вони чутливі):
+
+```sh
+wrangler d1 execute nebo-journal --command="SELECT substr(endpoint,1,60), created_at FROM push_subscriptions;"
+wrangler d1 execute nebo-journal --command="SELECT status, count(*) FROM push_log GROUP BY status;"
+```
+
+Перевірити секрети без виводу значень (`GET /v1/push/vapid-public-key`
+повертає ключ і прапорець наявності приватного, але ніколи не сам секрет).
