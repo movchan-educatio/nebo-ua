@@ -7,6 +7,15 @@ import { loadPrev, saveState, loadLatest, journalUpsert, journalEnd, recordCheck
 
 const SOURCES = ['OFFICIAL', 'NEPTUN', 'MAPA'];
 
+// Explicit binding check: a missing binding must fail loudly with its name,
+// never as a cryptic `undefined.prepare` deep in the pipeline.
+export function checkBindings(env) {
+  const missing = [];
+  if (!env.NEBO_STATE || typeof env.NEBO_STATE.get !== 'function') missing.push('NEBO_STATE (KV)');
+  if (!env.nebo_journal || typeof env.nebo_journal.prepare !== 'function') missing.push('nebo_journal (D1)');
+  return missing;
+}
+
 function healthItem(result, extra = {}) {
   if (result.disabled) return { status: 'disabled', updatedAt: null, error: null, ...extra };
   if (!result.ok) return { status: 'offline', updatedAt: null, error: result.error, ...extra };
@@ -18,6 +27,8 @@ function withFreshness(events, nowMs) {
 }
 
 async function runPipeline(env) {
+  const missing = checkBindings(env);
+  if (missing.length) throw new Error('Missing bindings: ' + missing.join(', '));
   const now = new Date();
   const nowMs = now.getTime();
   const nowIso = now.toISOString();
@@ -31,13 +42,13 @@ async function runPipeline(env) {
   // Record checks (best effort; journal failures must not break the pipeline).
   try {
     await Promise.all([
-      recordCheck(env.JOURNAL, 'OFFICIAL', official.ok && !official.disabled, official.latencyMs, official.error),
-      recordCheck(env.JOURNAL, 'NEPTUN', alertsRes.ok && threatsRes.ok, Math.max(alertsRes.latencyMs, threatsRes.latencyMs), [alertsRes.error, threatsRes.error].filter(Boolean).join('; ') || null),
-      recordCheck(env.JOURNAL, 'MAPA', mapaRes.ok, mapaRes.latencyMs, mapaRes.error),
+      recordCheck(env.nebo_journal, 'OFFICIAL', official.ok && !official.disabled, official.latencyMs, official.error),
+      recordCheck(env.nebo_journal, 'NEPTUN', alertsRes.ok && threatsRes.ok, Math.max(alertsRes.latencyMs, threatsRes.latencyMs), [alertsRes.error, threatsRes.error].filter(Boolean).join('; ') || null),
+      recordCheck(env.nebo_journal, 'MAPA', mapaRes.ok, mapaRes.latencyMs, mapaRes.error),
     ]);
   } catch (e) { console.error('checks failed', e); }
 
-  const prev = await loadPrev(env.STATE);
+  const prev = await loadPrev(env.NEBO_STATE);
   const alertsOk = alertsRes.ok;
   const threatsOk = threatsRes.ok && !threatsRes.stale;
   const mapaOk = mapaRes.ok;
@@ -90,10 +101,10 @@ async function runPipeline(env) {
   };
 
   try {
-    await journalUpsert(env.JOURNAL, [...protAlerts.active, ...protThreats.active].filter(e => !e.stale), nowIso, 'active');
-    await journalUpsert(env.JOURNAL, [...protAlerts.active, ...protThreats.active].filter(e => e.stale), nowIso, 'stale');
-    await journalEnd(env.JOURNAL, [...protAlerts.ended, ...protThreats.ended], nowIso);
-    await saveState(env.STATE, snapshot, { alerts: protAlerts.active, threats: protThreats.active });
+    await journalUpsert(env.nebo_journal, [...protAlerts.active, ...protThreats.active].filter(e => !e.stale), nowIso, 'active');
+    await journalUpsert(env.nebo_journal, [...protAlerts.active, ...protThreats.active].filter(e => e.stale), nowIso, 'stale');
+    await journalEnd(env.nebo_journal, [...protAlerts.ended, ...protThreats.ended], nowIso);
+    await saveState(env.NEBO_STATE, snapshot, { alerts: protAlerts.active, threats: protThreats.active });
   } catch (e) { console.error('persist failed', e); }
   return snapshot;
 }
@@ -123,12 +134,13 @@ export default {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, OPTIONS' } });
     }
     if (url.pathname === '/v1/state') {
-      const snap = await loadLatest(env.STATE);
+      if (!env.NEBO_STATE) return json({ error: 'Storage binding NEBO_STATE is not configured' }, 503, 5);
+      const snap = await loadLatest(env.NEBO_STATE);
       if (!snap) return json({ error: 'Snapshot not ready yet, cron warming up' }, 503, 5);
       return json(snap);
     }
     if (url.pathname === '/v1/metrics') {
-      const metrics = await sourceMetrics(env.JOURNAL, SOURCES).catch(() => ({}));
+      const metrics = await sourceMetrics(env.nebo_journal, SOURCES).catch(() => ({}));
       return json({ serverTime: new Date().toISOString(), sources: metrics });
     }
     if (url.pathname === '/v1/refresh' && request.method === 'POST') {

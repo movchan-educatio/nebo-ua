@@ -2,6 +2,8 @@
 # 1) npm i -g wrangler && wrangler login
 # 2) wrangler kv:namespace create NEBO_STATE        -> paste id() below
 #    wrangler kv:namespace create NEBO_STATE --preview -> paste preview_id() below
+#    ВАЖЛИВО: не перейменовуйте binding без оновлення src/index.js —
+#    назви в коді й у toml повинні збігатися (це перевіряє backend/test/config.test.js).
 # 3) wrangler d1 create nebo-journal                 -> paste database_id below
 # 4) wrangler d1 execute nebo-journal --file=./schema.sql
 #    (optional) wrangler secret put OFFICIAL_API_TOKEN   # only if you got an official token
@@ -25,11 +27,11 @@ THREAT_MISS_LIMIT = "3"
 crons = ["*/1 * * * *"]
 
 [[kv_namespaces]]
-binding = "STATE"
-id = "PASTE_KV_ID"
-preview_id = "PASTE_KV_PREVIEW_ID"
+binding = "NEBO_STATE"
+id = "1222a449b03e4aefae5a2fa5bfe81422"
+preview_id = "29297862d2504dc8a4095f3ce646e3a0"
 
 [[d1_databases]]
-binding = "JOURNAL"
+binding = "nebo_journal"
 database_name = "nebo-journal"
-database_id = "PASTE_D1_ID"
+database_id = "0ba53007-538d-4b94-bfb1-d458e34b2aaa"
