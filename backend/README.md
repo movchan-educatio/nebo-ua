@@ -132,8 +132,19 @@ VAPID_SUBJECT = "mailto:you@example.com"
 | `vapid-missing` | 502 | нема `VAPID_*` у Worker | `wrangler secret put VAPID_PRIVATE_KEY` + `VAPID_PUBLIC_KEY`/`VAPID_SUBJECT` у toml, redeploy |
 | `gone` | 200 | провайдер відповів 404/410, підписку видалено | увімкніть Push заново |
 | `send-failed` + `status` 401/403 | 200 | провайдер відхилив VAPID-авторизацію | перевірте пару ключів і subject |
-| `send-failed` без `status` | 200 | помилка до провайдера (мережа/імпорт) | дивіться `wrangler tail` |
+| `send-failed` без `status` | 200 | помилка до відповіді провайдера — точний етап видно в `stage` (`config-vapid`, `import-web-push`, `set-vapid-details`, `send-notification`) | дивіться `wrangler tail` |
 | `internal` | 502 | неочікувана помилка | дивіться `wrangler tail` |
+
+Формат логу в tail (секретів нема — лише хеш endpoint до 12 символів):
+
+```
+[push:test] send failed {"endpoint":"06c7c04d9496","code":"send-failed","stage":"send-notification","status":null,"errorName":"...","error":"..."}
+```
+
+Поле `stage` і каже, де саме впало: `import-web-push` — не завантажилась
+бібліотека; `set-vapid-details` — биті ключі; `send-notification` зі
+`status:null` — відповіді від провайдера не було взагалі (мережа/таймаут);
+зі `status` — відмова провайдера (401/403 = чужа пара ключів).
 
 Перевірити, чи підписка реально в D1 (без виводу повних endpoint — вони чутливі):
 

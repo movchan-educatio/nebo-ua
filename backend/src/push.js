@@ -3,16 +3,17 @@
 import { categoryOf, buildPayload, shouldDeliver, diffStarted } from './notify.js';
 
 let vapidReady = false;
-async function vapidSender(env) {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
-    throw new Error('VAPID is not configured (VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT)');
-  }
-  const { default: webpush } = await import('web-push');
-  if (!vapidReady) {
-    webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
-    vapidReady = true;
-  }
-  return webpush;
+// Redact anything secret-looking before text can reach logs or HTTP.
+export function sanitizeErrorText(s) {
+  return String(s || 'unknown error')
+    .replace(/https?:\/\/\S+/g, '[url]')
+    .replace(/['"]?[A-Za-z0-9\-_+/=]{40,}['"]?/g, '[key]')
+    .slice(0, 200);
+}
+function firstFrames(e, n = 3) {
+  return String(e?.stack || '').split('\n').slice(1, n + 1)
+    .map(l => sanitizeErrorText(l.trim()).slice(0, 120))
+    .filter(Boolean);
 }
 export function configureVapid(env) {
   if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
@@ -28,31 +29,48 @@ export async function endpointHash(endpoint) {
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 // Sends one push with retries. 410/404 -> subscription is dead (delete it).
-// Returns { ok, deleted, attempts, statusCode, error, latencyMs }.
+// Returns { ok, deleted, attempts, statusCode, stage, errorName, error, stack, latencyMs }.
+// `error`/`stack` are sanitized: never keys, endpoints, or headers.
 export async function sendToSubscription(env, subscription, payload, { attempts = 3 } = {}) {
   const started = Date.now();
-  const delays = [0, 1000, 4000];
-  let lastErr = null, statusCode = null;
+  const fail = (stage, e, attemptsDone, status) => ({
+    ok: false, deleted: false, attempts: attemptsDone,
+    statusCode: status ?? e?.statusCode ?? null,
+    stage, errorName: e?.name || 'Error',
+    error: sanitizeErrorText(e?.message || e),
+    stack: firstFrames(e),
+    latencyMs: Date.now() - started,
+  });
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || !env.VAPID_SUBJECT) {
+    return fail('config-vapid', new Error('VAPID is not configured (VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT)'), 0, null);
+  }
   let webpush;
   try {
-    webpush = await vapidSender(env);
-  } catch (e) {
-    return { ok: false, deleted: false, attempts: 0, statusCode: null, error: String(e?.message || e), latencyMs: Date.now() - started };
-  }
+    const mod = await import('web-push');
+    webpush = mod.default || mod;
+  } catch (e) { return fail('import-web-push', e, 0, null); }
+  try {
+    if (!vapidReady) {
+      webpush.setVapidDetails(env.VAPID_SUBJECT, env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY);
+      vapidReady = true;
+    }
+  } catch (e) { return fail('set-vapid-details', e, 0, null); }
+  const delays = [0, 1000, 4000];
+  let lastErr = null, statusCode = null;
   for (let i = 0; i < attempts; i++) {
     if (delays[i]) await sleep(delays[i]);
     try {
       await webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 3600 });
-      return { ok: true, deleted: false, attempts: i + 1, statusCode: 201, error: null, latencyMs: Date.now() - started };
+      return { ok: true, deleted: false, attempts: i + 1, statusCode: 201, stage: 'send-notification', errorName: null, error: null, stack: [], latencyMs: Date.now() - started };
     } catch (e) {
       lastErr = e;
       statusCode = e?.statusCode ?? null;
       if (statusCode === 404 || statusCode === 410) {
-        return { ok: false, deleted: true, attempts: i + 1, statusCode, error: 'subscription gone', latencyMs: Date.now() - started };
+        return { ok: false, deleted: true, attempts: i + 1, statusCode, stage: 'send-notification', errorName: e?.name || 'Error', error: 'subscription gone', stack: [], latencyMs: Date.now() - started };
       }
     }
   }
-  return { ok: false, deleted: false, attempts, statusCode, error: String(lastErr?.message || lastErr), latencyMs: Date.now() - started };
+  return { ...fail('send-notification', lastErr, attempts, statusCode), deleted: false };
 }
 
 // Maps a send result to an HTTP-safe test response.

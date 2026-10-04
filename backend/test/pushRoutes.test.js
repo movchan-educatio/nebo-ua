@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import { toTestResult } from '../src/push.js';
+import { sendToSubscription, sanitizeErrorText } from '../src/push.js';
 
 // Minimal in-memory D1 stub: programmable SELECT results, records writes.
 function fakeDb({ selectRows = [] } = {}) {
@@ -94,8 +95,7 @@ test('POST /v1/push/test with unusable VAPID/backend is send-failed, never ok:fa
   assert.ok(!JSON.stringify(body).includes('push.example/sub-1'));
 });
 
-test('GET /v1/push/vapid-public-key reports presence without values', async () => {
-  const withKey = await worker.fetch(new Request('https://worker.test/v1/push/vapid-public-key'), vapidEnv(fakeDb()));
+test('GET /v1/push/vapid-public-key reports presence without values', async () => {  const withKey = await worker.fetch(new Request('https://worker.test/v1/push/vapid-public-key'), vapidEnv(fakeDb()));
   assert.deepEqual(await withKey.json(), { publicKey: 'BPub359s41x6hOT1T7yqSvkvvx1x0hqxF4x3Qd2x2Jc1x0hqx', hasPrivateKey: true });
   const withoutKey = await worker.fetch(
     new Request('https://worker.test/v1/push/vapid-public-key'),
@@ -109,4 +109,21 @@ test('GET /v1/push/vapid-public-key reports presence without values', async () =
   const body = await withSecret.json();
   assert.equal(body.hasPrivateKey, true);
   assert.ok(!JSON.stringify(body).includes('shh'));
+});
+
+test('sendToSubscription reports config stage without touching network', async () => {
+  const r = await sendToSubscription({}, { endpoint: 'https://push.example/x', keys: {} }, { title: 't' }, { attempts: 1 });
+  assert.equal(r.ok, false);
+  assert.equal(r.stage, 'config-vapid');
+  assert.equal(r.attempts, 0);
+});
+
+test('sanitizeErrorText redacts urls, tokens and headers', () => {
+  const secret = 'A'.repeat(50);
+  const s = sanitizeErrorText('fetch failed https://push.example/abc ' + secret + ' Crypto-Key: dh=xyz');
+  assert.ok(!s.includes('https://'));
+  assert.ok(!s.includes(secret));
+  assert.ok(s.includes('[url]') && s.includes('[key]'));
+  assert.ok(s.length <= 200);
+  assert.equal(sanitizeErrorText(null), 'unknown error');
 });

@@ -205,9 +205,9 @@ export default {
         if (!res.ok) {
           let hash = '?';
           try { hash = await endpointHash(found.endpoint); } catch { /* ignore */ }
-          console.error('[push:test] send failed', JSON.stringify({ endpoint: hash, code: out.body.code, status: res.statusCode ?? null }));
-        }
+          console.error('[push:test] send failed', JSON.stringify({ endpoint: hash, code: out.body.code, stage: res.stage || null, status: res.statusCode ?? null, errorName: res.errorName || null, error: res.error ?? null }));
         if (res.deleted) await deleteSubscription(env.nebo_journal, found.endpoint).catch(() => {});
+        }
         return json(out.body, out.http, 5);
       } catch (e) {
         console.error('[push:test] internal error');
