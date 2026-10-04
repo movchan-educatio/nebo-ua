@@ -1,4 +1,5 @@
 import { iconFor } from './map.js';
+import { regionName } from '../../services/regions.js';
 // Classic PPI scope: rotating sweep, phosphor afterglow, bearing readout.
 // Pure math is exported for unit tests; DOM lives inside createScope.
 const KM_LAT = 110.57;
@@ -47,6 +48,30 @@ export function createScope(canvas, { onSelect } = {}) {
     bg.addColorStop(0, '#06121b'); bg.addColorStop(1, '#020609');
     sctx.fillStyle = bg;
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
+    sctx.save();
+    sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.clip();
+    const alertSet = S.alertRegions || [];
+    for (const feat of (S.geo && S.geo.features) || []) {
+      const nm = regionName(feat);
+      const isAlert = alertSet.indexOf(nm) >= 0;
+      const polys = feat.geometry && feat.geometry.type === 'Polygon' ? [feat.geometry.coordinates] : (feat.geometry && feat.geometry.coordinates) || [];
+      for (const poly of polys) {
+        for (const ring of poly) {
+          sctx.beginPath();
+          ring.forEach((pt, idx) => {
+            const p = project(pt[1], pt[0], S.center, S.range, Math.min(W, H));
+            const ox = (W - Math.min(W, H)) / 2 + p.x, oy = (H - Math.min(W, H)) / 2 + p.y;
+            if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
+          });
+          sctx.closePath();
+          if (isAlert) { sctx.fillStyle = 'rgba(255,60,80,0.10)'; sctx.fill(); }
+          sctx.strokeStyle = isAlert ? 'rgba(255,120,135,0.5)' : 'rgba(120,170,210,0.28)';
+          sctx.lineWidth = isAlert ? 1.2 : 0.8;
+          sctx.stroke();
+        }
+      }
+    }
+    sctx.restore();
     sctx.strokeStyle = '#66c7ff';
     [0.25, 0.5, 0.75, 1].forEach((f, i) => {
       sctx.globalAlpha = i === 3 ? 0.5 : 0.22; sctx.lineWidth = i === 3 ? 1.6 : 1;
@@ -69,6 +94,7 @@ export function createScope(canvas, { onSelect } = {}) {
     sctx.moveTo(cx, cy - R); sctx.lineTo(cx, cy + R); sctx.stroke();
     sctx.globalAlpha = 0.85; sctx.fillStyle = '#9fc9e8'; sctx.font = 'bold 11px system-ui';
     sctx.fillText('Пн', cx - 7, cy - R + 14); sctx.fillText('Пд', cx - 7, cy + R - 6);
+    sctx.fillText('Сх', cx + R - 17, cy + 4); sctx.fillText('Зх', cx - R + 5, cy + 4);
     sctx.globalAlpha = 1;
   }
   function drawSweep() {
@@ -99,7 +125,7 @@ export function createScope(canvas, { onSelect } = {}) {
     last = t;
     if (!reduced) sweep = (sweep + dt / 5000 * 360) % 360;
     resize();
-    const key = W + 'x' + H + ':' + S.range;
+    const key = W + 'x' + H + ':' + S.range + ':' + (S.geoSig || '');
     if (key !== staticKey) { staticKey = key; rebuildStatic(); }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -124,7 +150,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
       const m = iconFor(e);
       const boost = sweepBoost(sweep, p.bearing);
-      S.pts.push({ e, x: ox, y: oy, label: m.label });
+      S.pts.push({ e, x: ox, y: oy, label: m.label, distKm: p.distKm });
       const R0 = e._lvl === 'red' ? 4.5 : 3.2;
       const glow = 0.45 + 0.55 * boost;
       ectx.globalAlpha = glow * 0.22;
@@ -151,6 +177,10 @@ export function createScope(canvas, { onSelect } = {}) {
       ctx.strokeStyle = 'rgba(255,60,80,0.9)'; ctx.lineWidth = 1.4;
       ctx.beginPath(); ctx.arc(x, y, 8, 0, 7); ctx.stroke();
     }
+    if (reds.length) {
+      ctx.strokeStyle = 'rgba(255,60,80,' + (0.22 + 0.18 * Math.sin(t / 300)) + ')'; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(W / 2, H / 2, Math.min(W, H) / 2 - 3, 0, 7); ctx.stroke();
+    }
     if (Number.isFinite(S.guardKm) && S.guardKm > 0 && S.guardKm <= S.range) {
       const gr = S.guardKm / S.range * (size / 2 - 8);
       ctx.strokeStyle = 'rgba(255,111,125,0.55)'; ctx.setLineDash([7, 7]);
@@ -159,7 +189,8 @@ export function createScope(canvas, { onSelect } = {}) {
     ctx.fillStyle = '#eaf6ff';
     ctx.font = '10px system-ui';
     let labeled = 0;
-    for (const p of S.pts) {
+    const lab = S.pts.slice().sort((a, b) => ((a.e._lvl === 'red' ? 0 : 1) - (b.e._lvl === 'red' ? 0 : 1)));
+    for (const p of lab) {
       if (labeled >= 14) break;
       labeled++;
       ctx.globalAlpha = 0.9;
@@ -206,6 +237,9 @@ export function createScope(canvas, { onSelect } = {}) {
       if (opts.range) S.range = opts.range;
       S.guardKm = opts.guardKm ?? null;
       S.pin = opts.pin || null;
+      S.geo = opts.geo || null;
+      S.alertRegions = opts.alertRegions || [];
+      S.geoSig = opts.geoSig || '';
     },
     pick(x, y) {
       let best = null, bd = 22;
@@ -218,6 +252,16 @@ export function createScope(canvas, { onSelect } = {}) {
     readout(x, y) {
       const size = Math.min(W, H);
       if (!size) return null;
+      let best = null, bd = 22;
+      for (const p of S.pts) {
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < bd) { bd = d; best = p; }
+      }
+      if (best) {
+        const m = iconFor(best.e);
+        const dd = best.distKm != null ? (best.distKm < 10 ? best.distKm.toFixed(1).replace('.', ',') : Math.round(best.distKm)) + ' км' : '';
+        return m.label + (dd ? ' · ' + dd : '');
+      }
       const k = S.range / (size / 2 - 8);
       const dx = (x - W / 2) * k, dy = -(y - H / 2) * k;
       const distKm = Math.hypot(dx, dy);
