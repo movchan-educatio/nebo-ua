@@ -10,11 +10,18 @@ const FRESH_MIN = { missile: 2, ballistic: 2, uav: 5, recon: 5, kab: 5, aviation
 
 export function detectKind(parts) {
   const s = (Array.isArray(parts) ? parts : [parts]).filter(Boolean).join(' ');
+  if (!s) return null;
+  // Shahed/Geran - MUST be checked FIRST before generic uav
   if (/shahed|шахед|герань|geran|камикадзе/i.test(s)) return 'shahed';
+  // Ballistic missiles
   if (/баліст|баллист|ballistic|кинжал|кинджал|іскандер-м|искандер-м|kn-23|кн-23|s-300|с-300|s-400|с-400/i.test(s)) return 'ballistic';
+  // Cruise missiles
   if (/крилат|крылат|cruise|х-101|х-59|х-69|калібр|калибр|іскандер-к|искандер-к/i.test(s)) return 'missile';
+  // Guided bombs (KAB)
   if (/каб|фаб|авіабомб|авиабомб|bomb|умпк/i.test(s)) return 'kab';
+  // Reconnaissance UAVs
   if (/розвід|развед|recon|орлан|supercam|zala|зала|форпост/i.test(s)) return 'recon';
+  // Manned aviation
   if (/авіаці|авиаци|міг|миг|mig|су-34|су-35|су-57|ту-22|ту-95|ту-160/i.test(s)) return 'aviation';
   return null;
 }

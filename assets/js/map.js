@@ -3,10 +3,11 @@ import{classifyThreat,accuracyTier,freshnessScore,ageClass,shouldShowHeading}fro
 
 // ── Threat metadata ───────────────────────────────────────────────────────────
 // 'shahed' is a distinct visual kind within the uav category.
+// 'recon' is a distinct kind for reconnaissance UAVs.
 const META={
   shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#f5c04a'},
   uav:      {label:'БПЛА',    icon:'uav',      color:'#efb55b'},
-  recon:    {label:'РОЗВІДКА',icon:'uav',      color:'#9d91ff'},
+  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#9d91ff'},
   missile:  {label:'РАКЕТА',  icon:'missile',  color:'#ff6f7d'},
   ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#ff5568'},
   kab:      {label:'КАБ',     icon:'kab',      color:'#f2905d'},
@@ -65,9 +66,19 @@ export function createSituationMap(el,onSelect){
     regions.eachLayer(layer=>{
       const n=regionName(layer.feature),key=layer.feature.properties?.key;
       const list=alerts.filter(x=>x.key===key||x.region===n);
-      const wide=list.some(x=>!x.district),a=list[0];
-      layer.setStyle({color:wide?'#ff7e89':list.length?'#efb55b':'#29485c',weight:list.length?1.6:.8,fillColor:wide?'#c44150':'#0d2635',fillOpacity:wide?.34:.12});
-      layer.on('click',()=>onSelect(a?{...a,raions:list.map(x=>x.district).filter(Boolean),partial:!wide}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
+      // Oblast-wide alert: ONLY if there's an alert WITHOUT district (true oblast alert)
+      const wide=list.some(x=>!x.district);
+      // Raion-specific alerts: alerts that have a district
+      const raionAlerts=list.filter(x=>x.district);
+      const a=wide?list.find(x=>!x.district):(raionAlerts[0]||list[0]);
+      // Style: only paint whole oblast RED if there's a true oblast-wide alert
+      // For raion-only alerts: subtle border, no fill
+      const color=wide?'#ff7e89':raionAlerts.length?'#efb55b':'#29485c';
+      const weight=wide?1.8:raionAlerts.length?1.4:.8;
+      const fillColor=wide?'#c44150':raionAlerts.length?'#1a3a4a':'#0d2635';
+      const fillOpacity=wide?.34:raionAlerts.length?.08:.12;
+      layer.setStyle({color,weight,fillColor,fillOpacity});
+      layer.on('click',()=>onSelect(a?{...a,raions:raionAlerts.map(x=>x.district).filter(Boolean),partial:!wide}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
     });
     if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),{padding:[8,8]})}
   }

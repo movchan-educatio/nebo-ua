@@ -27,7 +27,8 @@ test('raionAlertActive distinguishes my raion from neighbours',()=>{
   const wide={region:'Черкаська область',district:null};
   assert.equal(raionAlertActive([a1],'Черкаська область','Уманський район').scope,'raion');
   assert.equal(raionAlertActive([a2],'Черкаська область','Уманський район').scope,'outside');
-  assert.equal(raionAlertActive([wide],'Черкаська область','Уманський район').scope,'raion');
+  // Oblast-wide alert returns 'oblast' scope for any specific raion check
+  assert.equal(raionAlertActive([wide],'Черкаська область','Уманський район').scope,'oblast');
   assert.equal(raionAlertActive([a1],'Черкаська область',null).scope,'oblast');
   assert.equal(raionAlertActive([],'Черкаська область','Уманський район'),null);
   assert.ok(raionMatches('Самарівський','Новомосковський'));

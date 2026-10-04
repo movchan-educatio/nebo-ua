@@ -3,7 +3,7 @@ import { normalizeNeptunThreat, normalizeMapa, normalizeAlert, isFreshEvent } fr
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
-import { loadPrev, saveState, loadLatest, journalUpsert, journalEnd, recordCheck, sourceMetrics } from './store.js';
+import { loadPrev, saveState, loadLatest, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
 
@@ -42,11 +42,12 @@ async function runPipeline(env) {
   ]);
 
   // Record checks (best effort; journal failures must not break the pipeline).
+  // Batched: single INSERT batch + hourly cleanup instead of 3×(INSERT+DELETE) per cron.
   try {
-    await Promise.all([
-      recordCheck(env.nebo_journal, 'OFFICIAL', official.ok && !official.disabled, official.latencyMs, official.error),
-      recordCheck(env.nebo_journal, 'NEPTUN', alertsRes.ok && threatsRes.ok, Math.max(alertsRes.latencyMs, threatsRes.latencyMs), [alertsRes.error, threatsRes.error].filter(Boolean).join('; ') || null),
-      recordCheck(env.nebo_journal, 'MAPA', mapaRes.ok, mapaRes.latencyMs, mapaRes.error),
+    await recordChecksBatch(env.nebo_journal, [
+      { source: 'OFFICIAL', ok: official.ok && !official.disabled, latencyMs: official.latencyMs, error: official.error },
+      { source: 'NEPTUN', ok: alertsRes.ok && threatsRes.ok, latencyMs: Math.max(alertsRes.latencyMs, threatsRes.latencyMs), error: [alertsRes.error, threatsRes.error].filter(Boolean).join('; ') || null },
+      { source: 'MAPA', ok: mapaRes.ok, latencyMs: mapaRes.latencyMs, error: mapaRes.error },
     ]);
   } catch (e) { console.error('checks failed', e); }
 

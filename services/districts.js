@@ -57,13 +57,17 @@ export function raionMatches(a, b) {
   return !!sa && sa === sb;
 }
 // Is there an official alert covering (oblast, raion)?
-// Returns null (none), {scope:'oblast'} (unknown raion), {scope:'raion'} (mine),
+// Returns null (none), {scope:'oblast'} (oblast-wide alert), {scope:'raion'} (raion-specific),
 // {scope:'outside'} (oblast alert, other raions).
 export function raionAlertActive(alerts, oblast, raion) {
   const list = (alerts || []).filter(a => normOblast(a.region) === normOblast(oblast));
   if (!list.length) return null;
   if (!raion) return { scope: 'oblast', alerts: list };
-  const mine = list.filter(a => !a.district || raionMatches(a.district, raion));
+  // Oblast-wide alert (no district) -> scope 'oblast' for any raion
+  const oblastWide = list.find(a => !a.district);
+  if (oblastWide) return { scope: 'oblast', alerts: [oblastWide] };
+  // Raion-specific alert matching this raion
+  const mine = list.filter(a => raionMatches(a.district, raion));
   return mine.length ? { scope: 'raion', alerts: mine } : { scope: 'outside', alerts: list };
 }
 export function matchRaion(dirList, incoming) {
