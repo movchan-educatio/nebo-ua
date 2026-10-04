@@ -20,3 +20,4 @@ Thumbs.db
 *.pem
 *.key
 private/
+.wrangler/
