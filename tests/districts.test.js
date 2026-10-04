@@ -1,4 +1,4 @@
-import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import{normRaion,normOblast,matchRaion,raionDirectory,oblastRaions}from'../services/districts.js';
+import test from'node:test';import assert from'node:assert/strict';import fs from'node:fs';import{normRaion,normOblast,matchRaion,raionMatches,raionAlertActive,raionDirectory,oblastRaions}from'../services/districts.js';
 const CHERKASY = raionDirectory('Черкаська область');
 test('raion directory covers Cherkasy with Uman',()=>{assert.ok(CHERKASY.includes('Уманський'));assert.equal(CHERKASY.length,4)});
 test('normRaion strips suffixes and case',()=>{assert.equal(normRaion('Уманський район'),'уманський');assert.equal(normRaion('Р-Н Звенигородський'),'звенигородський')});
@@ -21,6 +21,17 @@ test('unknown raion from data still appears as stream row',()=>{
   const view=oblastRaions(snap,'Черкаська область');
   const extra=view.rows.find(r=>r.name==='Невідомий');
   assert.ok(extra&&extra.fromStream&&extra.status==='alert')});
+test('raionAlertActive distinguishes my raion from neighbours',()=>{
+  const a1={region:'Черкаська область',district:'Уманський район'};
+  const a2={region:'Черкаська область',district:'Черкаський район'};
+  const wide={region:'Черкаська область',district:null};
+  assert.equal(raionAlertActive([a1],'Черкаська область','Уманський район').scope,'raion');
+  assert.equal(raionAlertActive([a2],'Черкаська область','Уманський район').scope,'outside');
+  assert.equal(raionAlertActive([wide],'Черкаська область','Уманський район').scope,'raion');
+  assert.equal(raionAlertActive([a1],'Черкаська область',null).scope,'oblast');
+  assert.equal(raionAlertActive([],'Черкаська область','Уманський район'),null);
+  assert.ok(raionMatches('Самарівський','Новомосковський'));
+});
 test('no directory falls back to stream rows',()=>{
   const snap={alerts:[{region:'Севастополь',district:'Центр',subtype:'Тривога'}],events:[]};
   const view=oblastRaions(snap,'Севастополь');

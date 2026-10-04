@@ -46,6 +46,26 @@ export function normOblast(s) {
 function stem(s) {
   return normRaion(s).replace(/(ський|цький|зький|чий|ший|ій|ий|й)$/, '');
 }
+export function raionMatches(a, b) {
+  const na = normRaion(a), nb = normRaion(b);
+  if (!na || !nb) return false;
+  if (na === nb) return true;
+  const ca = ALIASES[na] || na, cb = ALIASES[nb] || nb;
+  if (ca === cb) return true;
+  const sa = ca.replace(/(ський|цький|зький|чий|ший|ій|ий|й)$/, '');
+  const sb = cb.replace(/(ський|цький|зький|чий|ший|ій|ий|й)$/, '');
+  return !!sa && sa === sb;
+}
+// Is there an official alert covering (oblast, raion)?
+// Returns null (none), {scope:'oblast'} (unknown raion), {scope:'raion'} (mine),
+// {scope:'outside'} (oblast alert, other raions).
+export function raionAlertActive(alerts, oblast, raion) {
+  const list = (alerts || []).filter(a => normOblast(a.region) === normOblast(oblast));
+  if (!list.length) return null;
+  if (!raion) return { scope: 'oblast', alerts: list };
+  const mine = list.filter(a => !a.district || raionMatches(a.district, raion));
+  return mine.length ? { scope: 'raion', alerts: mine } : { scope: 'outside', alerts: list };
+}
 export function matchRaion(dirList, incoming) {
   if (!incoming) return null;
   const n = normRaion(incoming);

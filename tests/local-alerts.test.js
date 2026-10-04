@@ -4,4 +4,19 @@ test('location hierarchy keeps settlement, raion and oblast',()=>{const p=normal
 test('relevance engine never turns oblast data into settlement match',()=>{assert.equal(eventRelevance({region:'Черкаська область'},place),RELEVANCE.OBLAST);assert.equal(eventRelevance({district:'Уманський район',region:'Черкаська область'},place),RELEVANCE.RAION);assert.equal(eventRelevance({settlement:'Дмитрушки'},place),RELEVANCE.DIRECT);assert.equal(eventRelevance({region:'Одеська область'},place),RELEVANCE.OUTSIDE)});
 test('notification fingerprint ignores coordinate refresh',()=>{const a={source:'MAPA',sourceEventId:'7',category:'uav',lat:49},b={...a,lat:50};assert.equal(fingerprint(a),fingerprint(b))});
 test('notifications include only new relevant events and separate monitoring wording',()=>{const prefs={...DEFAULT_NOTIFICATION_PREFS,enabled:true},event={id:'n1',source:'NEPTUN',sourceEventId:'1',category:'uav',district:'Уманський район',region:'Черкаська область',timestamp:new Date()};const current={alerts:[],events:[event],health:{OFFICIAL:{status:'online'}}};const items=deriveNotificationCandidates({alerts:[],events:[]},current,place,prefs);assert.equal(items.length,1);assert.match(items[0].body,/Моніторингове повідомлення/);assert.deepEqual(deriveNotificationCandidates(current,current,place,prefs),[])});
+test('official notifications fire per raion, not whole oblast',()=>{
+  const prefs={...DEFAULT_NOTIFICATION_PREFS,enabled:true};
+  const health={OFFICIAL:{status:'online'}};
+  const uman={region:'Черкаська область',district:'Уманський район'};
+  const other={region:'Черкаська область',district:'Черкаський район'};
+  const before={alerts:[],events:[],health};
+  const hitUman={alerts:[uman],events:[],health};
+  const hitOther={alerts:[other],events:[],health};
+  const start=deriveNotificationCandidates(before,hitUman,place,prefs);
+  assert.equal(start.length,1);assert.equal(start[0].type,'officialStart');
+  assert.match(start[0].body,/Уманський район/);
+  assert.deepEqual(deriveNotificationCandidates(before,hitOther,place,prefs),[]);
+  const end=deriveNotificationCandidates(hitUman,before,place,prefs);
+  assert.equal(end.length,1);assert.equal(end[0].type,'officialEnd');
+});
 test('widget reports messages, not physical object counts',()=>{const model=widgetModel({alerts:[],events:[{category:'uav',region:'Черкаська область'}],receivedAt:new Date()},place);assert.equal(model.uav,1);assert.equal(model.place,'Дмитрушки')});
