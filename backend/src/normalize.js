@@ -53,6 +53,9 @@ function base(part, receivedAt) {
   const eventTime = part.timestamp;
   return {
     ...part,
+    // Conservative track identity: the source's own stable id, namespaced.
+    // No cross-source stitching here — correlation stays in fuse.js.
+    trackId: part.id,
     timestamp: undefined,
     eventTime: iso(eventTime),
     receivedAt: iso(receivedAt),

@@ -1,14 +1,36 @@
-import { iconFor } from './map.js';
+import { iconFor, getThreatVisual, rangeRings } from './map.js';
+import { shouldShowHeading } from '../../services/threatClassify.js';
 import { regionName } from '../../services/regions.js';
 // Classic PPI scope: rotating sweep, phosphor afterglow, bearing readout.
 // Pure math is exported for unit tests; DOM lives inside createScope.
+// Distance uses Haversine (geodesic), bearing is geographic — so a target at
+// 5 km with range=10 km renders at ~50% of the radius (TZ §31).
+// Targets are drawn with the SAME SVG silhouettes as the Leaflet map
+// (shared getThreatVisual registry) — never generic dots.
 const KM_LAT = 110.57;
+// Sprite location is module-relative: works from /, /nebo-ua/, /dev/, ... .
+const THREAT_SPRITE_URL = new URL('../brand/threat-icons.svg', import.meta.url).href;
+export function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371.0088;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+export function bearingDeg(lat1, lon1, lat2, lon2) {
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dLon) * Math.cos(lat2 * Math.PI / 180);
+  const x = Math.cos(lat1 * Math.PI / 180) * Math.sin(lat2 * Math.PI / 180) -
+    Math.sin(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.cos(dLon);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
 export function project(lat, lon, center, rangeKm, size) {
   const kx = 111.32 * Math.cos(center[0] * Math.PI / 180);
   const dx = (lon - center[1]) * kx;
   const dy = (lat - center[0]) * KM_LAT;
-  const distKm = Math.hypot(dx, dy);
-  const bearing = (Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360;
+  const distKm = haversineKm(center[0], center[1], lat, lon);
+  const bearing = bearingDeg(center[0], center[1], lat, lon);
   const k = (size / 2 - 8) / rangeKm;
   return { x: size / 2 + dx * k, y: size / 2 - dy * k, distKm, bearing, inside: distKm <= rangeKm };
 }
@@ -30,6 +52,33 @@ export function createScope(canvas, { onSelect } = {}) {
   let sweep = 0, last = 0, raf = 0, active = false, W = 0, H = 0, staticKey = '';
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let pw = 0, ph = 0;
+  // ── Shared SVG sprites (same silhouettes as the map) ─────────────────────
+  // The sprite is fetched once, each symbol rasterized per kind with its own
+  // threat color baked in (currentColor). Until loaded, dots are drawn.
+  const spriteImgs = new Map();
+  let spriteLoading = false;
+  function ensureSprites() {
+    if (spriteLoading || typeof fetch !== 'function') return;
+    spriteLoading = true;
+    fetch(THREAT_SPRITE_URL).then((r) => r.text()).then((txt) => {
+      for (const kind of ['shahed', 'uav', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other']) {
+        try {
+          const v = getThreatVisual(kind);
+          const m = txt.match(new RegExp('<symbol id="' + kind + '" viewBox="([^"]+)">([\\s\\S]*?)</symbol>'));
+          if (!m) continue;
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + m[1] + '" width="64" height="64" color="' + v.color + '">' + m[2] + '</svg>';
+          const img = new Image();
+          img.decoding = 'async';
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+          spriteImgs.set(kind, img);
+        } catch (e) {}
+      }
+    }).catch(() => {});
+  }
+  function spriteFor(kind) {
+    const img = spriteImgs.get(kind);
+    return img && img.complete && img.naturalWidth ? img : null;
+  }
   function resize() {
     const r = canvas.getBoundingClientRect();
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -50,7 +99,7 @@ export function createScope(canvas, { onSelect } = {}) {
     const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 6;
     sctx.clearRect(0, 0, W, H);
     const bg = sctx.createRadialGradient(cx, cy, Math.min(10, Math.max(0, R - 1)), cx, cy, Math.max(1, R));
-    bg.addColorStop(0, '#0b1a28'); bg.addColorStop(1, '#03070c');
+    bg.addColorStop(0, '#050D14'); bg.addColorStop(1, '#02070B');
     sctx.fillStyle = bg;
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
     try{sctx.save();
@@ -66,7 +115,7 @@ export function createScope(canvas, { onSelect } = {}) {
             if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
           });
           sctx.closePath();
-          sctx.strokeStyle = 'rgba(120,170,210,0.28)';
+          sctx.strokeStyle = 'rgba(120,160,175,0.18)';
           sctx.lineWidth = 0.8;
           sctx.stroke();
         }
@@ -89,29 +138,38 @@ export function createScope(canvas, { onSelect } = {}) {
       }
     }
     sctx.restore();}catch(_g){}
-    sctx.strokeStyle = '#66c7ff';
-    [0.25, 0.5, 0.75, 1].forEach((f, i) => {
-      sctx.globalAlpha = i === 3 ? 0.7 : 0.35; sctx.lineWidth = i === 3 ? 1.6 : 1;
+    // Range rings follow the selected range exactly (1/3/5/10/25/100 presets).
+    const ringSet = rangeRings(S.range);
+    sctx.font = '10px system-ui';
+    ringSet.forEach((km, i) => {
+      const f = km / S.range;
+      const outer = i === ringSet.length - 1;
+      sctx.globalAlpha = outer ? 1 : 0.55;
+      sctx.strokeStyle = outer ? 'rgba(130,170,185,0.42)' : 'rgba(120,160,175,0.22)';
+      sctx.lineWidth = outer ? 1.2 : 1;
       sctx.beginPath(); sctx.arc(cx, cy, R * f, 0, 7); sctx.stroke();
-      sctx.globalAlpha = 0.95; sctx.fillStyle = '#bfe3fa'; sctx.font = '10px system-ui';
-      sctx.fillText(Math.round(S.range * f) + '', cx + 4, cy - R * f - 3);
+      sctx.globalAlpha = outer ? 0.75 : 0.5;
+      sctx.fillStyle = outer ? 'rgba(165,195,208,0.75)' : 'rgba(140,165,180,0.5)';
+      sctx.fillText(outer ? km + ' км' : String(km), cx + 4, cy - R * f - 3);
     });
-    sctx.globalAlpha = 0.9;
+    sctx.globalAlpha = 0.35;
     for (let a = 0; a < 360; a += 10) {
       const major = a % 30 === 0;
       const r0 = R - (a % 90 === 0 ? 9 : major ? 6 : 3), rad = (a - 90) * Math.PI / 180;
-      sctx.globalAlpha = 0.7; sctx.lineWidth = 1;
+      sctx.globalAlpha = 0.35; sctx.lineWidth = 1;
+      sctx.strokeStyle = 'rgba(120,160,175,0.5)';
       sctx.beginPath();
       sctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
       sctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R);
       sctx.stroke();
     }
-    sctx.globalAlpha = 0.25;
+    sctx.globalAlpha = 0.15;
+    sctx.strokeStyle = 'rgba(120,160,175,0.6)';
     sctx.beginPath(); sctx.moveTo(cx - R, cy); sctx.lineTo(cx + R, cy);
     sctx.moveTo(cx, cy - R); sctx.lineTo(cx, cy + R); sctx.stroke();
-    sctx.globalAlpha = 0.85; sctx.fillStyle = '#9fc9e8'; sctx.font = 'bold 11px system-ui';
-    sctx.fillText('Пн', cx - 7, cy - R + 14); sctx.fillText('Пд', cx - 7, cy + R - 6);
-    sctx.fillText('Сх', cx + R - 17, cy + 4); sctx.fillText('Зх', cx - R + 5, cy + 4);
+    sctx.globalAlpha = 0.6; sctx.fillStyle = 'rgba(150,180,195,0.6)'; sctx.font = 'bold 11px system-ui';
+    sctx.fillText('N', cx - 4, cy - R + 14); sctx.fillText('S', cx - 4, cy + R - 6);
+    sctx.fillText('E', cx + R - 14, cy + 4); sctx.fillText('W', cx - R + 5, cy + 4);
     sctx.globalAlpha = 1;
   }
   function drawSweep() {
@@ -123,15 +181,16 @@ export function createScope(canvas, { onSelect } = {}) {
     if (typeof ctx.createConicGradient === 'function') {
       g = ctx.createConicGradient(-0.5, 0, 0);
       g.addColorStop(0, 'rgba(102,199,255,0)');
-      g.addColorStop(0.85, 'rgba(102,199,255,0.10)');
-      g.addColorStop(1, 'rgba(102,199,255,0.55)');
+      g.addColorStop(0.85, 'rgba(102,199,255,0.05)');
+      g.addColorStop(1, 'rgba(120,200,225,0.30)');
       ctx.fillStyle = g;
     } else {
-      ctx.fillStyle = 'rgba(102,199,255,0.10)';
+      ctx.fillStyle = 'rgba(102,199,255,0.05)';
     }
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.5, 0); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(140,220,255,0.9)'; ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'rgba(140,220,255,0.8)'; ctx.shadowBlur = 8;
+    // Sector beam ≈20°: bright leading edge, gradual fade behind.
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.35, 0); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = 'rgba(140,200,225,0.55)'; ctx.lineWidth = 1.25;
+    ctx.shadowColor = 'rgba(140,200,225,0.5)'; ctx.shadowBlur = 4;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R, 0); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -152,7 +211,7 @@ export function createScope(canvas, { onSelect } = {}) {
   function frameBody(t) {
     const dt = Math.min(100, t - (last || t));
     last = t;
-    if (!reduced) sweep = (sweep + dt / 5000 * 360) % 360;
+    if (!reduced) sweep = (sweep + dt / 7000 * 360) % 360;
     resize();
     // Degenerate size (e.g. view just opened, layout pending): skip this
     // frame, the loop stays alive and draws as soon as layout settles.
@@ -171,33 +230,47 @@ export function createScope(canvas, { onSelect } = {}) {
     const reds = [];
     const edge = [];
     let nearest = null;
+    ensureSprites();
     for (const e of S.events) {
       if (e.lat == null || e.lon == null) continue;
       const p = project(e.lat, e.lon, S.center, S.range, size);
       if (p.distKm < (nearest == null ? Infinity : nearest)) nearest = p.distKm;
       if (!p.inside) {
-        if (p.distKm <= S.range * 3) edge.push(p);
+        if (p.distKm <= S.range * 3) edge.push({ p, e });
         continue;
       }
       const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
-      const m = iconFor(e);
+      const v = getThreatVisual(e);
       const boost = sweepBoost(sweep, p.bearing);
-      S.pts.push({ e, x: ox, y: oy, label: m.label, distKm: p.distKm });
-      const R0 = e._lvl === 'red' ? 4.5 : 3.2;
-      const glow = 0.45 + 0.55 * boost;
-      ectx.globalAlpha = glow * 0.22;
-      ectx.fillStyle = m.color;
-      ectx.beginPath(); ectx.arc(ox, oy, R0 * 2.6, 0, 7); ectx.fill();
-      ectx.globalAlpha = glow;
-      ectx.beginPath(); ectx.arc(ox, oy, R0, 0, 7); ectx.fill();
-      ectx.fillStyle = '#fff';
-      ectx.globalAlpha = 0.5 + 0.5 * boost;
-      ectx.beginPath(); ectx.arc(ox, oy, 1.1, 0, 7); ectx.fill();
-      const hd = Number(e.heading);
-      if (Number.isFinite(hd)) {
-        const hr = (hd - 90) * Math.PI / 180;
-        ectx.globalAlpha = 0.85; ectx.strokeStyle = m.color; ectx.lineWidth = 1.4;
-        ectx.beginPath(); ectx.moveTo(ox, oy); ectx.lineTo(ox + Math.cos(hr) * 9, oy + Math.sin(hr) * 9); ectx.stroke();
+      S.pts.push({ e, x: ox, y: oy, label: v.label, distKm: p.distKm });
+      const glow = 0.55 + 0.45 * boost;
+      // Same SVG silhouette as the map, rotated by reliable heading only.
+      const img = spriteFor(v.kind);
+      const sPx = Math.max(20, Math.min(28, v.size));
+      if (img) {
+        ectx.save();
+        ectx.globalAlpha = glow;
+        ectx.translate(ox, oy);
+        if (shouldShowHeading(e)) ectx.rotate(Number(e.heading) * Math.PI / 180);
+        if (e._lvl === 'red') { ectx.shadowColor = v.color; ectx.shadowBlur = 10; }
+        ectx.drawImage(img, -sPx / 2, -sPx / 2, sPx, sPx);
+        ectx.restore();
+      } else {
+        const R0 = e._lvl === 'red' ? 4.5 : 3.2;
+        ectx.globalAlpha = glow * 0.22;
+        ectx.fillStyle = v.color;
+        ectx.beginPath(); ectx.arc(ox, oy, R0 * 2.6, 0, 7); ectx.fill();
+        ectx.globalAlpha = glow;
+        ectx.beginPath(); ectx.arc(ox, oy, R0, 0, 7); ectx.fill();
+        ectx.fillStyle = '#fff';
+        ectx.globalAlpha = 0.5 + 0.5 * boost;
+        ectx.beginPath(); ectx.arc(ox, oy, 1.1, 0, 7); ectx.fill();
+        const hd = Number(e.heading);
+        if (shouldShowHeading(e)) {
+          const hr = (hd - 90) * Math.PI / 180;
+          ectx.globalAlpha = 0.85; ectx.strokeStyle = v.color; ectx.lineWidth = 1.4;
+          ectx.beginPath(); ectx.moveTo(ox, oy); ectx.lineTo(ox + Math.cos(hr) * 9, oy + Math.sin(hr) * 9); ectx.stroke();
+        }
       }
       if (e._lvl === 'red') reds.push([ox, oy]);
     }
@@ -220,35 +293,38 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.fillStyle = '#eaf6ff';
     ctx.font = '10px system-ui';
-    let labeled = 0;
-    const lab = S.pts.slice().sort((a, b) => ((a.e._lvl === 'red' ? 0 : 1) - (b.e._lvl === 'red' ? 0 : 1)));
-    for (const p of lab) {
-      if (labeled >= 14) break;
-      labeled++;
-      ctx.globalAlpha = 0.9;
-      ctx.fillText(p.label, p.x + 7, p.y - 6);
-    }
+    // No per-target text on the scope: SVG + tap/hover detail card only.
     ctx.globalAlpha = 1;
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
+    // Out-of-range contacts: threat silhouette + distance on the outer edge
+    // at the true bearing. Never faked inside the scope.
     let edgeNear = null;
-    for (const p of edge) {
-      if (!edgeNear || p.distKm < edgeNear.distKm) edgeNear = p;
+    for (const { p, e } of edge) {
+      if (!edgeNear || p.distKm < edgeNear.p.distKm) edgeNear = { p, e };
       const a = (p.bearing - 90) * Math.PI / 180;
-      ctx.globalAlpha = 0.8;
-      ctx.strokeStyle = '#66c7ff';
-      ctx.beginPath(); ctx.arc(cx0 + Math.cos(a) * (RR - 12), cy0 + Math.sin(a) * (RR - 12), 4.5, 0, 7); ctx.stroke();
+      const ex = cx0 + Math.cos(a) * (RR - 16), ey = cy0 + Math.sin(a) * (RR - 16);
+      const v = getThreatVisual(e);
+      const img = spriteFor(v.kind);
+      ctx.globalAlpha = 0.9;
+      if (img) {
+        ctx.drawImage(img, ex - 9, ey - 9, 18, 18);
+      } else {
+        ctx.strokeStyle = v.color;
+        ctx.beginPath(); ctx.arc(ex, ey, 4.5, 0, 7); ctx.stroke();
+      }
     }
     if (edgeNear) {
-      const a = (edgeNear.bearing - 90) * Math.PI / 180;
+      const { p } = edgeNear;
+      const a = (p.bearing - 90) * Math.PI / 180;
       ctx.globalAlpha = 1; ctx.fillStyle = '#9fd8f5'; ctx.font = '10px system-ui';
-      const t = (edgeNear.distKm < 10 ? edgeNear.distKm.toFixed(1).replace('.', ',') : Math.round(edgeNear.distKm)) + ' км';
-      ctx.fillText(t, cx0 + Math.cos(a) * (RR - 34) - 10, cy0 + Math.sin(a) * (RR - 34));
+      const t = (p.distKm < 10 ? p.distKm.toFixed(1).replace('.', ',') : Math.round(p.distKm)) + ' км';
+      ctx.fillText(t, cx0 + Math.cos(a) * (RR - 40) - 10, cy0 + Math.sin(a) * (RR - 40));
     }
     ctx.globalAlpha = 1;
     if (!S.pts.length) {
-      ctx.fillStyle = '#9fd8f5'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText('Цілей у радіусі ' + S.range + ' км немає', cx0, cy0 - 8);
-      if (nearest != null && Number.isFinite(nearest)) ctx.fillText('Найближча: ' + (nearest < 10 ? nearest.toFixed(1).replace('.', ',') : Math.round(nearest)) + ' км — збільш дальність', cx0, cy0 + 12);
+      // Small muted line BELOW the clean center — never over the crosshair.
+      ctx.fillStyle = '#5f7d8f'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText('ЦІЛЕЙ У РАДІУСІ НЕМАЄ', cx0, cy0 + 26);
       ctx.textAlign = 'left';
     }
     if (S.pin) {
@@ -261,12 +337,14 @@ export function createScope(canvas, { onSelect } = {}) {
         ctx.fillStyle = '#dff2ff'; ctx.fillText(S.pin.label || '', ox + 9, oy - 8);
       }
     }
+    // Own position: small cyan/white dot with a subtle pulse. Never a big glow.
+    const pulse = reduced ? 0 : (0.5 + 0.5 * Math.sin(t / 600));
     ctx.fillStyle = '#66c7ff';
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 3.5, 0, 7); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 3.5, 0, 7); ctx.stroke();
-    ctx.strokeStyle = 'rgba(102,199,255,0.35)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(W / 2, H / 2, 8, 0, 7); ctx.stroke();
+    ctx.strokeStyle = `rgba(102,199,255,${0.2 + 0.25 * pulse})`; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(W / 2, H / 2, 8 + 3 * pulse, 0, 7); ctx.stroke();
     if (!reduced) drawSweep();
   }
   return {

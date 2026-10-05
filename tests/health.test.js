@@ -131,12 +131,12 @@ test('range presets are exactly 1/3/5/10/25/100', () => {
 });
 
 test('rangeRings: logical ring sets per range', () => {
-  assert.deepEqual(rangeRings(1), [0.25, 0.5, 1]);
-  assert.deepEqual(rangeRings(3), [1, 2, 3]);
-  assert.deepEqual(rangeRings(5), [1, 3, 5]);
-  assert.deepEqual(rangeRings(10), [1, 3, 5, 10]);
-  assert.deepEqual(rangeRings(25), [5, 10, 25]);
-  assert.deepEqual(rangeRings(100), [25, 50, 100]);
+  assert.deepEqual(rangeRings(1), [0.2, 0.4, 0.6, 0.8, 1]);
+  assert.deepEqual(rangeRings(3), [0.6, 1.2, 1.8, 2.4, 3]);
+  assert.deepEqual(rangeRings(5), [1, 2, 3, 4, 5]);
+  assert.deepEqual(rangeRings(10), [2, 4, 6, 8, 10]);
+  assert.deepEqual(rangeRings(25), [5, 10, 15, 20, 25]);
+  assert.deepEqual(rangeRings(100), [20, 40, 60, 80, 100]);
 });
 
 test('rangeRings: legacy/unknown ranges degrade gracefully', () => {

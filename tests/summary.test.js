@@ -87,14 +87,15 @@ test('flowStats: 32 UAV + 2 KAB exact, 2 area-tier excluded, no double counting'
   assert.equal(s.uav + s.missiles + s.kab + s.shahed, s.exactTotal);
 });
 
-// ── flowSummaryHTML: honest labels, correct plurals, no legacy text ──────────
+// ── flowSummaryHTML: radar HUD copy, no logbook wording, no debug ────────────
 test('flowSummaryHTML: compact honest summary for the real snapshot shape', () => {
   const html = flowSummaryHTML({ uav: 32, shahed: 0, missiles: 0, kab: 2, exactTotal: 34 }, 31);
   assert.ok(html.includes('<b>32</b>'), 'shows 32');
   assert.ok(html.includes('БПЛА'), 'shows БПЛА');
   assert.ok(html.includes('<b>2</b>'), 'shows 2');
   assert.ok(html.includes('КАБ'), 'shows КАБ');
-  assert.ok(html.includes('<b>2</b>') && html.includes('повідомлення'), 'shows 2 with few-form plural');
+  assert.ok(!html.includes('повідомлен'), 'radar copy, not logbook wording');
+  assert.ok(!html.includes('приховано'), 'stale-hidden count is debug info, not for users');
   assert.ok(html.includes('34'), 'shows 34 coordinate events');
   assert.ok(html.includes('точкові цілі'), 'rendered-targets wording (34 = few form)');
   assert.ok(html.includes('31'), 'shows 31 raions');
@@ -106,13 +107,16 @@ test('flowSummaryHTML: compact honest summary for the real snapshot shape', () =
 
 test('flowSummaryHTML: plurals 1/5 and Shahed cell honesty', () => {
   const one = flowSummaryHTML({ uav: 1, shahed: 0, missiles: 0, kab: 0, exactTotal: 1 }, 1);
-  assert.ok(one.includes('<b>1</b>') && one.includes('повідомлення'), '1 повідомлення');
-  assert.ok(!one.includes('Шахед'), 'no Shahed cell when shahed=0');
+  assert.ok(one.includes('<b>1</b>') && one.includes('РАКЕТА') === false, 'missile cell uses РАКЕТА only for missiles');
+  assert.ok(one.includes('БПЛА'), 'uav cell present');
+  assert.ok(!one.includes('ШАХЕД'), 'no Shahed cell when shahed=0');
   const five = flowSummaryHTML({ uav: 5, shahed: 0, missiles: 1, kab: 0, exactTotal: 6 }, 5);
-  assert.ok(five.includes('повідомлень'), '5 повідомлень');
+  assert.ok(five.includes('РАКЕТА'), '1 ракета');
   assert.ok(five.includes('5 районів'), '5 районів');
+  const rockets = flowSummaryHTML({ uav: 0, shahed: 0, missiles: 5, kab: 0, exactTotal: 5 }, 0);
+  assert.ok(rockets.includes('РАКЕТ'), '5 ракет');
   const withShahed = flowSummaryHTML({ uav: 10, shahed: 2, missiles: 0, kab: 0, exactTotal: 12 }, 1);
-  assert.ok(withShahed.includes('Шахед'), 'confirmed Shaheds get their own cell, never hidden in БПЛА');
+  assert.ok(withShahed.includes('ШАХЕД'), 'confirmed Shaheds get their own cell, never hidden in БПЛА');
 });
 
 // ── Cluster honesty: generic UAV is never renamed to Shahed ──────────────────

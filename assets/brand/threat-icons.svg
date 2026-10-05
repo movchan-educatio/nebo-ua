@@ -21,24 +21,22 @@
     <circle cx="32" cy="53" r="2.4" fill="currentColor" stroke="none"/>
   </g></symbol>
 
-  <!-- ================= GENERIC UAV (quadcopter) =================
-       Neutral multicopter, top view. Solid rotor discs.
-       NEVER used for confirmed Shahed. -->
+  <!-- ================= GENERIC UAV (small fixed-wing) =================
+       Neutral fixed-wing UAV, top view, nose up. Straight tapered wings
+       of moderate chord, slim fuselage, inverted-V tail, nose propeller.
+       Distinct from the Shahed delta and from the wide recon wing.
+       Used for any unconfirmed "БПЛА/дрон" — NEVER the Shahed silhouette. -->
   <symbol id="uav" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
-    <!-- Diagonal arms (X config) -->
-    <path d="M32 32 L15 15 M32 32 L49 15 M32 32 L15 49 M32 32 L49 49" stroke="currentColor" stroke-width="5" stroke-linecap="round" fill="none"/>
-    <!-- Rotor discs -->
-    <circle cx="14" cy="14" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
-    <circle cx="50" cy="14" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
-    <circle cx="14" cy="50" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
-    <circle cx="50" cy="50" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
-    <!-- Motor hubs -->
-    <circle cx="14" cy="14" r="2.6" fill="currentColor" stroke="none"/>
-    <circle cx="50" cy="14" r="2.6" fill="currentColor" stroke="none"/>
-    <circle cx="14" cy="50" r="2.6" fill="currentColor" stroke="none"/>
-    <circle cx="50" cy="50" r="2.6" fill="currentColor" stroke="none"/>
-    <!-- Central body -->
-    <circle cx="32" cy="32" r="7" fill="currentColor" stroke="none"/>
+    <!-- Straight tapered main wings -->
+    <path d="M10 26 L54 26 L50 33 L14 33 Z" fill="currentColor" stroke="none"/>
+    <!-- Slim fuselage -->
+    <path d="M29.8 8 L34.2 8 L34.8 40 L32 50 L30 50 L29.2 40 Z" fill="currentColor" stroke="none"/>
+    <!-- Nose + propeller -->
+    <circle cx="32" cy="8" r="2.2" fill="currentColor" stroke="none"/>
+    <path d="M22 8 L42 8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>
+    <!-- Inverted-V tail -->
+    <path d="M30.5 40 L22 50 L24.5 51.5 L32 43 Z" fill="currentColor" stroke="none"/>
+    <path d="M33.5 40 L42 50 L39.5 51.5 L32 43 Z" fill="currentColor" stroke="none"/>
   </g></symbol>
 
   <!-- ================= RECON (fixed-wing UAV) =================

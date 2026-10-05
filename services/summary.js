@@ -63,28 +63,31 @@ export function kindShortLabel(kind) {
 }
 
 /**
- * Compact summary HTML for the "ЗАРАЗ У ПОТОЦІ" strip.
- * Three disjoint columns (БПЛА / РАКЕТИ / КАБ) plus a sub-line with
- * coordinate events and raion polygons in alert. Numbers are event RECORDS
- * with real coordinates, labelled as повідомлення — never physical targets.
+ * Compact summary HTML for the "ЗАРАЗ У ПОТОЦІ" HUD.
+ * Radar-style cells: [icon] N БПЛА · [icon] N РАКЕТ · [icon] N КАБ
+ * (+ separate ШАХЕД cell only for confirmed Shaheds, never hidden inside
+ * generic БПЛА). Sub-line: rendered point targets + raions in alert.
+ * Technical "stale hidden" counts are NOT shown to regular users.
  */
+const THREAT_SPRITE = './assets/brand/threat-icons.svg';
+// HUD icon colors mirror the shared threat palette (assets/js/map.js META).
+const KIND_COLOR = { uav: '#F7B547', shahed: '#FFAA32', missile: '#FF4D5E', kab: '#FF7957' };
 export function flowSummaryHTML(stats, raionCount) {
   const s = { uav: 0, shahed: 0, missiles: 0, kab: 0, exactTotal: 0, suppressed: 0, ...(stats || {}) };
   const rc = Number(raionCount) || 0;
-  const cell = (value, name) =>
-    `<span class="flow-stat"><b>${value}</b><i>${name} ${plural(value, 'повідомлення', 'повідомлення', 'повідомлень')}</i></span>`;
-  // Confirmed Shaheds get their own cell so they are never hidden inside generic БПЛА.
-  const shahedCell = s.shahed > 0 ? cell(s.shahed, 'Шахед') : '';
-  const suppressedNote = s.suppressed > 0
-    ? ` · ${s.suppressed} ${plural(s.suppressed, 'застаріле', 'застарілі', 'застарілих')} приховано`
+  const cell = (value, icon, name, color) =>
+    `<span class="flow-stat" style="--c:${color}"><svg class="flow-ico" aria-hidden="true"><use href="${THREAT_SPRITE}#${icon}"/></svg><b>${value}</b><i>${name}</i></span>`;
+  const shahedCell = s.shahed > 0
+    ? cell(s.shahed, 'shahed', plural(s.shahed, 'ШАХЕД', 'ШАХЕДИ', 'ШАХЕДІВ'), KIND_COLOR.shahed)
     : '';
   return `<div class="flow-cells">`
-    + cell(s.uav, 'БПЛА')
+    + cell(s.uav, 'uav', 'БПЛА', KIND_COLOR.uav)
     + shahedCell
-    + cell(s.missiles, 'ракетних')
-    + cell(s.kab, 'КАБ')
+    + cell(s.missiles, 'missile', plural(s.missiles, 'РАКЕТА', 'РАКЕТИ', 'РАКЕТ'), KIND_COLOR.missile)
+    + cell(s.kab, 'kab', plural(s.kab, 'КАБ', 'КАБи', 'КАБів'), KIND_COLOR.kab)
     + `</div>`
-    + `<div class="flow-sub">${s.exactTotal} ${plural(s.exactTotal, 'точкова ціль', 'точкові цілі', 'точкових цілей')} · ${rc} ${plural(rc, 'район', 'райони', 'районів')} у тривозі${suppressedNote}</div>`;
+    + `<div class="flow-sub">${s.exactTotal} ${plural(s.exactTotal, 'точкова ціль', 'точкові цілі', 'точкових цілей')} · ${rc} ${plural(rc, 'район', 'райони', 'районів')} у тривозі</div>`
+    + `<div class="flow-compact"><b>ЗАРАЗ У ПОТОЦІ</b>${s.exactTotal} ${plural(s.exactTotal, 'ціль', 'цілі', 'цілей')} · ${rc} ${plural(rc, 'район', 'райони', 'районів')}</div>`;
 }
 
 /**

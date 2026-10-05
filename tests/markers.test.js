@@ -13,8 +13,8 @@ const css = fs.readFileSync(path.join(root, 'assets/css/styles.css'), 'utf8');
 test('palette: shahed/uav/kab/missile/ballistic/recon all differ', () => {
   const colors = ['shahed', 'uav', 'recon', 'missile', 'ballistic', 'kab', 'aviation'].map(k => META[k].color);
   assert.equal(new Set(colors).size, colors.length, 'each kind must have its own color: ' + colors.join(', '));
-  assert.equal(META.shahed.color.toLowerCase(), '#ffb21c');
-  assert.equal(META.ballistic.color.toLowerCase(), '#ff1744');
+  assert.equal(META.shahed.color.toLowerCase(), '#ffaa32');
+  assert.equal(META.ballistic.color.toLowerCase(), '#ff2a55');
 });
 
 // ── Small groups: footprint, spacing, honesty, no card ───────────────────────
@@ -61,12 +61,14 @@ test('smallGroup: no card, no count text, transparent', () => {
   assert.ok(g.html.includes('threat-group'), 'transparent group container');
 });
 
-test('badge 5+: compact 46px round badge, number only, composition in title', () => {
-  const html = clusterBadgeHTML(8, 'uav', '7 БПЛА · 1 КАБ', '8 повідомлень: 7 БПЛА, 1 КАБ');
-  assert.ok(html.includes('<b>8</b>'), 'number present');
+test('badge 5+: compact ≤70px badge, mini silhouettes + ×N, composition in title', () => {
+  const html = clusterBadgeHTML(8, 'uav', '7 БПЛА · 1 КАБ', '8 повідомлень: 7 БПЛА, 1 КАБ', ['uav', 'kab']);
+  assert.ok(html.includes('<b>×8</b>'), 'compact ×N count');
   assert.ok(html.includes('is-badge'), 'badge styling hook');
   assert.ok(!html.includes('<small'), 'no big composition text on the map');
   assert.ok(html.includes('title="8 повідомлень: 7 БПЛА, 1 КАБ"'), 'composition available on tap/hover');
+  assert.ok(html.includes('#uav') && html.includes('#kab'), 'mixed group shows its own silhouettes');
+  assert.equal((html.match(/<svg class="tg-mini"/g) || []).length, 3, 'three mini silhouettes + ×N');
 });
 
 // ── Threat pane / z-index ────────────────────────────────────────────────────

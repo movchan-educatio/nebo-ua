@@ -1,6 +1,7 @@
 import{regionName}from'../../services/regions.js';
 import{territorialDanger,normOblast}from'../../services/districts.js';
-import{classifyThreat,accuracyTier,freshnessScore,ageClass,shouldShowHeading}from'../../services/threatClassify.js';
+import{classifyThreat,accuracyTier,ageClass,shouldShowHeading}from'../../services/threatClassify.js';
+import{attachBasemap,NEBO_ATTRIBUTION}from'./basemap.js';
 
 // Module-relative URL of the threat icon sprite: resolves correctly from any
 // page base path (/, /nebo-ua/, /dev/, widget/...) without hardcoding it.
@@ -9,15 +10,16 @@ const THREAT_SVG = new URL('../brand/threat-icons.svg', import.meta.url).href;
 // ── Threat metadata ───────────────────────────────────────────────────────────
 // 'shahed' is a distinct visual kind within the uav category.
 // 'recon' is a distinct kind for reconnaissance UAVs.
+// Palette: Небо.UA threat color system (single source; radar/list use it too).
 const META={
-  shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#ffb21c'},
-  uav:      {label:'БПЛА',    icon:'uav',      color:'#f4a62a'},
-  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#5bbcff'},
-  missile:  {label:'РАКЕТА',  icon:'missile',  color:'#ff4d62'},
-  ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#ff1744'},
-  kab:      {label:'КАБ',     icon:'kab',      color:'#ff7a45'},
-  aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#9b7cff'},
-  other:    {label:'Інше',    icon:'other',    color:'#c7d0da'},
+  shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#FFAA32'},
+  uav:      {label:'БПЛА',    icon:'uav',      color:'#F7B547'},
+  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#4DB8FF'},
+  missile:  {label:'РАКЕТА',  icon:'missile',  color:'#FF4D5E'},
+  ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#FF2A55'},
+  kab:      {label:'КАБ',     icon:'kab',      color:'#FF7957'},
+  aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#B57CFF'},
+  other:    {label:'Інше',    icon:'other',    color:'#A8BAC7'},
 };
 
 // ── Territorial danger colors ──────────────────────────────────────────────────
@@ -26,21 +28,39 @@ const META={
 // Raion-level danger NEVER paints the oblast polygon — it is rendered as
 // separate raion polygons (see setAlertShapes + drawAlertShapes in app.js).
 const DANGER_STYLE = {
-  // Oblast-level danger: missile, ballistic, oblast-wide official alert
-  oblastCritical: { color:'#ff3344', weight:2.0, fillColor:'#cc0011', fillOpacity:0.38 },
-  // Neutral: no oblast-level danger (even if some raion inside has danger)
-  neutral:        { color:'#29485c', weight:0.8, fillColor:'#0d2635', fillOpacity:0.12 },
+  // Oblast-level danger: official alert or missile/ballistic monitor.
+  // Restrained premium-dark fill — map stays readable, never a mosaic.
+  oblastCritical: { color:'#FF536A', weight:2.0, fillColor:'#A01426', fillOpacity:0.24 },
+  // Neutral: no oblast-level danger (even if some raion inside has danger).
+  // Calm territory stays almost clean: transparent fill, thin cold-blue edge.
+  neutral:        { color:'#173D52', weight:0.8, fillColor:'#0d2635', fillOpacity:0.05 },
 };
 
+// ── Unified threat visual registry ──────────────────────────────────────────
+// Single source of truth for Map, Radar, List, Recent Events, Cluster and
+// Popup visuals (TZ §29). Never copy SVG paths elsewhere: resolve the kind
+// once via classifyThreat, then read icon/color/size from here.
+const THREAT_SIZE = {
+  shahed: 30, uav: 26, recon: 30, missile: 31, ballistic: 33,
+  kab: 28, aviation: 32, other: 20,
+};
+export function getThreatVisual(input) {
+  const kind = typeof input === 'string' ? input : classifyThreat(input);
+  const m = META[kind] || META.other;
+  return {
+    kind, icon: m.icon, color: m.color, label: m.label,
+    size: THREAT_SIZE[kind] || 26, cssClass: 'kind-' + kind,
+  };
+}
+
 function iconFor(e){
-  const kind=classifyThreat(e);
-  const m=META[kind]||META.other;
-  return{label:m.label,icon:m.icon,color:m.color,kind};
+  const v = getThreatVisual(e);
+  return { label: v.label, icon: v.icon, color: v.color, kind: v.kind };
 }
 
 // ── Situation map (main map tab) ──────────────────────────────────────────────
 export function createSituationMap(el,onSelect){
-  const map=baseMap(el,[48.6,31.2],6);
+  const map=baseMap(el,[48.6,31.2],6,{zoomControl:false});
   const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,crossOrigin:true,className:'sat-tiles'});
   const regions=L.geoJSON(null).addTo(map);
   const areas=L.layerGroup().addTo(map);       // area-precision overlays
@@ -110,7 +130,7 @@ export function createSituationMap(el,onSelect){
       const partial = !list.some(x=>!x.district) && raionList.length > 0;
       layer.on('click',()=>onSelect(a?{...a,raions:raionList,partial}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
     });
-    if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),{padding:[8,8]})}
+    if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),ukraineFitOptions())}
   }
 
   function setEvents(events,visible){
@@ -138,9 +158,8 @@ export function createSituationMap(el,onSelect){
       // ── Exact coordinate marker ───────────────────────────────────────────
       if(e.lat==null||e.lon==null)continue;
       const ac=ageClass(e,now);
-      const fs=freshnessScore(e,now);
       const marker=L.marker([e.lat,e.lon],{
-        icon:eventIcon(e,ac,fs),
+        icon:eventIcon(e,ac),
         category:e.category,
         threatKind:classifyThreat(e),
         pane:'threatPane',
@@ -172,13 +191,12 @@ export function createSituationMap(el,onSelect){
 
   function setWind(items){wind.clearLayers();for(const w of items||[]){if(!Number.isFinite(w.lat)||!Number.isFinite(w.lon)||!Number.isFinite(w.speedKmh)||!Number.isFinite(w.fromDeg))continue;const to=(w.fromDeg+180)%360;L.marker([w.lat,w.lon],{icon:windIcon(w,to),interactive:true}).bindTooltip(`${w.speedKmh} км/год`,{direction:'top',offset:[0,-18]}).addTo(wind)}}
 
-  // Raion fill styles by danger level. Each item carries level:
-  // 'alert'/'critical' -> red, 'high' -> orange, 'medium' -> dark amber.
+  // Raion fills: official 20–25%, monitoring 16–22%. Official wins overlap.
   const RAION_FILL = {
-    alert:    { color:'#ffa3ad', weight:2,   fillColor:'#c44150', fillOpacity:.38 },
-    critical: { color:'#ff8090', weight:2,   fillColor:'#c44150', fillOpacity:.38 },
-    high:     { color:'#ffaa33', weight:1.8, fillColor:'#cc5500', fillOpacity:.35 },
-    medium:   { color:'#ffcc55', weight:1.4, fillColor:'#aa6600', fillOpacity:.25 },
+    alert:    { color:'#FF536A', weight:2.0, fillColor:'#A01426', fillOpacity:.22 },
+    critical: { color:'#FF3B5C', weight:2.0, fillColor:'#B3122E', fillOpacity:.24 },
+    high:     { color:'#FFAA27', weight:1.75, fillColor:'#B75C00', fillOpacity:.19 },
+    medium:   { color:'#C78A3A', weight:1.5, fillColor:'#7A4A12', fillOpacity:.16 },
   };
   function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,fillColor:s.fillColor,fillOpacity:s.fillOpacity}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
 
@@ -187,10 +205,10 @@ export function createSituationMap(el,onSelect){
     for(const r of items||[]){
       // Only show alert raions prominently; calm raions get very subtle neutral border
       if(r.status==='alert'){
-        const col='#ff5568';
+        const col='#FF536A';
         for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:1.8,opacity:.9,interactive:false}).addTo(shapes);
       }else if(r.status==='mon'){
-        const col='#efb55b';
+        const col='#FFAA27';
         for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:1.2,opacity:.6,interactive:false}).addTo(shapes);
       }else{
         // Calm raions: extremely subtle, only visible at high zoom
@@ -235,27 +253,27 @@ export function createSituationMap(el,onSelect){
 }
 
 // ── Radar range rings ────────────────────────────────────────────────────────
-// Logical ring sets per selected maximum range (km). Pure and unit-tested.
+// Beautiful divisions per selected maximum range (km). Pure and unit-tested.
 const RANGE_PRESETS = [1, 3, 5, 10, 25, 100];
 function rangeRings(rangeKm) {
   const r = Number(rangeKm);
-  if (r === 1) return [0.25, 0.5, 1];
-  if (r === 3) return [1, 2, 3];
-  if (r === 5) return [1, 3, 5];
-  if (r === 10) return [1, 3, 5, 10];
-  if (r === 25) return [5, 10, 25];
-  if (r === 100) return [25, 50, 100];
+  if (r === 1) return [0.2, 0.4, 0.6, 0.8, 1];
+  if (r === 3) return [0.6, 1.2, 1.8, 2.4, 3];
+  if (r === 5) return [1, 2, 3, 4, 5];
+  if (r === 10) return [2, 4, 6, 8, 10];
+  if (r === 25) return [5, 10, 15, 20, 25];
+  if (r === 100) return [20, 40, 60, 80, 100];
   if (Number.isFinite(r) && r > 0) {
     const steps = [0.25, 0.5, 1, 2, 3, 5, 10, 25, 50, 100, 200, 400, 800, 1500];
     const below = steps.filter(s => s < r).slice(-3);
     return [...below, r];
   }
-  return [25, 50, 100];
+  return [20, 40, 60, 100];
 }
 
 // ── Radar map (radar tab) ─────────────────────────────────────────────────────
 export function createRadarMap(el,onSelect){
-  const map=baseMap(el,[49,31],6,{zoomControl:true});
+  const map=baseMap(el,[49,31],6,{zoomControl:false});
   if(!map.getPane('threatPane')) map.createPane('threatPane');
   map.getPane('threatPane').style.zIndex=625;
   const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,crossOrigin:true,className:'sat-tiles'});
@@ -270,8 +288,18 @@ export function createRadarMap(el,onSelect){
   const borders=L.layerGroup().addTo(map);
   graticule().forEach(l=>l.addTo(grid));
   let lastC=null;
+  // Root cause of "Cannot read properties of undefined (reading 'x')":
+  // renderAll() runs on every data load, including while #radarMap is hidden
+  // (0px). Adding Path layers to a Canvas-rendered map with no size leaves
+  // _pxBounds undefined and L.Canvas._draw crashes. Defer Leaflet mutations
+  // until the container is visible; the scope canvas (pure math) updates
+  // regardless via scopeUI.update in app.js.
+  let pending=null;
+  const visible=()=>{ try{ return el.isConnected && el.clientWidth > 0 && el.clientHeight > 0; }catch(e){ return false; } };
 
   function render(events,center,opts={}){
+    if(!visible()){ pending=Object.assign({},pending,{events,center,opts}); return; }
+    pending=null;
     layer.clearLayers();rings.clearLayers();vectors.clearLayers();guard.clearLayers();
     if(!lastC||Math.abs(lastC[0]-center[0])>0.05||Math.abs(lastC[1]-center[1])>0.05){map.setView(center,6);lastC=center}
     for(const km of rangeRings(opts.range||100))L.circle(center,{radius:km*1000,color:'#66c7ff',weight:1,opacity:.18,fill:false,interactive:false}).addTo(rings);
@@ -289,25 +317,59 @@ export function createRadarMap(el,onSelect){
 
   function renderUser(p){user.clearLayers();if(!p||!Number.isFinite(p.lat)||!Number.isFinite(p.lon))return;L.marker([p.lat,p.lon],{icon:userIcon(),interactive:false,zIndexOffset:1000}).addTo(user)}
   function setSatellite(on){if(on){satellite.addTo(map);map.getContainer().classList.add('satellite-on')}else{if(map.hasLayer(satellite))map.removeLayer(satellite);map.getContainer().classList.remove('satellite-on')}}
-  function setRadarRegions(g,alerts){borders.clearLayers();if(!g||!g.features)return;L.geoJSON(g,{style:{color:'#7fa8c9',weight:1.2,fillColor:'#0d2635',fillOpacity:.1}}).addTo(borders)}
-  function setAlertFills(items){afills.clearLayers();for(const r of items||[]){for(const poly of r.polys||[])L.polygon(poly,{color:'#ff8f9a',weight:1.4,fillColor:'#c44150',fillOpacity:.3,interactive:false}).addTo(afills)}}
+  function setRadarRegions(g,alerts){
+    if(!visible()){ pending=Object.assign({},pending,{geo:g}); return; }
+    borders.clearLayers();if(!g||!g.features)return;L.geoJSON(g,{style:{color:'#7fa8c9',weight:1.2,fillColor:'#0d2635',fillOpacity:.1}}).addTo(borders)}
+  function setAlertFills(items){applyAlertFills(items);}
+  function applyAlertFills(items){
+    if(!visible()){ pending=Object.assign({},pending,{fills:items}); return; }
+    afills.clearLayers();for(const r of items||[]){for(const poly of r.polys||[])L.polygon(poly,{color:'#ff8f9a',weight:1.4,fillColor:'#c44150',fillOpacity:.3,interactive:false}).addTo(afills)}}
+  function flush(){
+    if(!visible()) return false;
+    try{ map.invalidateSize(true); }catch(e){}
+    const p=pending; pending=null;
+    if(p){
+      if(p.geo!==undefined) setRadarRegions(p.geo);
+      if(p.fills!==undefined) applyAlertFills(p.fills);
+      if(p.events!==undefined) render(p.events,p.center,p.opts||{});
+    }
+    return true;
+  }
   function showPin(lat,lon,label){pin.clearLayers();if(!Number.isFinite(lat)||!Number.isFinite(lon))return;L.marker([lat,lon],{icon:pinIcon()}).bindTooltip(label||'Місце',{permanent:true,direction:'top',offset:[0,-16]}).addTo(pin);map.setView([lat,lon],9);lastC=[lat,lon]}
-  return{map,render,renderUser,showPin,setSatellite,setAlertFills,setBorders:setRadarRegions};
+  return{map,render,renderUser,showPin,setSatellite,setAlertFills,setBorders:setRadarRegions,flush};
 }
 
 // ── Base map factory ──────────────────────────────────────────────────────────
+// Basemap: OpenFreeMap vector style (OpenMapTiles schema, OSM geodata),
+// rendered inside Leaflet via MapLibre. Engine stays Leaflet — every
+// operational overlay (oblast/raion polygons, markers, clusters, trails,
+// GPS/Home) remains a Leaflet layer above the basemap pane.
 function baseMap(el,center,zoom,opts={}){
   const map=L.map(el,{zoomControl:opts.zoomControl!==false,minZoom:5,maxZoom:12,attributionControl:false,preferCanvas:true}).setView(center,zoom);
   if(map.zoomControl)map.zoomControl.setPosition('bottomright');
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,className:'nebo-tiles'}).addTo(map);
+  // Async: vector first, OSM-raster fallback keeps the app alive offline.
+  try{attachBasemap(map)?.catch?.(()=>{});}catch(e){}
+  map.attributionControl?.setPrefix?.(false);
   return map;
 }
 
+// Responsive Ukraine fit: desktop keeps room for the right rail (~320px),
+// mobile keeps room for the bottom nav + HUD. Prevents Crimea / Zakarpattia /
+// Donbas cut-off (TZ §23).
+export function ukraineFitOptions(){
+  try{
+    const wide = window.innerWidth >= 1100;
+    const mobile = window.innerWidth < 720;
+    if(wide) return { paddingTopLeft:[16,16], paddingBottomRight:[24,24] };
+    if(mobile) return { paddingTopLeft:[12,86], paddingBottomRight:[12,120] };
+    return { paddingTopLeft:[16,80], paddingBottomRight:[120,40] };
+  }catch(e){ return { padding:[12,12] }; }
+}
+
 // ── Icon factories ─────────────────────────────────────────────────────────────
-function eventIcon(e,ac,fs){
+function eventIcon(e,ac){
   const m=iconFor(e);
   const heading=shouldShowHeading(e)?Number(e.heading):null;
-  const opacity=Math.max(0.45,fs??1).toFixed(2);
   const cls=[
     'threat-marker',
     'cat-'+(e.category||'other'),
@@ -323,7 +385,7 @@ function eventIcon(e,ac,fs){
   // Clean SVG-only marker: no circular background, no label clutter at overview zoom
   return L.divIcon({
     className:'',
-    html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:${opacity}" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
+    html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:1" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
       <svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg>
     </div>`,
     iconSize:[40,40],iconAnchor:[20,20],
@@ -377,15 +439,23 @@ function smallGroupHTML(items) {
   }).join('');
   return { html: `<div class="threat-group g${list.length}" style="width:${lay.w}px;height:${lay.h}px">${spans}</div>`, w: lay.w, h: lay.h };
 }
-// ── Compact badge (5+ targets): round radar badge, dominant silhouette + ─────
-// number. No big "8 БПЛА" text on the map; composition lives in title/aria
-// and reveals itself on tap (zoom/spiderfy) or hover.
-function clusterBadgeHTML(count, domKind, summaryText, titleText) {
+// ── Compact badge (5+ targets): up to 3 mini silhouettes + ×N ─────────────
+// Max ~64px wide. No big "8 БПЛА" text on the map; full composition lives in
+// title/aria and reveals itself on tap (zoom/spiderfy) or hover.
+function clusterBadgeHTML(count, domKind, summaryText, titleText, topKinds) {
   const m = META[domKind] || META.other;
   const title = titleText || `${count} повідомлень: ${summaryText || ''}`;
+  const distinct = (Array.isArray(topKinds) && topKinds.length ? topKinds : [domKind]).slice(0, 3);
+  // Always show three mini silhouettes (repeat the dominant kind when the
+  // group is single-kind), then the compact ×N count.
+  const kinds = [distinct[0], distinct[1] || distinct[0], distinct[2] || distinct[0]];
+  const minis = kinds.map((k) => {
+    const mm = META[k] || META.other;
+    return `<svg class="tg-mini" viewBox="0 0 64 64" style="color:${mm.color}" aria-hidden="true"><use href="${THREAT_SVG}#${mm.icon}"/></svg>`;
+  }).join('');
   return `<div class="threat-cluster is-badge" style="--c:${m.color}" title="${title}" aria-label="${title}">`
-    + `<svg class="tg-badge-svg" viewBox="0 0 64 64"><use href="${THREAT_SVG}#${m.icon}"/></svg>`
-    + `<b>${count}</b></div>`;
+    + `<span class="tg-minis">${minis}</span>`
+    + `<b>×${count}</b></div>`;
 }
 function clusterIcon(cluster){
   const children=cluster.getAllChildMarkers();
@@ -409,11 +479,12 @@ function clusterIcon(cluster){
   }
   const{summary,dom}=clusterSummaryText(counts);
   void summary;
+  const topKinds=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k])=>k);
   return L.divIcon({
     className:'',
-    html:clusterBadgeHTML(n,dom,summaryParts.slice(0,2).join(' · '),title),
-    iconSize:[46,46],iconAnchor:[23,23],
+    html:clusterBadgeHTML(n,dom,summaryParts.slice(0,2).join(' · '),title,topKinds),
+    iconSize:[64,40],iconAnchor:[32,20],
   });
 }
 
-export{META,iconFor,clusterSummaryText,smallGroupHTML,clusterBadgeHTML,rangeRings,RANGE_PRESETS};
+export{META,iconFor,THREAT_SIZE,NEBO_ATTRIBUTION,clusterSummaryText,smallGroupHTML,clusterBadgeHTML,rangeRings,RANGE_PRESETS};
