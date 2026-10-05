@@ -89,6 +89,11 @@ export function createSituationMap(el,onSelect){
   });
   map.addLayer(clusters);
   let geo=null,fitted=false;
+  // Persistent marker objects per stable trackId: the SAME L.marker instance
+  // survives snapshots; only its position/icon refresh. setLatLng + the CSS
+  // transform transition gives the short UI glide between two CONFIRMED
+  // positions — never extrapolation.
+  const markerByTrack=new Map(),currentByTrack=new Map();
 
   // Zoom-dependent label visibility class on map container
   function applyZoomClass(){
@@ -133,9 +138,9 @@ export function createSituationMap(el,onSelect){
     if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),ukraineFitOptions())}
   }
 
-  function setEvents(events,visible){
+  function setEvents(events,visible,selTrail){
     applyZoomClass();
-    clusters.clearLayers();
+    const seenTracks=new Set();
     areas.clearLayers();
     reported.clearLayers();
     trails.clearLayers();
@@ -155,16 +160,39 @@ export function createSituationMap(el,onSelect){
         continue;
       }
 
-      // ── Exact coordinate marker ───────────────────────────────────────────
+      // ── Exact coordinate marker: persistent object per stable track ──────
       if(e.lat==null||e.lon==null)continue;
       const ac=ageClass(e,now);
-      const marker=L.marker([e.lat,e.lon],{
-        icon:eventIcon(e,ac),
-        category:e.category,
-        threatKind:classifyThreat(e),
-        pane:'threatPane',
-      }).on('click',()=>onSelect(e));
-      clusters.addLayer(marker);
+      const tid=e.trackId||e.id;
+      currentByTrack.set(tid,e);
+      seenTracks.add(tid);
+      let marker=markerByTrack.get(tid);
+      const kindNow=classifyThreat(e);
+      const headingNow=shouldShowHeading(e)?Number(e.heading):null;
+      const sig=[kindNow,headingNow??'x',ac,e._lvl||''].join('|');
+      if(marker){
+        const ll=marker.getLatLng();
+        if(ll.lat!==e.lat||ll.lng!==e.lon)marker.setLatLng([e.lat,e.lon]);
+        // Updates never replay the .new pulse ring: it renders once, on add.
+        // Skip setIcon entirely when nothing visual changed, so the SAME DOM
+        // node (and its CSS glide transition) survives background refreshes.
+        if(marker.options._sig!==sig){
+          marker.setIcon(eventIcon({ ...e, isNew: false },ac));
+          marker.options._sig=sig;
+        }
+        marker.options.category=e.category;
+        marker.options.threatKind=kindNow;
+      }else{
+        marker=L.marker([e.lat,e.lon],{
+          icon:eventIcon(e,ac),
+          category:e.category,
+          threatKind:classifyThreat(e),
+          pane:'threatPane',
+        }).on('click',()=>onSelect(currentByTrack.get(tid)||e));
+        marker.options._sig=sig;
+        markerByTrack.set(tid,marker);
+        clusters.addLayer(marker);
+      }
 
       // Uncertainty circle
       if(e.uncertaintyKm)L.circle([e.lat,e.lon],{radius:e.uncertaintyKm*1000,color:META[e.category]?.color||'#efb55b',weight:1,fillOpacity:.025,className:'uncertainty'}).addTo(uncertainties);
@@ -186,6 +214,22 @@ export function createSituationMap(el,onSelect){
         const dLon=(km10/(111*Math.max(0.4,Math.abs(cosLat))))*Math.cos(rad);
         L.polyline([[e.lat,e.lon],[e.lat+dLat,e.lon+dLon]],{color:META[e.category]?.color||'#efb55b',weight:1.5,opacity:.55,dashArray:'5 5'}).addTo(trails);
       }
+    }
+    // Prune markers whose tracks left the snapshot (backend drops them only
+    // after repeated misses, so absence here means genuinely gone).
+    for(const [tid,m] of markerByTrack){
+      if(!seenTracks.has(tid)){try{clusters.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
+    }
+    // Selected-track trail: last confirmed positions only (source trail for
+    // MAPA, accumulated history otherwise), thin and muted. Never global.
+    if(selTrail&&Array.isArray(selTrail.points)&&selTrail.points.length>1){
+      const col=META[selTrail.category]?.color||'#efb55b';
+      const line=selTrail.points.map(p=>[p.lat,p.lon]);
+      L.polyline(line,{color:col,weight:1.5,opacity:.45,dashArray:'2 5',interactive:false}).addTo(trails);
+      selTrail.points.forEach((p,i)=>{
+        if(i===selTrail.points.length-1)return;
+        L.circleMarker([p.lat,p.lon],{radius:2,color:col,weight:1,opacity:.4,fillOpacity:.3,interactive:false}).addTo(trails);
+      });
     }
   }
 
