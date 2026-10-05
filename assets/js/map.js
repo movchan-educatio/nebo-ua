@@ -234,6 +234,25 @@ export function createSituationMap(el,onSelect){
   return{map,setRegions,setEvents,setWind,setReports,setRaionDots,setRaionShapes,setAlertShapes,setUserPos,centerOnUser,showHome,toggle,meta:META};
 }
 
+// ── Radar range rings ────────────────────────────────────────────────────────
+// Logical ring sets per selected maximum range (km). Pure and unit-tested.
+const RANGE_PRESETS = [1, 3, 5, 10, 25, 100];
+function rangeRings(rangeKm) {
+  const r = Number(rangeKm);
+  if (r === 1) return [0.25, 0.5, 1];
+  if (r === 3) return [1, 2, 3];
+  if (r === 5) return [1, 3, 5];
+  if (r === 10) return [1, 3, 5, 10];
+  if (r === 25) return [5, 10, 25];
+  if (r === 100) return [25, 50, 100];
+  if (Number.isFinite(r) && r > 0) {
+    const steps = [0.25, 0.5, 1, 2, 3, 5, 10, 25, 50, 100, 200, 400, 800, 1500];
+    const below = steps.filter(s => s < r).slice(-3);
+    return [...below, r];
+  }
+  return [25, 50, 100];
+}
+
 // ── Radar map (radar tab) ─────────────────────────────────────────────────────
 export function createRadarMap(el,onSelect){
   const map=baseMap(el,[49,31],6,{zoomControl:true});
@@ -255,7 +274,7 @@ export function createRadarMap(el,onSelect){
   function render(events,center,opts={}){
     layer.clearLayers();rings.clearLayers();vectors.clearLayers();guard.clearLayers();
     if(!lastC||Math.abs(lastC[0]-center[0])>0.05||Math.abs(lastC[1]-center[1])>0.05){map.setView(center,6);lastC=center}
-    [25,50,100,200].forEach(km=>L.circle(center,{radius:km*1000,color:'#66c7ff',weight:1,opacity:.18,fill:false,interactive:false}).addTo(rings));
+    for(const km of rangeRings(opts.range||100))L.circle(center,{radius:km*1000,color:'#66c7ff',weight:1,opacity:.18,fill:false,interactive:false}).addTo(rings);
     if(Number.isFinite(opts.guardKm)&&opts.guardKm>0)L.circle(center,{radius:opts.guardKm*1000,color:'#ff6f7d',weight:1.6,opacity:.6,dashArray:'8 8',fill:false,interactive:false}).addTo(guard);
     L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#66c7ff',fillOpacity:1,weight:2}).addTo(rings);
     events.filter(e=>e.lat!=null&&e.lon!=null&&accuracyTier(e)==='exact').slice(0,300).forEach(e=>{
@@ -397,4 +416,4 @@ function clusterIcon(cluster){
   });
 }
 
-export{META,iconFor,clusterSummaryText,smallGroupHTML,clusterBadgeHTML};
+export{META,iconFor,clusterSummaryText,smallGroupHTML,clusterBadgeHTML,rangeRings,RANGE_PRESETS};

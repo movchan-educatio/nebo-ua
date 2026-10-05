@@ -17,6 +17,9 @@ function adaptHealth(serverHealth = {}) {
       status: v?.status || 'offline',
       updatedAt: toDate(v?.updatedAt),
       error: v?.error || null,
+      // Preserve the backend stale/delayed flag: without it the frontend
+      // cannot tell DELAYED (old data) from DOWN (no data).
+      ...(v?.delayed ? { delayed: true } : {}),
       ...(v?.latencyMs != null ? { latencyMs: v.latencyMs } : {}),
     };
   }

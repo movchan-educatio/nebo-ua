@@ -96,7 +96,7 @@ test('flowSummaryHTML: compact honest summary for the real snapshot shape', () =
   assert.ok(html.includes('КАБ'), 'shows КАБ');
   assert.ok(html.includes('<b>2</b>') && html.includes('повідомлення'), 'shows 2 with few-form plural');
   assert.ok(html.includes('34'), 'shows 34 coordinate events');
-  assert.ok(html.includes('координатні події'), 'correct plural for 34');
+  assert.ok(html.includes('точкові цілі'), 'rendered-targets wording (34 = few form)');
   assert.ok(html.includes('31'), 'shows 31 raions');
   assert.ok(html.includes('район') && html.includes('у тривозі'), 'raion line present');
   assert.ok(!html.includes('областей із'), 'no legacy oblast line');

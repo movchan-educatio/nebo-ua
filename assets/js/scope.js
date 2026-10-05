@@ -49,7 +49,7 @@ export function createScope(canvas, { onSelect } = {}) {
     sctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 6;
     sctx.clearRect(0, 0, W, H);
-    const bg = sctx.createRadialGradient(cx, cy, 10, cx, cy, R);
+    const bg = sctx.createRadialGradient(cx, cy, Math.min(10, Math.max(0, R - 1)), cx, cy, Math.max(1, R));
     bg.addColorStop(0, '#0b1a28'); bg.addColorStop(1, '#03070c');
     sctx.fillStyle = bg;
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
@@ -136,12 +136,27 @@ export function createScope(canvas, { onSelect } = {}) {
     ctx.shadowBlur = 0;
     ctx.restore();
   }
+  const seenErrors = new Set();
   function frame(t) {
     if (!active) return;
+    // Schedule the next frame FIRST: a drawing exception must never kill
+    // the loop permanently (e.g. degenerate canvas size on first open).
+    raf = requestAnimationFrame(frame);
+    try {
+      frameBody(t);
+    } catch (err) {
+      const msg = String((err && err.message) || err);
+      if (!seenErrors.has(msg)) { seenErrors.add(msg); console.error('[scope]', err); }
+    }
+  }
+  function frameBody(t) {
     const dt = Math.min(100, t - (last || t));
     last = t;
     if (!reduced) sweep = (sweep + dt / 5000 * 360) % 360;
     resize();
+    // Degenerate size (e.g. view just opened, layout pending): skip this
+    // frame, the loop stays alive and draws as soon as layout settles.
+    if (Math.min(W, H) < 40) return;
     const key = W + 'x' + H + ':' + S.range + ':' + (S.geoSig || '');
     if (key !== staticKey) { staticKey = key; rebuildStatic(); }
     const dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -253,7 +268,6 @@ export function createScope(canvas, { onSelect } = {}) {
     ctx.strokeStyle = 'rgba(102,199,255,0.35)'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 8, 0, 7); ctx.stroke();
     if (!reduced) drawSweep();
-    raf = requestAnimationFrame(frame);
   }
   return {
     update(events, center, opts = {}) {
@@ -295,7 +309,7 @@ export function createScope(canvas, { onSelect } = {}) {
       return fmtAzimuth((Math.atan2(dx, dy) * 180 / Math.PI + 360) % 360, distKm);
     },
     setActive(on) {
-      if (on && !active) { active = true; last = 0; staticKey = ''; raf = requestAnimationFrame(frame); }
+      if (on && !active) { active = true; last = 0; staticKey = ''; resize(); raf = requestAnimationFrame(frame); }
       if (!on && active) { active = false; cancelAnimationFrame(raf); }
     },
   };

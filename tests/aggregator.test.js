@@ -26,3 +26,11 @@ test('aggregator rejects malformed snapshots',async()=>{
   globalThis.fetch=async()=>new Response(JSON.stringify({v:1}),{status:200});
   await assert.rejects(fetchAggregated(),/агрегатора/);
 });
+test('aggregator preserves the backend stale/delayed health flag',async()=>{
+  const snap=serverSnapshot();
+  snap.health.NEPTUN={status:'offline',updatedAt:null,error:null,delayed:true};
+  globalThis.fetch=async()=>new Response(JSON.stringify(snap),{status:200});
+  const s=await fetchAggregated();
+  assert.equal(s.health.NEPTUN.delayed,true,'frontend must see delayed, not invent DOWN');
+  assert.equal(s.health.MAPA.delayed,undefined);
+});
