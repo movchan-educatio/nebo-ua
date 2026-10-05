@@ -1,4 +1,4 @@
-import{fetchRaionBorders}from'../../services/raionShapes.js';import{threatLevel,LEVEL_LABEL}from'../../services/levels.js';import{oblastRaions,raionDirectory,matchRaion,normOblast,raionAlertActive,loadCenterCache,saveCenterCache,getCachedCenter}from'../../services/districts.js';import{selectGuardTargets,selectProximityAlerts}from'../../services/guard.js';import{speak}from'../../services/voice.js';import{fetchAll}from'../../services/data.js';import{appendTimeline}from'../../services/timeline.js';import{fetchRegions,regionName,pointInFeature}from'../../services/regions.js';import{AudioAlerts,AUDIO_TYPES,AUDIO_LABELS}from'../../services/audio.js';import{mountAdSlots}from'../../services/ads.js';import{setupEnhancements}from'./enhancements.js';import{createSituationMap,createRadarMap,META,iconFor}from'./map.js';import{createScope}from'./scope.js';import{describePlace}from'../../services/locations.js';import{pickTopThreat}from'../../services/relevance.js';
+import{fetchRaionBorders,getOblastRaionPolygons,getRaionPolygon}from'../../services/raionShapesLocal.js';import{threatLevel,LEVEL_LABEL}from'../../services/levels.js';import{oblastRaions,raionDirectory,matchRaion,normOblast,raionAlertActive,loadCenterCache,saveCenterCache,getCachedCenter}from'../../services/districts.js';import{selectGuardTargets,selectProximityAlerts}from'../../services/guard.js';import{speak}from'../../services/voice.js';import{fetchAll}from'../../services/data.js';import{appendTimeline}from'../../services/timeline.js';import{fetchRegions,regionName,pointInFeature}from'../../services/regions.js';import{AudioAlerts,AUDIO_TYPES,AUDIO_LABELS}from'../../services/audio.js';import{mountAdSlots}from'../../services/ads.js';import{setupEnhancements}from'./enhancements.js';import{createSituationMap,createRadarMap,META,iconFor}from'./map.js';import{createScope}from'./scope.js';import{describePlace}from'../../services/locations.js';import{pickTopThreat}from'../../services/relevance.js';
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)];const state={snapshot:{alerts:[],events:[],health:{},disagreement:{}},geo:null,filter:localStorage.getItem('nebo-threat-filter')||'all',visible:new Set(loadJSON('nebo-cats',Object.keys(META)).filter(k=>META[k])),previous:new Map(),timeline:[],timelinePrimed:false,history:[],loading:true,lastSuccess:null,showWind:localStorage.getItem('nebo-wind')==='1',showReports:localStorage.getItem('nebo-reports-layer')!=='0',reports:[],wind:null,windError:null,userPos:null,watchId:null,satelliteOn:localStorage.getItem('nebo-sat')==='1',radarMode:localStorage.getItem('nebo-radar-mode')||'scope',radarRange:Number(localStorage.getItem('nebo-radar-range'))||200,radarRangeManual:false,radarPin:null,layers:loadJSON('nebo-layers',{alerts:true,history:true,boundaries:true}),guard:{enabled:localStorage.getItem('nebo-guard-enabled')==='1',radius:Number(localStorage.getItem('nebo-guard-radius'))||30},guardSeen:new Map(),proxSeen:new Map(),prox:localStorage.getItem('nebo-prox-enabled')!=='0',threatSort:localStorage.getItem('nebo-threat-sort')||'time',raionOblast:null,raionOpen:new Set(loadJSON('nebo-raion-open',[])),showRaions:localStorage.getItem('nebo-raions-layer')==='1',raionDots:null,showShapes:localStorage.getItem('nebo-shapes-layer')==='1',raionShapes:null,rshapes:null,onlyFresh:localStorage.getItem('nebo-fresh')!=='0',voice:localStorage.getItem('nebo-voice-enabled')==='1'};
 const mapUI=createSituationMap($('#map'),openDetail),radarUI=createRadarMap($('#radarMap'),openDetail);const scopeUI=createScope($('#scopeCanvas'));let centerOnNextPos=false;const audio=new AudioAlerts({onTestState:type=>{const el=$('#testSoundState');el.hidden=!type;el.textContent=type?`ТЕСТ ЗВУКУ · ${AUDIO_LABELS[type]}`:'ТЕСТ ЗВУКУ'}});let refreshTimer;
 async function load(){
@@ -64,11 +64,66 @@ function renderMyRaion(){try{var el=$('#skyRaionLine');if(!el)return;var p=JSON.
 function toggleRaions(on){state.showRaions=on;try{localStorage.setItem('nebo-raions-layer',on?'1':'0')}catch(e){}if(!on){mapUI.toggle('raions',false);renderLayers();return}refreshRaionDots()}
 async function refreshRaionDots(){try{const _n=Date.now();const _canFetch=!state._lastDotFetch||_n-state._lastDotFetch>60000;if(_canFetch)state._lastDotFetch=_n;const saved=state.raionOblast||localStorage.getItem('nebo-region')||'';const alertOblasts=[...new Set(state.snapshot.alerts.map(a=>matchGeoOblast(a.region)).filter(Boolean))];const oblasts=[...new Set([saved].concat(alertOblasts).filter(Boolean))].slice(0,6);if(!oblasts.length)return;const loc=await import('../../services/locations.js');const cache=loadCenterCache();let changed=false;const dots=[];let fetches=0;for(const oblast of oblasts){const view=oblastRaions(state.snapshot,oblast);for(const r of view.rows){if(r.status==='calm'&&!getCachedCenter(cache,oblast,r.name))continue;let c=getCachedCenter(cache,oblast,r.name);if(!c&&_canFetch&&fetches<6){try{const found=await loc.searchUkrainianPlaces(r.name+' район, '+oblast);fetches++;if(found.length&&Number.isFinite(found[0].lat)&&Number.isFinite(found[0].lon)){c={lat:found[0].lat,lon:found[0].lon,bbox:found[0].bbox||null,at:new Date().toISOString()};cache[oblast+'||'+r.name]=c;changed=true}}catch(e){}}if(c)dots.push({lat:c.lat,lon:c.lon,status:r.status,name:r.name,oblast:oblast});if(dots.length>=40)break}if(dots.length>=40)break}if(changed)saveCenterCache(cache);state.raionDots=dots.slice(0,40);if(state.raionDots.some(d=>d.status==='alert')&&!state.showRaions){state.showRaions=true;try{localStorage.setItem('nebo-raions-layer','1')}catch(e){}}mapUI.setRaionDots(state.raionDots,rr=>{const ob=rr.oblast||saved;const view=oblastRaions(state.snapshot,ob);openRaionDetail(view.rows.find(x=>x.name===rr.name),ob)});mapUI.toggle('raions',state.showRaions&&state.raionDots.length>0)}catch(e){}}
 function toggleRaionShapes(on){state.showShapes=on;try{localStorage.setItem('nebo-shapes-layer',on?'1':'0')}catch(e){}if(!on){mapUI.toggle('shapes',false);renderLayers();return}colorizeRaionShapes(true)}
-async function colorizeRaionShapes(fetchMissing){try{const oblast=state.raionOblast||localStorage.getItem('nebo-region')||'';if(!oblast)return;let geoms=state.raionShapes&&state.raionShapes.oblast===oblast?state.raionShapes.geoms:null;if(!geoms&&fetchMissing){try{geoms=await fetchRaionBorders(oblast);state.raionShapes={oblast:oblast,geoms:geoms}}catch(e){state.showShapes=false;mapUI.toggle('shapes',false);renderLayers();return}}if(!geoms)return;const view=oblastRaions(state.snapshot,oblast);const dir=raionDirectory(oblast)||[];const items=[];for(const g of geoms){const hit=matchRaion(dir,g.name);const row=hit&&view.rows.find(r=>r.name===hit);items.push({rings:g.rings,status:row?row.status:'calm'})}mapUI.setRaionShapes(items);mapUI.toggle('shapes',true)}catch(e){}}
+async function colorizeRaionShapes(fetchMissing){
+    try{
+      const oblast=state.raionOblast||localStorage.getItem('nebo-region')||'';
+      if(!oblast)return;
+      let geoms=state.raionShapes&&state.raionShapes.oblast===oblast?state.raionShapes.geoms:null;
+      if(!geoms&&fetchMissing){
+        try{
+          geoms=await getOblastRaionPolygons(oblast);
+          state.raionShapes={oblast:oblast,geoms:geoms};
+        }catch(e){
+          console.warn('[raionShapesLocal] failed to load', oblast, e);
+          state.showShapes=false;
+          mapUI.toggle('shapes',false);
+          renderLayers();
+          return;
+        }
+      }
+      if(!geoms)return;
+      const view=oblastRaions(state.snapshot,oblast);
+      const dir=raionDirectory(oblast)||[];
+      const items=[];
+      for(const g of geoms){
+        const hit=matchRaion(dir,g.name);
+        const row=hit&&view.rows.find(r=>r.name===hit);
+        items.push({rings:g.rings,status:row?row.status:'calm'});
+      }
+      mapUI.setRaionShapes(items);
+      mapUI.toggle('shapes',true);
+    }catch(e){ console.warn('[colorizeRaionShapes]', e); }
+  }
 function setupScope(){const mb=document.querySelector('#radarMode');if(mb)mb.querySelectorAll('[data-mode]').forEach(b=>{if(b.dataset.mode===state.radarMode)b.classList.add('active');else b.classList.remove('active');b.onclick=()=>{state.radarMode=b.dataset.mode;try{localStorage.setItem('nebo-radar-mode',state.radarMode)}catch(e){}mb.querySelectorAll('[data-mode]').forEach(x=>x.classList.toggle('active',x===b));applyRadarMode()}});const rb=document.querySelector('#radarRange');if(rb)rb.querySelectorAll('[data-range]').forEach(b=>{if(Number(b.dataset.range)===state.radarRange)b.classList.add('active');else b.classList.remove('active');b.onclick=()=>{state.radarRangeManual=true;state.radarRange=Number(b.dataset.range)||200;try{localStorage.setItem('nebo-radar-range',String(state.radarRange))}catch(e){}rb.querySelectorAll('[data-range]').forEach(x=>x.classList.toggle('active',x===b));renderRadar()}});const cv=document.querySelector('#scopeCanvas');if(cv){cv.addEventListener('click',ev=>{const r=cv.getBoundingClientRect();const hit=scopeUI.pick(ev.clientX-r.left,ev.clientY-r.top);if(hit)openDetail(hit)});cv.addEventListener('pointermove',ev=>{const r=cv.getBoundingClientRect();const t=scopeUI.readout(ev.clientX-r.left,ev.clientY-r.top);document.querySelector('#scopeReadout').textContent=t||'—'});cv.addEventListener('pointerleave',()=>{document.querySelector('#scopeReadout').textContent='—'})}const rg=document.querySelector('#radarGps');if(rg)rg.onclick=()=>{const ro=document.querySelector('#scopeReadout');if(!navigator.geolocation){if(ro)ro.textContent='GPS не підтримується цим браузером.';return}if(state.userPos){renderRadar();if(ro){ro.textContent='Радар наведено на вас.';setTimeout(()=>{const r2=document.querySelector('#scopeReadout');if(r2)r2.textContent='—'},2500)}return}if(ro)ro.textContent='Визначаємо положення…';locateAndCenter()};applyRadarMode()}
 function applyRadarMode(){const st=document.querySelector('.radar-stage');if(st)st.classList.toggle('mode-map',state.radarMode==='map');scopeUI.setActive(state.radarMode==='scope'&&!document.hidden&&!document.querySelector('#radarView').hidden);if(state.radarMode==='map')setTimeout(()=>radarUI.map.invalidateSize(),60)}
 function matchGeoOblast(region){if(!state.geo||!region)return null;const f=state.geo.features.find(x=>normOblast(regionName(x))===normOblast(region));return f?regionName(f):null}
-async function ensureAlertShapes(){try{const now=Date.now();state._shapeFail=state._shapeFail||{};const oblasts=[...new Set(state.snapshot.alerts.map(a=>matchGeoOblast(a.region)).filter(Boolean))];state._shapeQueue=oblasts.filter(o=>!(state.rshapes&&state.rshapes[o])&&!(state._shapeFail[o]&&now-state._shapeFail[o]<300000));if(!state._shapeBusy&&state._shapeQueue.length&&(!state._shapeTry||now-state._shapeTry>120000)){state._shapeTry=now;state._shapeBusy=true;try{const batch=state._shapeQueue.slice(0,2);for(const ob of batch){try{const geoms=await fetchRaionBorders(ob);state.rshapes=Object.assign({},state.rshapes,{[ob]:geoms});delete state._shapeFail[ob]}catch(e){state._shapeFail[ob]=Date.now()}}}finally{state._shapeBusy=false}}drawAlertShapes()}catch(e){}}
+async function ensureAlertShapes(){
+    try{
+      const now=Date.now();
+      state._shapeFail=state._shapeFail||{};
+      const oblasts=[...new Set(state.snapshot.alerts.map(a=>matchGeoOblast(a.region)).filter(Boolean))];
+      state._shapeQueue=oblasts.filter(o=>!(state.rshapes&&state.rshapes[o])&&!(state._shapeFail[o]&&now-state._shapeFail[o]<300000));
+      if(!state._shapeBusy&&state._shapeQueue.length&&(!state._shapeTry||now-state._shapeTry>120000)){
+        state._shapeTry=now;
+        state._shapeBusy=true;
+        try{
+          const batch=state._shapeQueue.slice(0,2);
+          for(const ob of batch){
+            try{
+              const geoms=await getOblastRaionPolygons(ob);
+              state.rshapes=Object.assign({},state.rshapes,{[ob]:geoms});
+              delete state._shapeFail[ob];
+            }catch(e){
+              state._shapeFail[ob]=Date.now();
+            }
+          }
+        }finally{
+          state._shapeBusy=false;
+        }
+      }
+      drawAlertShapes();
+    }catch(e){}
+  }
 function drawAlertShapes(){try{if(!state.geo)return;const items=[];for(const ob of Object.keys(state.rshapes||{})){const geoms=state.rshapes[ob];if(!Array.isArray(geoms))continue;const view=oblastRaions(state.snapshot,ob);const dir=raionDirectory(ob)||[];for(const g of geoms){const hit=matchRaion(dir,g.name);const row=hit&&view.rows.find(r=>r.name===hit);if(row&&row.status==='alert'&&g.polys&&g.polys.length)items.push({polys:g.polys,oblast:ob,name:hit})}}state.raionFillItems=items;mapUI.setAlertShapes(items,(it)=>{const view=oblastRaions(state.snapshot,it.oblast);openRaionDetail(view.rows.find(r=>r.name===it.name)||{name:it.name,status:'alert',alert:null,monCount:0,monSample:[],fromStream:true},it.oblast)})}catch(e){}}
 async function focusRaion(oblast,name){try{showView('mapView');let c=getCachedCenter(loadCenterCache(),oblast,name);if(!c||!c.bbox){try{const loc=await import('../../services/locations.js');const found=await loc.searchUkrainianPlaces(name+' район, '+oblast);if(found.length&&Number.isFinite(found[0].lat)&&Number.isFinite(found[0].lon)){c={lat:found[0].lat,lon:found[0].lon,bbox:found[0].bbox||null,at:new Date().toISOString()};const cc=loadCenterCache();cc[oblast+'||'+name]=c;saveCenterCache(cc)}}catch(e){}}if(c&&c.bbox&&c.bbox.length===4){const s=+c.bbox[0],n=+c.bbox[1],w=+c.bbox[2],e=+c.bbox[3];if([s,n,w,e].every(Number.isFinite)&&s<n&&w<e){setTimeout(()=>mapUI.map.fitBounds([[s,w],[n,e]],{padding:[16,16]}),80);return}}if(c)setTimeout(()=>mapUI.map.setView([c.lat,c.lon],9),80)}catch(e){}}
 function setupDebug(){if(location.search.indexOf('debug')<0&&location.hash!=='#debug')return;window.addEventListener('error',e=>{state._err=String((e&&e.message)||'err').slice(0,140)});const box=document.createElement('div');box.id='debugBox';document.body.append(box);setInterval(()=>{try{const cv=document.querySelector('#scopeCanvas');const r=cv?cv.getBoundingClientRect():null;box.textContent='ev:'+state.snapshot.events.length+' al:'+state.snapshot.alerts.length+' geo:'+(state.geo?state.geo.features.length:0)+' mode:'+state.radarMode+' range:'+state.radarRange+' canvas:'+(r?Math.round(r.width)+'x'+Math.round(r.height):'none')+' err:'+(state._err||'none')}catch(e){}},1500)}
