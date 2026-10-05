@@ -1,6 +1,8 @@
 import { fetchJson } from './http.js';
+// Use absolute path from GitHub Pages base (/nebo-ua/) to avoid relative fetch issues in ES modules
+const GEOJSON_BASE = '/nebo-ua/';
 export async function fetchRegions(){
-  const geo=await fetchJson('./data/ukraine-regions.geojson',{timeout:8000});
+  const geo=await fetchJson(`${GEOJSON_BASE}data/ukraine-regions.geojson`,{timeout:8000});
   if(geo?.type!=='FeatureCollection'||!Array.isArray(geo.features)) throw new Error('Некоректний GeoJSON');
   return geo;
 }
