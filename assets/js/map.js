@@ -1,4 +1,5 @@
 import{regionName}from'../../services/regions.js';
+import{territorialDanger,normOblast}from'../../services/districts.js';
 import{classifyThreat,accuracyTier,freshnessScore,ageClass,shouldShowHeading}from'../../services/threatClassify.js';
 
 // ── Threat metadata ───────────────────────────────────────────────────────────
@@ -16,26 +17,16 @@ const META={
 };
 
 // ── Territorial danger colors ──────────────────────────────────────────────────
-// Two-tier: oblast danger (red) > raion danger (orange/yellow)
+// The oblast polygon is painted ONLY for oblast-level danger (official alert
+// with district==null, or missile/ballistic monitor with district==null).
+// Raion-level danger NEVER paints the oblast polygon — it is rendered as
+// separate raion polygons (see setAlertShapes + drawAlertShapes in app.js).
 const DANGER_STYLE = {
   // Oblast-level danger: missile, ballistic, oblast-wide official alert
   oblastCritical: { color:'#ff3344', weight:2.0, fillColor:'#cc0011', fillOpacity:0.38 },
-  // Raion-level danger: shahed, uav, kab with raion precision
-  raionHigh:      { color:'#ff8800', weight:1.6, fillColor:'#cc5500', fillOpacity:0.35 },
-  // Raion-level monitoring: recon, aviation, other with raion precision
-  raionMedium:    { color:'#ffaa00', weight:1.2, fillColor:'#aa6600', fillOpacity:0.25 },
-  // Neutral: no active danger
+  // Neutral: no oblast-level danger (even if some raion inside has danger)
   neutral:        { color:'#29485c', weight:0.8, fillColor:'#0d2635', fillOpacity:0.12 },
 };
-
-// Categories that trigger OBLAST-level danger (highest priority)
-const OBLAST_DANGER_CATEGORIES = new Set(['missile', 'ballistic']);
-
-// Categories that trigger RAION-level danger (shahed/uav/kab with areaOnly+district)
-const RAION_DANGER_CATEGORIES = new Set(['shahed', 'uav', 'kab']);
-
-// Categories that trigger RAION-level monitoring (lower priority)
-const RAION_MONITORING_CATEGORIES = new Set(['recon', 'aviation', 'other']);
 
 function iconFor(e){
   const kind=classifyThreat(e);
@@ -68,74 +59,6 @@ export function createSituationMap(el,onSelect){
   map.addLayer(clusters);
   let geo=null,fitted=false;
 
-  // ── Compute territorial danger from alerts + events ──────────────────────────
-  // Returns { oblastDanger: Set<oblastName>, raionDanger: Map<oblast, Map<raion, level>> }
-  // level: 'critical' (missile/ballistic) | 'high' (shahed/uav/kab) | 'medium' (recon/aviation/other)
-  function computeTerritorialDanger(alerts, events) {
-    const oblastDanger = new Set();
-    const raionDanger = new Map(); // oblast -> Map<raion, level>
-
-    // 1. Official alerts: oblast-wide (no district) = oblastCritical
-    //    Raion-specific alert = raionHigh (for that raion only)
-    for (const a of alerts || []) {
-      const oblast = a.region;
-      if (!oblast) continue;
-      if (!a.district) {
-        // Oblast-wide alert
-        oblastDanger.add(oblast);
-      } else {
-        // Raion-specific alert
-        let oblastMap = raionDanger.get(oblast);
-        if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
-        oblastMap.set(a.district, 'high');
-      }
-    }
-
-    // 2. Monitoring events: compute territorial danger from threat categories
-    //    Priority: oblastCritical (missile/ballistic) > raionHigh (shahed/uav/kab areaOnly) > raionMedium
-    for (const e of events || []) {
-      if (e.official) continue; // already handled by alerts
-      const oblast = e.region || e.derivedRegion;
-      if (!oblast) continue;
-      const kind = classifyThreat(e);
-      const cat = e.category;
-      const isAreaOnly = e.areaOnly === true;
-      const district = e.district;
-
-      // Missile/ballistic → oblastCritical (highest priority, overrides everything)
-      if (OBLAST_DANGER_CATEGORIES.has(cat)) {
-        oblastDanger.add(oblast);
-        // Clear any raion danger for this oblast since oblastCritical takes precedence
-        raionDanger.delete(oblast);
-        continue;
-      }
-
-      // Raion-level precision: areaOnly=true + district specified
-      if (isAreaOnly && district) {
-        if (RAION_DANGER_CATEGORIES.has(kind) || RAION_DANGER_CATEGORIES.has(cat)) {
-          // shahed/uav/kab → raionHigh
-          let oblastMap = raionDanger.get(oblast);
-          if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
-          const existing = oblastMap.get(district);
-          if (existing !== 'high') oblastMap.set(district, 'high');
-        } else if (RAION_MONITORING_CATEGORIES.has(kind) || RAION_MONITORING_CATEGORIES.has(cat)) {
-          // recon/aviation/other → raionMedium (only if not already high)
-          let oblastMap = raionDanger.get(oblast);
-          if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
-          const existing = oblastMap.get(district);
-          if (!existing) oblastMap.set(district, 'medium');
-        }
-      }
-    }
-
-    // PRIORITY FIX: oblastCritical clears ALL raion danger for that oblast (absolute priority)
-    for (const oblast of oblastDanger) {
-      raionDanger.delete(oblast);
-    }
-
-    return { oblastDanger, raionDanger };
-  }
-
   // Zoom-dependent label visibility class on map container
   function applyZoomClass(){
     const z=map.getZoom();
@@ -151,37 +74,26 @@ export function createSituationMap(el,onSelect){
 
   function setRegions(g,alerts,events){
     geo=g;
-    // Compute territorial danger from alerts + events
-    const { oblastDanger, raionDanger } = computeTerritorialDanger(alerts, events);
-    
+    // Oblast polygon is painted ONLY for oblast-level danger (official alert
+    // with district==null, or missile/ballistic monitor with district==null).
+    // Raion-level danger NEVER paints the oblast polygon — it is rendered as
+    // separate raion polygons (setAlertShapes + drawAlertShapes in app.js).
+    let dangerOblasts=[];
+    try{ dangerOblasts=(territorialDanger(alerts,events).oblasts||[]).map(normOblast); }catch(e){}
+
     regions.clearLayers();
     regions.addData(g);
     regions.eachLayer(layer=>{
       const n=regionName(layer.feature),key=layer.feature.properties?.key;
       const list=alerts.filter(x=>x.key===key||x.region===n);
-      
-      // Determine style based on territorial danger (priority: oblastCritical > raionHigh > raionMedium > neutral)
-      let style = DANGER_STYLE.neutral;
-      
-      if (oblastDanger.has(n)) {
-        // Oblast-level critical danger (missile/ballistic/oblast-wide alert)
-        style = DANGER_STYLE.oblastCritical;
-      } else {
-        // Check raion-level danger for this oblast
-        const oblastRaions = raionDanger.get(n);
-        if (oblastRaions && oblastRaions.size > 0) {
-          // Has raion-level danger - check if any 'high'
-          let hasHigh = false;
-          for (const level of oblastRaions.values()) {
-            if (level === 'high') { hasHigh = true; break; }
-          }
-          style = hasHigh ? DANGER_STYLE.raionHigh : DANGER_STYLE.raionMedium;
-        }
-      }
-      
+
+      const style = dangerOblasts.includes(normOblast(n))
+        ? DANGER_STYLE.oblastCritical
+        : DANGER_STYLE.neutral;
+
       layer.setStyle(style);
-      
-      // Click handler: show raion details if partial (raion-only danger)
+
+      // Click handler: show raion details if partial (raion-only alerts)
       const a=list[0]||null;
       const raionList = list.filter(x=>x.district).map(x=>x.district).filter(Boolean);
       const partial = !list.some(x=>!x.district) && raionList.length > 0;
@@ -248,7 +160,15 @@ export function createSituationMap(el,onSelect){
 
   function setWind(items){wind.clearLayers();for(const w of items||[]){if(!Number.isFinite(w.lat)||!Number.isFinite(w.lon)||!Number.isFinite(w.speedKmh)||!Number.isFinite(w.fromDeg))continue;const to=(w.fromDeg+180)%360;L.marker([w.lat,w.lon],{icon:windIcon(w,to),interactive:true}).bindTooltip(`${w.speedKmh} км/год`,{direction:'top',offset:[0,-18]}).addTo(wind)}}
 
-  function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){for(const poly of r.polys||[])L.polygon(poly,{color:'#ffa3ad',weight:2,fillColor:'#c44150',fillOpacity:.38}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
+  // Raion fill styles by danger level. Each item carries level:
+  // 'alert'/'critical' -> red, 'high' -> orange, 'medium' -> dark amber.
+  const RAION_FILL = {
+    alert:    { color:'#ffa3ad', weight:2,   fillColor:'#c44150', fillOpacity:.38 },
+    critical: { color:'#ff8090', weight:2,   fillColor:'#c44150', fillOpacity:.38 },
+    high:     { color:'#ffaa33', weight:1.8, fillColor:'#cc5500', fillOpacity:.35 },
+    medium:   { color:'#ffcc55', weight:1.4, fillColor:'#aa6600', fillOpacity:.25 },
+  };
+  function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,fillColor:s.fillColor,fillOpacity:s.fillOpacity}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
 
   function setRaionShapes(items){
     shapes.clearLayers();
@@ -391,6 +311,18 @@ function reportIcon(){return L.divIcon({className:'',html:`<div class="user-repo
 function graticule(){const lines=[];for(let lon=20;lon<=42;lon+=2)lines.push([[43,lon],[53,lon]]);for(let lat=44;lat<=52;lat+=2)lines.push([[lat,20],[lat,42]]);return lines.map(l=>L.polyline(l,{color:'#66c7ff',weight:1,opacity:.16,interactive:false}))}
 
 // ── Cluster icon with threat-type composition ─────────────────────────────────
+// Pure composition: honest per-kind counts using real threat labels.
+// Never renames a kind (generic UAV stays "БПЛА", never "ШАХЕД").
+function clusterSummaryText(counts){
+  const sorted=Object.entries(counts||{}).sort((a,b)=>b[1]-a[1]);
+  const summaryParts=[];
+  for(const [k,v] of sorted){
+    summaryParts.push(`${v} ${META[k]?.label||k}`);
+  }
+  const summary=summaryParts.slice(0,2).join(' · ');
+  const dom=sorted[0]?.[0]||'other';
+  return{summary,summaryParts,dom};
+}
 function clusterIcon(cluster){
   const children=cluster.getAllChildMarkers();
   const counts={};
@@ -399,13 +331,7 @@ function clusterIcon(cluster){
     counts[k]=(counts[k]||0)+1;
   }
   const n=cluster.getChildCount();
-  const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]);
-  const summaryParts=[];
-  for(const [k,v] of sorted){
-    summaryParts.push(`${v} ${META[k]?.label||k}`);
-  }
-  const summary=summaryParts.slice(0,2).join(' · ');
-  const dom=sorted[0]?.[0]||'other';
+  const{summary,summaryParts,dom}=clusterSummaryText(counts);
   const m=META[dom]||META.other;
   const title=`${n} повідомлень: ${summaryParts.join(', ')}`;
   return L.divIcon({
@@ -419,4 +345,4 @@ function clusterIcon(cluster){
   });
 }
 
-export{META,iconFor};
+export{META,iconFor,clusterSummaryText};

@@ -1,5 +1,6 @@
 // Raion (district) breakdown: static directory (2020 reform, 2024 names) +
 // fuzzy matching of source names. Pure functions, no network.
+import { classifyThreat } from './threatClassify.js';
 const RAIONS = {
   'Вінницька область': ['Вінницький', 'Гайсинський', 'Жмеринський', 'Могилів-Подільський', 'Тульчинський', 'Хмільницький'],
   'Волинська область': ['Володимирський', 'Камінь-Каширський', 'Ковельський', 'Луцький'],
@@ -38,7 +39,8 @@ const ALIASES = {
   'сіверськодонецький': 'сєвєродонецький',
 };
 export function normRaion(s) {
-  return String(s || '').toLowerCase().replace(/район|р-н|рн\b/g, ' ').replace(/[\s_]+/g, ' ').replace(/\s*-\s*/g, '-').trim();
+  // Unify apostrophes first: API uses ’ (U+2019), GeoJSON uses ' (U+0027).
+  return String(s || '').replace(/[’‘ʼ`´]/g, "'").toLowerCase().replace(/район|р-н|рн\b/g, ' ').replace(/[\s_]+/g, ' ').replace(/\s*-\s*/g, '-').trim();
 }
 export function normOblast(s) {
   return String(s || '').toLowerCase().replace(/область|обл\.?|м\.|місто/g, ' ').replace(/[\s_]+/g, ' ').trim();
@@ -132,6 +134,64 @@ export function oblastRaions(snapshot, oblast) {
   const rank = { alert: 0, mon: 1, calm: 2 };
   rows.sort((a, b) => rank[a.status] - rank[b.status] || a.name.localeCompare(b.name, 'uk'));
   return { rows, unassignedMon, hasDirectory: !!dir, oblastWide: !!oblastWide };
+}
+// ── Territorial danger (pure, testable) ──────────────────────────────────────
+// Scope is driven ONLY by district presence, never invented from threat type:
+// - official alert with district==null        -> whole oblast
+// - official alert with district               -> that raion only (level 'alert')
+// - missile/ballistic monitor, district==null  -> whole oblast (level critical)
+// - missile/ballistic monitor, district set    -> that raion only (level 'critical')
+// - shahed/uav/kab monitor, areaOnly+district  -> that raion only (level 'high')
+// - other monitor, areaOnly+district           -> that raion only (level 'medium')
+// - exact-coordinate threats (areaOnly=false)  -> NO territorial fill (markers only)
+// - areaOnly monitor WITHOUT district         -> NO fill (never invent a raion,
+//   never auto-paint the oblast for UAV/KAB)
+// Returns { oblasts: [oblastName], fills: [{oblast, district, level}] }.
+// A district that has no GeoJSON polygon must warn and be skipped by the
+// renderer — it must NEVER fall back to painting the oblast.
+export function territorialDanger(alerts, events) {
+  const oblasts = [];
+  const seenO = new Set();
+  const fills = [];
+  const seenF = new Set();
+  const addOblast = (o) => {
+    if (!o) return;
+    const k = normOblast(o);
+    if (!k || seenO.has(k)) return;
+    seenO.add(k);
+    oblasts.push(o);
+  };
+  const addFill = (oblast, district, level) => {
+    if (!oblast || !district) return;
+    const k = normOblast(oblast) + '||' + normRaion(district) + '||' + level;
+    if (seenF.has(k)) return;
+    seenF.add(k);
+    fills.push({ oblast, district, level });
+  };
+  for (const a of alerts || []) {
+    if (!a || !a.region) continue;
+    // Official raion alert: the source's own level decides the color.
+    // level red ("Ракетна загроза") -> critical red; anything else -> high orange.
+    if (a.district) addFill(a.region, a.district, a.level === 'red' ? 'critical' : 'high');
+    else addOblast(a.region);
+  }
+  for (const e of events || []) {
+    if (!e || e.official) continue;
+    const oblast = e.region || e.derivedRegion;
+    if (!oblast) continue;
+    const cat = e.category;
+    const isMissile = cat === 'missile' || cat === 'ballistic';
+    if (!e.district) {
+      if (isMissile) addOblast(oblast);
+      continue;
+    }
+    if (isMissile) { addFill(oblast, e.district, 'critical'); continue; }
+    if (e.areaOnly !== true) continue;
+    const kind = classifyThreat(e);
+    if (kind === 'shahed' || kind === 'uav' || kind === 'kab') addFill(oblast, e.district, 'high');
+    else addFill(oblast, e.district, 'medium');
+  }
+  return { oblasts, fills };
 }
 const CENTER_KEY = 'nebo-raion-centers-v1', CENTER_TTL = 30 * 24 * 3600000;
 export function loadCenterCache() {

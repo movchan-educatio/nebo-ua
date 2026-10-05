@@ -12,9 +12,10 @@ let _raionsCache = null;
 let _oblastsCache = null;
 let _raionIndex = null; // Map<normalizedOblast, Map<normalizedRaion, feature>>
 
-// Normalize raion name: remove "район", "р-н", case-insensitive, trim
+// Normalize raion name: remove "район", "р-н", case-insensitive, trim.
+// Unify apostrophes: API uses ’ (U+2019), GeoJSON uses ' (U+0027).
 export function normRaion(s) {
-  return String(s || '').toLowerCase().replace(/район|р-н|рн\b/g, ' ').replace(/[\s_]+/g, ' ').replace(/\s*-\s*/g, '-').trim();
+  return String(s || '').replace(/[’‘ʼ`´]/g, "'").toLowerCase().replace(/район|р-н|рн\b/g, ' ').replace(/[\s_]+/g, ' ').replace(/\s*-\s*/g, '-').trim();
 }
 
 // Normalize oblast name
@@ -78,22 +79,71 @@ function getCentroid(feature) {
   return [x / coords.length, y / coords.length];
 }
 
-// Build raion->oblast mapping by centroid containment
+// Build raion->oblast mapping by containment.
+// Fast path: vertex-average centroid inside an oblast polygon.
+// Fallback (coastal/concave shapes whose centroid falls in the sea):
+// majority vote over sampled outer-ring vertices with bbox prefilter,
+// winner-takes-all above 0.5.
+function oblastBbox(feature) {
+  let minLat = 90, maxLat = -90, minLon = 180, maxLon = -180;
+  const walk = (coords) => {
+    for (const p of coords) {
+      if (typeof p?.[0] === 'number') {
+        if (p[1] < minLat) minLat = p[1];
+        if (p[1] > maxLat) maxLat = p[1];
+        if (p[0] < minLon) minLon = p[0];
+        if (p[0] > maxLon) maxLon = p[0];
+      } else if (Array.isArray(p)) walk(p);
+    }
+  };
+  walk(feature.geometry?.coordinates || []);
+  return { minLat, maxLat, minLon, maxLon };
+}
+function inBbox([lat, lon], b) {
+  return lat >= b.minLat && lat <= b.maxLat && lon >= b.minLon && lon <= b.maxLon;
+}
+function outerRings(feature) {
+  if (feature.geometry?.type === 'Polygon') return [feature.geometry.coordinates[0]];
+  if (feature.geometry?.type === 'MultiPolygon') return feature.geometry.coordinates.map(p => p[0]);
+  return [];
+}
+function oblastNameOf(ob) {
+  return normOblast(ob.properties?.region || ob.properties?.key || ob.properties?.NAME_1 || '');
+}
 async function buildRaionOblastMap() {
   const [raionsGeo, oblastsGeo] = await Promise.all([loadRaionsIndex(), loadOblasts()]);
+  const prepared = oblastsGeo.features.map(ob => ({ ob, name: oblastNameOf(ob), bbox: oblastBbox(ob) })).filter(p => p.name);
   const map = new Map(); // normRaion -> normOblast
+  const containingOblast = (pt) => {
+    for (const p of prepared) {
+      if (inBbox(pt, p.bbox) && pointInFeature(pt, p.ob)) return p.name;
+    }
+    return null;
+  };
   for (const [nRaion, features] of raionsGeo) {
-    for (const f of features) {
-      const centroid = getCentroid(f);
-      if (!centroid) continue;
-      for (const ob of oblastsGeo.features) {
-        if (pointInFeature(centroid, ob)) {
-          const nOblast = normOblast(ob.properties?.region || ob.properties?.key || ob.properties?.NAME_1 || '');
-          if (nOblast) map.set(nRaion, nOblast);
-          break;
-        }
+    const f = features[0];
+    if (!f) continue;
+    const centroid = getCentroid(f);
+    const direct = centroid && containingOblast(centroid);
+    if (direct) { map.set(nRaion, direct); continue; }
+    // Majority vote fallback.
+    const votes = new Map();
+    let total = 0;
+    for (const ring of outerRings(f)) {
+      const step = Math.max(1, Math.floor(ring.length / 60));
+      for (let i = 0; i < ring.length; i += step) {
+        const pt = [ring[i][1], ring[i][0]];
+        total++;
+        const hit = containingOblast(pt);
+        if (hit) votes.set(hit, (votes.get(hit) || 0) + 1);
       }
     }
+    if (!total) continue;
+    let best = null, bestVotes = 0;
+    for (const [name, v] of votes) {
+      if (v > bestVotes) { bestVotes = v; best = name; }
+    }
+    if (best && bestVotes / total > 0.5) map.set(nRaion, best);
   }
   return map;
 }
@@ -116,7 +166,8 @@ export async function getRaionPolygon(oblast, raion) {
   if (!nOblast || !nRaion) return null;
 
   const index = await loadRaionsIndex();
-  const candidates = index.get(nRaion);
+  // Direct hit, then reverse-alias (API post-rename -> GeoJSON pre-rename).
+  const candidates = index.get(nRaion) || index.get(resolveReverseAlias(nRaion));
   if (!candidates || !candidates.length) return null;
 
   // If multiple candidates (same raion name in different oblasts), filter by oblast containment
@@ -196,7 +247,8 @@ export async function getOblastPolygon(oblast) {
   return { feature, rings, polys: rings };
 }
 
-// Aliases for old names (matching districts.js ALIASES)
+// Aliases for old names (matching districts.js ALIASES): GeoJSON carries the
+// pre-rename names, the API carries post-rename names.
 export const ALIASES = {
   'новомосковський': 'самарівський',
   'красноградський': 'берестинський',
@@ -207,7 +259,13 @@ export const ALIASES = {
   'северодонецький': 'сєвєродонецький',
   'сіверськодонецький': 'сєвєродонецький',
 };
+// Reverse map: API (new name) -> GeoJSON (old name).
+const REVERSE_ALIASES = Object.fromEntries(Object.entries(ALIASES).map(([o, n]) => [n, o]));
 
 export function resolveAlias(nRaion) {
   return ALIASES[nRaion] || nRaion;
+}
+
+export function resolveReverseAlias(nRaion) {
+  return REVERSE_ALIASES[nRaion] || nRaion;
 }

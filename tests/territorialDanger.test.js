@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeNeptunThreat, normalizeMapa } from '../backend/src/normalize.js';
 import { classifyThreat, accuracyTier, shouldShowHeading } from '../services/threatClassify.js';
-import { raionAlertActive, oblastRaions, matchRaion } from '../services/districts.js';
+import { raionAlertActive, oblastRaions, matchRaion, territorialDanger } from '../services/districts.js';
 
 // ── Test fixtures ─────────────────────────────────────────────────────────────
 const UmanRaionShahed = {
@@ -39,7 +39,8 @@ const UmanRaionShahedAreaOnly = {
   official: false,
 };
 
-const CherkasyOblastMissile = {
+// Missile with raion scope (district set): scope-driven rule -> raion fill, NOT oblast.
+const CherkasyRaionMissile = {
   id: 'neptun:3',
   source: 'NEPTUN',
   category: 'missile',
@@ -56,17 +57,36 @@ const CherkasyOblastMissile = {
   official: false,
 };
 
+// Missile with oblast scope (district==null): whole oblast.
+const CherkasyOblastMissile = {
+  id: 'neptun:3b',
+  source: 'NEPTUN',
+  category: 'missile',
+  kind: 'missile',
+  lat: null,
+  lon: null,
+  region: 'Черкаська область',
+  district: null,
+  locationPrecision: 'OBLAST',
+  areaOnly: true,
+  heading: null,
+  speed: null,
+  stale: false,
+  official: false,
+};
+
+// Ballistic with oblast scope (district==null): whole oblast.
 const CherkasyOblastBallistic = {
   id: 'neptun:4',
   source: 'NEPTUN',
   category: 'ballistic',
   kind: 'ballistic',
-  lat: 48.5,
-  lon: 35.0,
+  lat: null,
+  lon: null,
   region: 'Черкаська область',
-  district: 'Дніпровський район',
-  locationPrecision: 'COORDINATE',
-  areaOnly: false,
+  district: null,
+  locationPrecision: 'OBLAST',
+  areaOnly: true,
   heading: null,
   speed: null,
   stale: false,
@@ -89,6 +109,32 @@ const OfficialRaionAlert = {
   source: 'NEPTUN / офіційні канали',
   official: true,
   category: 'alert',
+  region: 'Черкаська область',
+  district: 'Уманський район',
+  locationPrecision: 'RAION',
+  areaOnly: true,
+};
+
+const OfficialRaionMissileAlert = {
+  id: 'official:uman-missile',
+  source: 'NEPTUN / офіційні канали',
+  official: true,
+  category: 'alert',
+  subtype: 'Ракетна загроза (червоний рівень)',
+  level: 'red',
+  region: 'Черкаська область',
+  district: 'Уманський район',
+  locationPrecision: 'RAION',
+  areaOnly: true,
+};
+
+const OfficialRaionDroneAlert = {
+  id: 'official:uman-drone',
+  source: 'NEPTUN / офіційні канали',
+  official: true,
+  category: 'alert',
+  subtype: 'Дронова загроза (жовтий рівень)',
+  level: 'yellow',
   region: 'Черкаська область',
   district: 'Уманський район',
   locationPrecision: 'RAION',
@@ -146,199 +192,141 @@ const AviationRaionOnly = {
   official: false,
 };
 
-// ── Tests for computeTerritorialDanger logic (mirrored from map.js) ───────────
-// Since computeTerritorialDanger is not exported, we test the logic inline
+const fillsFor = (oblast, fills) => fills.filter(f => f.oblast === oblast);
 
-const OBLAST_DANGER_CATEGORIES = new Set(['missile', 'ballistic']);
-const RAION_DANGER_CATEGORIES = new Set(['shahed', 'uav', 'kab']);
-const RAION_MONITORING_CATEGORIES = new Set(['recon', 'aviation', 'other']);
-
-function computeDanger(alerts, events) {
-  const oblastDanger = new Set();
-  const raionDanger = new Map();
-
-  // 1. Official alerts
-  for (const a of alerts || []) {
-    const oblast = a.region;
-    if (!oblast) continue;
-    if (!a.district) {
-      oblastDanger.add(oblast);
-    } else {
-      let oblastMap = raionDanger.get(oblast);
-      if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
-      oblastMap.set(a.district, 'high');
-    }
-  }
-
-  // 2. Monitoring events
-  for (const e of events || []) {
-    if (e.official) continue;
-    const oblast = e.region || e.derivedRegion;
-    if (!oblast) continue;
-    const kind = classifyThreat(e);
-    const cat = e.category;
-    const isAreaOnly = e.areaOnly === true;
-    const district = e.district;
-
-    if (OBLAST_DANGER_CATEGORIES.has(cat)) {
-      oblastDanger.add(oblast);
-      raionDanger.delete(oblast);
-      continue;
-    }
-
-    if (isAreaOnly && district) {
-      if (RAION_DANGER_CATEGORIES.has(kind) || RAION_DANGER_CATEGORIES.has(cat)) {
-        let oblastMap = raionDanger.get(oblast);
-        if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
-        const existing = oblastMap.get(district);
-        if (existing !== 'high') oblastMap.set(district, 'high');
-      } else if (RAION_MONITORING_CATEGORIES.has(kind) || RAION_MONITORING_CATEGORIES.has(cat)) {
-        let oblastMap = raionDanger.get(oblast);
-        if (!oblastMap) { oblastMap = new Map(); raionDanger.set(oblast, oblastMap); }
-        const existing = oblastMap.get(district);
-        if (!existing) oblastMap.set(district, 'medium');
-      }
-    }
-  }
-
-  // 3. PRIORITY FIX: oblastCritical clears ALL raion danger for that oblast (absolute priority)
-  for (const oblast of oblastDanger) {
-    raionDanger.delete(oblast);
-  }
-
-  return { oblastDanger, raionDanger };
-}
-
-// ── 1. Missile oblast → whole oblast red ──────────────────────────────────────
-test('Missile threat in oblast triggers oblastCritical danger', () => {
-  const { oblastDanger } = computeDanger([], [CherkasyOblastMissile]);
-  assert.ok(oblastDanger.has('Черкаська область'), 'Oblast should be in danger set');
+// ── Scope is driven by district presence, never invented from threat type ─────
+test('Missile with oblast scope (district==null) -> whole oblast', () => {
+  const { oblasts, fills } = territorialDanger([], [CherkasyOblastMissile]);
+  assert.ok(oblasts.includes('Черкаська область'));
+  assert.equal(fills.length, 0);
 });
 
-test('Missile oblastCritical overrides raion danger', () => {
-  const alerts = [OfficialRaionAlert]; // raion alert for Uman
-  const events = [CherkasyOblastMissile]; // missile in same oblast
-  const { oblastDanger, raionDanger } = computeDanger(alerts, events);
-  assert.ok(oblastDanger.has('Черкаська область'));
-  assert.equal(raionDanger.has('Черкаська область'), false, 'Raion danger should be cleared for oblastCritical');
+test('Missile with raion scope (district set) -> raion fill only, NEVER oblast', () => {
+  const { oblasts, fills } = territorialDanger([], [CherkasyRaionMissile]);
+  assert.equal(oblasts.length, 0, 'district threat must not activate the oblast');
+  assert.deepEqual(fills, [{ oblast: 'Черкаська область', district: 'Черкаський район', level: 'critical' }]);
 });
 
-// ── 2. Ballistic oblast → whole oblast red ────────────────────────────────────
-test('Ballistic threat in oblast triggers oblastCritical danger', () => {
-  const { oblastDanger } = computeDanger([], [CherkasyOblastBallistic]);
-  assert.ok(oblastDanger.has('Черкаська область'));
+test('Ballistic with oblast scope (district==null) -> whole oblast', () => {
+  const { oblasts, fills } = territorialDanger([], [CherkasyOblastBallistic]);
+  assert.ok(oblasts.includes('Черкаська область'));
+  assert.equal(fills.length, 0);
 });
 
-// ── 3. Shahed Uman raion → only Uman raion ────────────────────────────────────
-test('Shahed with raion precision (areaOnly) triggers raionHigh for that raion only', () => {
-  const { oblastDanger, raionDanger } = computeDanger([], [UmanRaionShahedAreaOnly]);
-  assert.equal(oblastDanger.size, 0, 'No oblast danger for Shahed raion');
-  const cherkasyRaions = raionDanger.get('Черкаська область');
-  assert.ok(cherkasyRaions, 'Should have raion danger map for Cherkasy');
-  assert.equal(cherkasyRaions.get('Уманський район'), 'high', 'Uman raion should be high');
-  assert.equal(cherkasyRaions.has('Звенигородський район'), false, 'Other raions should not be affected');
+test('Shahed with raion precision (areaOnly) -> raion fill only, NEVER oblast', () => {
+  const { oblasts, fills } = territorialDanger([], [UmanRaionShahedAreaOnly]);
+  assert.equal(oblasts.length, 0, 'No oblast danger for Shahed raion');
+  assert.deepEqual(fills, [{ oblast: 'Черкаська область', district: 'Уманський район', level: 'high' }]);
 });
 
-test('Shahed with exact coordinates + areaOnly=false does NOT create raion danger → point marker instead', () => {
-  // Exact coordinate threats create point markers on clusters layer, not territorial raion danger
-  const { oblastDanger, raionDanger } = computeDanger([], [UmanRaionShahed]);
-  assert.equal(oblastDanger.size, 0);
-  // raionDanger should be empty because areaOnly=false
-  assert.equal(raionDanger.has('Черкаська область'), false);
+test('Shahed with exact coordinates (areaOnly=false) -> NO territorial fill (markers only)', () => {
+  const { oblasts, fills } = territorialDanger([], [UmanRaionShahed]);
+  assert.equal(oblasts.length, 0);
+  assert.equal(fills.length, 0, 'exact-coordinate threats create point markers, not territorial fills');
 });
 
-// ── 4. UAV raion → only that raion ────────────────────────────────────────────
-test('UAV with raion precision triggers raionHigh for that raion only', () => {
+test('UAV with raion precision -> raion fill only', () => {
   const uavRaion = { ...UmanRaionShahedAreaOnly, kind: 'uav', category: 'uav' };
-  const { oblastDanger, raionDanger } = computeDanger([], [uavRaion]);
-  assert.equal(oblastDanger.size, 0);
-  const cherkasyRaions = raionDanger.get('Черкаська область');
-  assert.equal(cherkasyRaions.get('Уманський район'), 'high');
+  const { oblasts, fills } = territorialDanger([], [uavRaion]);
+  assert.equal(oblasts.length, 0);
+  assert.deepEqual(fills, [{ oblast: 'Черкаська область', district: 'Уманський район', level: 'high' }]);
 });
 
-// ── 5. Oblast-wide alert → whole oblast ───────────────────────────────────────
-test('Official oblast-wide alert (no district) triggers oblastCritical', () => {
-  const { oblastDanger } = computeDanger([OfficialOblastAlert], []);
-  assert.ok(oblastDanger.has('Черкаська область'));
+test('Official oblast-wide alert (no district) -> whole oblast', () => {
+  const { oblasts, fills } = territorialDanger([OfficialOblastAlert], []);
+  assert.ok(oblasts.includes('Черкаська область'));
+  assert.equal(fills.length, 0);
 });
 
-test('Official raion alert triggers raionHigh for that raion only', () => {
-  const { oblastDanger, raionDanger } = computeDanger([OfficialRaionAlert], []);
-  assert.equal(oblastDanger.size, 0);
-  const cherkasyRaions = raionDanger.get('Черкаська область');
-  assert.equal(cherkasyRaions.get('Уманський район'), 'high');
+test('Official raion alert without red level -> orange high fill, NEVER oblast', () => {
+  const { oblasts, fills } = territorialDanger([OfficialRaionAlert], []);
+  assert.equal(oblasts.length, 0, 'raion alert must not activate the oblast');
+  assert.deepEqual(fills, [{ oblast: 'Черкаська область', district: 'Уманський район', level: 'high' }]);
 });
 
-// ── 6. KAB raion → only raion ─────────────────────────────────────────────────
-test('KAB with raion precision triggers raionHigh for that raion only', () => {
-  const { oblastDanger, raionDanger } = computeDanger([], [KabRaionOnly]);
-  assert.equal(oblastDanger.size, 0);
-  const kharkivRaions = raionDanger.get('Харківська область');
-  assert.equal(kharkivRaions.get('Харківський район'), 'high');
+test('Official raion alert with red missile level -> red critical fill (source-confirmed)', () => {
+  const { oblasts, fills } = territorialDanger([OfficialRaionMissileAlert], []);
+  assert.equal(oblasts.length, 0, 'raion alert must not activate the oblast');
+  assert.deepEqual(fills, [{ oblast: 'Черкаська область', district: 'Уманський район', level: 'critical' }]);
 });
 
-// ── 7. Exact Shahed → raion/alert layer + exact SVG marker ────────────────────
-test('Exact Shahed (COORDINATE precision) → accuracyTier=exact, shouldShowHeading=true', () => {
+test('Official raion alert with yellow drone level -> orange high fill', () => {
+  const { oblasts, fills } = territorialDanger([OfficialRaionDroneAlert], []);
+  assert.equal(oblasts.length, 0);
+  assert.deepEqual(fills, [{ oblast: 'Черкаська область', district: 'Уманський район', level: 'high' }]);
+});
+
+test('KAB with raion precision -> raion fill only', () => {
+  const { oblasts, fills } = territorialDanger([], [KabRaionOnly]);
+  assert.equal(oblasts.length, 0);
+  assert.deepEqual(fills, [{ oblast: 'Харківська область', district: 'Харківський район', level: 'high' }]);
+});
+
+test('areaOnly monitor WITHOUT district -> NO fill (never invent a raion, never auto-paint oblast)', () => {
+  const oblastUav = { ...UmanRaionShahedAreaOnly, district: null, locationPrecision: 'OBLAST' };
+  const { oblasts, fills } = territorialDanger([], [oblastUav]);
+  assert.equal(oblasts.length, 0);
+  assert.equal(fills.length, 0);
+});
+
+// ── Priority: oblast danger coexists with raion fills (raion info on top) ─────
+test('Oblast missile + raion alerts/fills -> oblast kept, raion fills scoped to their raions', () => {
+  const { oblasts, fills } = territorialDanger([OfficialRaionMissileAlert], [CherkasyOblastMissile, KabRaionOnly]);
+  assert.ok(oblasts.includes('Черкаська область'), 'oblast-scope missile activates the oblast');
+  assert.ok(!oblasts.includes('Харківська область'), 'Kharkiv has only a raion fill, not oblast danger');
+  assert.deepEqual(
+    fills.filter(f => f.district === 'Уманський район'),
+    [{ oblast: 'Черкаська область', district: 'Уманський район', level: 'critical' }],
+  );
+  assert.deepEqual(fillsFor('Харківська область', fills), [{ oblast: 'Харківська область', district: 'Харківський район', level: 'high' }]);
+});
+
+// ── Recon/Aviation raion -> medium ────────────────────────────────────────────
+test('Recon with raion precision -> medium fill', () => {
+  const { oblasts, fills } = territorialDanger([], [ReconRaionOnly]);
+  assert.equal(oblasts.length, 0);
+  assert.deepEqual(fills, [{ oblast: 'Дніпропетровська область', district: 'Дніпровський район', level: 'medium' }]);
+});
+
+test('Aviation with raion precision -> medium fill', () => {
+  const { oblasts, fills } = territorialDanger([], [AviationRaionOnly]);
+  assert.equal(oblasts.length, 0);
+  assert.deepEqual(fills, [{ oblast: 'Запорізька область', district: 'Василівський район', level: 'medium' }]);
+});
+
+test('Real-data level split: red missile alerts -> critical, yellow drone alerts -> high', () => {
+  const alerts = [
+    { region: 'Донецька область', district: 'Бахмутський район', level: 'red', subtype: 'Ракетна загроза (червоний рівень)' },
+    { region: 'Запорізька область', district: 'Бердянський район', level: 'yellow', subtype: 'Дронова загроза (жовтий рівень)' },
+    { region: 'Сумська область', district: 'Конотопський район', level: 'red', subtype: 'Ракетна загроза (червоний рівень)' },
+    { region: 'Київська область', district: 'Броварський район', level: 'yellow', subtype: 'Дронова загроза (жовтий рівень)' },
+  ];
+  const { oblasts, fills } = territorialDanger(alerts, []);
+  assert.equal(oblasts.length, 0);
+  const byLevel = {};
+  for (const f of fills) byLevel[f.level] = (byLevel[f.level] || 0) + 1;
+  assert.deepEqual(byLevel, { critical: 2, high: 2 });
+});
+
+test('Multiple shahed in different raions -> one fill per raion, oblast untouched', () => {
+  const shahedZveny = { ...UmanRaionShahedAreaOnly, district: 'Звенигородський район', id: 'neptun:8' };
+  const { oblasts, fills } = territorialDanger([], [UmanRaionShahedAreaOnly, shahedZveny]);
+  assert.equal(oblasts.length, 0);
+  assert.equal(fills.length, 2);
+  assert.ok(fills.every(f => f.level === 'high'));
+});
+
+// ── Exact/marker behavior unchanged ───────────────────────────────────────────
+test('Exact Shahed (COORDINATE precision) -> accuracyTier=exact, shouldShowHeading=true', () => {
   assert.equal(accuracyTier(UmanRaionShahed), 'exact');
   assert.equal(shouldShowHeading(UmanRaionShahed), true);
   assert.equal(classifyThreat(UmanRaionShahed), 'shahed');
 });
 
-test('Area-only Shahed (RAION precision) → accuracyTier=area, shouldShowHeading=false, NO fake marker', () => {
+test('Area-only Shahed (RAION precision) -> accuracyTier=area, shouldShowHeading=false, NO fake marker', () => {
   assert.equal(accuracyTier(UmanRaionShahedAreaOnly), 'area');
   assert.equal(shouldShowHeading(UmanRaionShahedAreaOnly), false);
   assert.equal(classifyThreat(UmanRaionShahedAreaOnly), 'shahed');
-});
-
-// ── 8. Priority: missile oblast + Shahed raion → oblast danger has priority ───
-test('Missile in oblast + Shahed in raion → oblastCritical takes priority, raion cleared', () => {
-  const { oblastDanger, raionDanger } = computeDanger([OfficialRaionAlert], [CherkasyOblastMissile, UmanRaionShahedAreaOnly]);
-  assert.ok(oblastDanger.has('Черкаська область'));
-  assert.equal(raionDanger.has('Черкаська область'), false, 'Raion danger cleared when oblastCritical present');
-});
-
-test('Ballistic in oblast + UAV in raion → oblastCritical takes priority', () => {
-  const { oblastDanger, raionDanger } = computeDanger([], [CherkasyOblastBallistic, UmanRaionShahedAreaOnly]);
-  assert.ok(oblastDanger.has('Черкаська область'));
-  assert.equal(raionDanger.has('Черкаська область'), false);
-});
-
-test('Missile in oblast → other raions in same oblast NOT affected by raion danger', () => {
-  const uavInZveny = { ...UmanRaionShahedAreaOnly, district: 'Звенигородський район' };
-  const { oblastDanger, raionDanger } = computeDanger([], [CherkasyOblastMissile, uavInZveny]);
-  assert.ok(oblastDanger.has('Черкаська область'));
-  assert.equal(raionDanger.has('Черкаська область'), false, 'No raion danger when oblastCritical present');
-});
-
-// ── 9. Recon/Aviation raion → raionMedium (lower priority) ────────────────────
-test('Recon with raion precision triggers raionMedium', () => {
-  const { oblastDanger, raionDanger } = computeDanger([], [ReconRaionOnly]);
-  assert.equal(oblastDanger.size, 0);
-  const dniproRaions = raionDanger.get('Дніпропетровська область');
-  assert.equal(dniproRaions.get('Дніпровський район'), 'medium');
-});
-
-test('Aviation with raion precision triggers raionMedium', () => {
-  const { oblastDanger, raionDanger } = computeDanger([], [AviationRaionOnly]);
-  assert.equal(oblastDanger.size, 0);
-  const zapRaions = raionDanger.get('Запорізька область');
-  assert.equal(zapRaions.get('Василівський район'), 'medium');
-});
-
-test('Recon raionMedium does not upgrade to high if shahed also present in same raion', () => {
-  const { oblastDanger, raionDanger } = computeDanger([], [ReconRaionOnly, UmanRaionShahedAreaOnly]);
-  // Uman is in Cherkasy, Recon is in Dnipro - different oblasts
-  assert.equal(raionDanger.get('Черкаська область').get('Уманський район'), 'high');
-  assert.equal(raionDanger.get('Дніпропетровська область').get('Дніпровський район'), 'medium');
-});
-
-test('Multiple shahed in different raions → each raion high', () => {
-  const shahedZveny = { ...UmanRaionShahedAreaOnly, district: 'Звенигородський район', id: 'neptun:8' };
-  const { oblastDanger, raionDanger } = computeDanger([], [UmanRaionShahedAreaOnly, shahedZveny]);
-  const cherkasyRaions = raionDanger.get('Черкаська область');
-  assert.equal(cherkasyRaions.get('Уманський район'), 'high');
-  assert.equal(cherkasyRaions.get('Звенигородський район'), 'high');
-  assert.equal(cherkasyRaions.size, 2);
 });
 
 console.log('All territorial danger tests passed!');
