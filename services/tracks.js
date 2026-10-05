@@ -9,9 +9,10 @@
 // coordinates, timestamps, heading/speed (only when the source sent them),
 // MAPA trail points. What is UI-only: the short CSS transition between two
 // confirmed positions. No extrapolation, no invented points, ever.
-const MAX_HISTORY = 8;
+const MAX_HISTORY = 20;
 
 function finiteNum(v) {
+  if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
@@ -59,7 +60,7 @@ export function createStore() {
       const prev = tracks.get(id);
       if (!prev) {
         const pos = confirmedPos(e);
-        const track = { id, current: e, pos, history: [], updated: Date.now() };
+        const track = { id, current: e, pos, posT: pos ? eventTimeMs(e) : null, history: [], updated: Date.now() };
         tracks.set(id, track);
         notify({ type: 'added', id, track });
         return { type: 'added', track };
@@ -86,6 +87,7 @@ export function createStore() {
           prev.history = [...prev.history, { ...prev.pos, t: was }].slice(-MAX_HISTORY);
         }
         prev.pos = nextPos;
+        prev.posT = Number.isFinite(now) ? now : prev.posT;
         moved = true;
       }
       prev.current = e;
@@ -196,4 +198,57 @@ export function cleanTrail(points, { max = 8 } = {}) {
 export function resolveSelection(store, trackId) {
   if (!store || trackId == null) return null;
   return store.get(trackId)?.current || null;
+}
+
+// Debug Target Inspector payload (pure): everything a QA engineer needs for
+// one track, computed only from confirmed source data. Shown in ?debug only.
+export function inspectTrack(store, trackId, nowMs = Date.now()) {
+  const t = store?.get(trackId);
+  if (!t) return null;
+  const e = t.current || {};
+  const ageMs = (() => {
+    const m = eventTimeMs(e);
+    return m != null ? Math.max(0, nowMs - m) : null;
+  })();
+  const changeMs = t.posT != null ? Math.max(0, nowMs - t.posT) : null;
+  return {
+    trackId: t.id,
+    source: e.source || null,
+    ageS: ageMs != null ? Math.round(ageMs / 1000) : null,
+    lat: t.pos?.lat ?? null,
+    lon: t.pos?.lon ?? null,
+    heading: Number.isFinite(Number(e.heading)) ? Number(e.heading) : null,
+    speed: e.speed != null && Number.isFinite(Number(e.speed)) ? Number(e.speed) : null,
+    points: (t.history?.length || 0) + (t.pos ? 1 : 0),
+    lastChangeS: changeMs != null ? Math.round(changeMs / 1000) : null,
+  };
+}
+
+// Movement-transition planner (pure, unit-tested): decides whether a visual
+// glide between two CONFIRMED positions is allowed and how long it lasts.
+// Returns { animate, from, to, durationMs }. This is UI ONLY — never a
+// prediction: both endpoints are really received coordinates of the SAME
+// stable trackId, and the marker stops at `to`.
+export function moveDurationKm(distKm) {
+  if (!Number.isFinite(distKm) || distKm <= 0) return 0;
+  if (distKm < 2) return 800;
+  if (distKm < 10) return 1200;
+  return 1800;
+}
+
+export function planMove(prev, next) {
+  const nope = { animate: false, from: null, to: null, durationMs: 0 };
+  const pid = prev?.trackId ?? prev?.id ?? null;
+  const nid = next?.trackId ?? next?.id ?? null;
+  if (pid == null || nid == null || pid !== nid) return nope;
+  if (!prev || !next || prev.stale || next.stale) return nope;
+  if (next.areaOnly === true) return nope;
+  const a = confirmedPos(prev);
+  const b = confirmedPos(next);
+  if (!a || !b) return nope;
+  if (samePos(a, b)) return nope;
+  const pt = eventTimeMs(prev);
+  const nt = eventTimeMs(next);
+  if (Number.isFinite(pt) && Number.isFinite(nt) && nt <= pt) return nope;
+  return { animate: true, from: a, to: b, durationMs: moveDurationKm(haversineKm(a.lat, a.lon, b.lat, b.lon)) };
 }

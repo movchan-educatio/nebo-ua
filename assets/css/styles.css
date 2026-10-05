@@ -128,14 +128,14 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 
 /* ── Threat markers: solid canonical silhouettes, 1:1 with HUD/list ────── */
 .threat-marker{position:relative;width:40px;height:40px;background:transparent!important;border:none!important;border-radius:0!important;box-shadow:none!important;display:flex;align-items:center;justify-content:center;opacity:1!important;mix-blend-mode:normal;transition:transform .3s ease}
-.threat-marker svg.threat-svg{width:28px;height:28px;fill:currentColor;stroke:currentColor;stroke-width:1.5;paint-order:stroke;opacity:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9));transition:transform .15s ease-out;transform-box: fill-box;transform-origin:center}
-.threat-marker.kind-shahed svg.threat-svg{width:30px;height:30px}
-.threat-marker.kind-uav svg.threat-svg{width:26px;height:26px}
-.threat-marker.kind-recon svg.threat-svg{width:28px;height:28px}
-.threat-marker.kind-missile svg.threat-svg{width:28px;height:28px}
-.threat-marker.kind-ballistic svg.threat-svg{width:30px;height:30px}
-.threat-marker.kind-kab svg.threat-svg{width:27px;height:27px}
-.threat-marker.kind-aviation svg.threat-svg{width:29px;height:29px}
+.threat-marker svg.threat-svg{width:24px;height:24px;fill:currentColor;stroke:currentColor;stroke-width:1.5;paint-order:stroke;opacity:1;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9));transition:transform .15s ease-out;transform-box: fill-box;transform-origin:center}
+.threat-marker.kind-shahed svg.threat-svg{width:26px;height:26px}
+.threat-marker.kind-uav svg.threat-svg{width:24px;height:24px}
+.threat-marker.kind-recon svg.threat-svg{width:23px;height:23px}
+.threat-marker.kind-missile svg.threat-svg{width:24px;height:24px}
+.threat-marker.kind-ballistic svg.threat-svg{width:26px;height:26px}
+.threat-marker.kind-kab svg.threat-svg{width:24px;height:24px}
+.threat-marker.kind-aviation svg.threat-svg{width:25px;height:25px}
 .threat-marker.kind-other svg.threat-svg{width:22px;height:22px}
 .threat-marker[data-directed="true"]>svg.threat-svg{transform:rotate(var(--heading,0deg))}
 .threat-marker.stale{filter:grayscale(.55)}
@@ -145,6 +145,9 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .threat-marker[data-accuracy="area"],.threat-marker[data-accuracy="report"]{opacity:1}
 .threat-marker.near{outline:2px solid #fff;outline-offset:3px;border-radius:6px}
 .threat-marker.lvl-red{outline:2px solid #ff2233;outline-offset:3px}
+.threat-marker.selected::after{content:"";position:absolute;inset:-7px;border:1.5px solid var(--c);border-radius:50%;opacity:.85;pointer-events:none;animation:selHalo 1.6s ease-out infinite}
+@keyframes selHalo{0%{transform:scale(.82);opacity:.9}70%{transform:scale(1.12);opacity:.25}100%{transform:scale(1.18);opacity:0}}
+@media (prefers-reduced-motion:reduce){.threat-marker{transition:none}.threat-marker.selected::after{animation:none;opacity:.5}}
 @keyframes pulse{0%{transform:scale(.7);opacity:.9}100%{transform:scale(1.35);opacity:0}}
 .mk-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--c,#efb55b);background:#0b131bd9;padding:1px 6px;border-radius:6px;white-space:nowrap;line-height:1.5}
 .map-zoom-5 .mk-label,.map-zoom-6 .mk-label,.map-zoom-5 .raion-tip,.map-zoom-6 .raion-tip,.map-zoom-5 .leaflet-tooltip,.map-zoom-6 .leaflet-tooltip,.map-zoom-5 .raion-dot,.map-zoom-6 .raion-dot{display:none!important}

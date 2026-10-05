@@ -246,8 +246,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const glow = 0.55 + 0.45 * boost;
       // Same SVG silhouette as the map, rotated by reliable heading only.
       const img = spriteFor(v.kind);
-      const sPx = Math.max(20, Math.min(28, v.size));
-      if (img) {
+      const sPx = Math.max(20, Math.min(26, v.size));      if (img) {
         ectx.save();
         ectx.globalAlpha = glow;
         ectx.translate(ox, oy);

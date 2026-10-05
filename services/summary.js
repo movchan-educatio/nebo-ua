@@ -71,7 +71,7 @@ export function kindShortLabel(kind) {
  */
 const THREAT_SPRITE = './assets/brand/threat-icons.svg';
 // HUD icon colors mirror the shared threat palette (assets/js/map.js META).
-const KIND_COLOR = { uav: '#F7B547', shahed: '#FFAA32', missile: '#FF4D5E', kab: '#FF7957' };
+const KIND_COLOR = { uav: '#FFC43D', shahed: '#FFAA32', missile: '#FF4D67', kab: '#FF806B' };
 export function flowSummaryHTML(stats, raionCount) {
   const s = { uav: 0, shahed: 0, missiles: 0, kab: 0, exactTotal: 0, suppressed: 0, ...(stats || {}) };
   const rc = Number(raionCount) || 0;

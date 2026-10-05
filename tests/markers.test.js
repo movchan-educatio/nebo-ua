@@ -86,6 +86,16 @@ test('threatPane: dedicated pane above fills, below popups; markers + clusters u
 });
 
 // ── Zoom bands + hover + touch ───────────────────────────────────────────────
+// ── Map UI contract: every mapUI.* call in app.js must exist ─────────────────
+test('mapUI contract: called methods exist on the situation map', () => {
+  const appSrc = fs.readFileSync(path.join(root, 'assets/js/app.js'), 'utf8');
+  const called = new Set([...appSrc.matchAll(/mapUI\.([A-Za-z_$][\w$]*)\s*\(/g)].map(m => m[1]));
+  const ret = mapSrc.match(/return\{map,([^{}]*)\}/);
+  assert.ok(ret, 'situation map return object found');
+  const provided = new Set(ret[1].split(',').map(s => s.trim()).filter(Boolean));
+  const missing = [...called].filter(k => !provided.has(k));
+  assert.deepEqual(missing, [], 'app.js calls undefined mapUI methods: ' + missing.join(', '));
+});
 test('adaptive sizing: zoom bands scale SVG only, touch container stays constant', () => {
   for (const z of [5, 6, 7, 8, 9, 10, 11, 12]) {
     assert.ok(css.includes(`.map-zoom-${z} .threat-marker svg.threat-svg`), `zoom band ${z} scales the silhouette`);

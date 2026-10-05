@@ -2,6 +2,7 @@ import{regionName}from'../../services/regions.js';
 import{territorialDanger,normOblast}from'../../services/districts.js';
 import{classifyThreat,accuracyTier,ageClass,shouldShowHeading}from'../../services/threatClassify.js';
 import{attachBasemap,NEBO_ATTRIBUTION}from'./basemap.js';
+import{planMove}from'../../services/tracks.js';
 
 // Module-relative URL of the threat icon sprite: resolves correctly from any
 // page base path (/, /nebo-ua/, /dev/, widget/...) without hardcoding it.
@@ -13,13 +14,13 @@ const THREAT_SVG = new URL('../brand/threat-icons.svg', import.meta.url).href;
 // Palette: Небо.UA threat color system (single source; radar/list use it too).
 const META={
   shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#FFAA32'},
-  uav:      {label:'БПЛА',    icon:'uav',      color:'#F7B547'},
-  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#4DB8FF'},
-  missile:  {label:'РАКЕТА',  icon:'missile',  color:'#FF4D5E'},
+  uav:      {label:'БПЛА',    icon:'uav',      color:'#FFC43D'},
+  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#62C7FF'},
+  missile:  {label:'РАКЕТА',  icon:'missile',  color:'#FF4D67'},
   ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#FF2A55'},
-  kab:      {label:'КАБ',     icon:'kab',      color:'#FF7957'},
-  aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#B57CFF'},
-  other:    {label:'Інше',    icon:'other',    color:'#A8BAC7'},
+  kab:      {label:'КАБ',     icon:'kab',      color:'#FF806B'},
+  aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#9B6CFF'},
+  other:    {label:'Інше',    icon:'other',    color:'#B8C5D1'},
 };
 
 // ── Territorial danger colors ──────────────────────────────────────────────────
@@ -41,8 +42,8 @@ const DANGER_STYLE = {
 // Popup visuals (TZ §29). Never copy SVG paths elsewhere: resolve the kind
 // once via classifyThreat, then read icon/color/size from here.
 const THREAT_SIZE = {
-  shahed: 30, uav: 26, recon: 30, missile: 31, ballistic: 33,
-  kab: 28, aviation: 32, other: 20,
+  shahed: 26, uav: 24, recon: 24, missile: 24, ballistic: 26,
+  kab: 24, aviation: 25, other: 22,
 };
 export function getThreatVisual(input) {
   const kind = typeof input === 'string' ? input : classifyThreat(input);
@@ -138,6 +139,68 @@ export function createSituationMap(el,onSelect){
     if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),ukraineFitOptions())}
   }
 
+  // Single-track marker upsert shared by full sync and live updates:
+  // same L.marker object glides via planMove, DOM persists when visuals
+  // are unchanged. Returns the marker, or null for non-point events.
+  function upsertMarker(e,now){
+    if(!e||accuracyTier(e)!=='exact'||e.lat==null||e.lon==null)return null;
+    const ac=ageClass(e,now);
+    const tid=e.trackId||e.id;
+    const prevEv=currentByTrack.get(tid)||null;
+    currentByTrack.set(tid,e);
+    let marker=markerByTrack.get(tid);
+    const kindNow=classifyThreat(e);
+    const headingNow=shouldShowHeading(e)?Number(e.heading):null;
+    const sig=[kindNow,headingNow??'x',ac,e._lvl||''].join('|');
+    if(marker){
+      // Confirmed-point glide only: planMove gates same-track, both
+      // confirmed, newer timestamp; duration scales with distance.
+      const plan=planMove(prevEv,e);
+      if(plan.animate){
+        try{
+          const el=marker.getElement();
+          if(el)el.style.transitionDuration=Math.min(1800,Math.max(600,plan.durationMs))+'ms';
+        }catch(err){}
+        marker.setLatLng([e.lat,e.lon]);
+      }else if(marker.getLatLng().lat!==e.lat||marker.getLatLng().lng!==e.lon){
+        try{const el=marker.getElement();if(el)el.style.transitionDuration='';}catch(err){}
+        marker.setLatLng([e.lat,e.lon]);
+      }
+      // Updates never replay the .new pulse ring: it renders once, on add.
+      // Skip setIcon entirely when nothing visual changed, so the SAME DOM
+      // node (and its CSS glide transition) survives background refreshes.
+      if(marker.options._sig!==sig){
+        marker.setIcon(eventIcon({ ...e, isNew: false },ac));
+        marker.options._sig=sig;
+      }
+      marker.options.category=e.category;
+      marker.options.threatKind=kindNow;
+    }else{
+      marker=L.marker([e.lat,e.lon],{
+        icon:eventIcon(e,ac),
+        category:e.category,
+        threatKind:classifyThreat(e),
+        pane:'threatPane',
+      }).on('click',()=>onSelect(currentByTrack.get(tid)||e));
+      marker.options._sig=sig;
+      markerByTrack.set(tid,marker);
+      clusters.addLayer(marker);
+      if(tid===selectedTrack){const g=glyphEl(marker);if(g)g.classList.add('selected');}
+    }
+    return marker;
+  }
+  // Live single-track update (WS upsert): moves/refreshes one marker,
+  // never rebuilds the layer. Returns true when a marker was touched.
+  function updateTrack(e){
+    return !!upsertMarker(e,Date.now());
+  }
+  function removeTrack(tid){
+    const m=markerByTrack.get(tid);
+    if(m){try{clusters.removeLayer(m);}catch(e){}markerByTrack.delete(tid);}
+    currentByTrack.delete(tid);
+    if(selectedTrack===tid)setSelectedTrack(null);
+  }
+
   function setEvents(events,visible,selTrail){
     applyZoomClass();
     const seenTracks=new Set();
@@ -161,38 +224,8 @@ export function createSituationMap(el,onSelect){
       }
 
       // ── Exact coordinate marker: persistent object per stable track ──────
-      if(e.lat==null||e.lon==null)continue;
-      const ac=ageClass(e,now);
-      const tid=e.trackId||e.id;
-      currentByTrack.set(tid,e);
-      seenTracks.add(tid);
-      let marker=markerByTrack.get(tid);
-      const kindNow=classifyThreat(e);
-      const headingNow=shouldShowHeading(e)?Number(e.heading):null;
-      const sig=[kindNow,headingNow??'x',ac,e._lvl||''].join('|');
-      if(marker){
-        const ll=marker.getLatLng();
-        if(ll.lat!==e.lat||ll.lng!==e.lon)marker.setLatLng([e.lat,e.lon]);
-        // Updates never replay the .new pulse ring: it renders once, on add.
-        // Skip setIcon entirely when nothing visual changed, so the SAME DOM
-        // node (and its CSS glide transition) survives background refreshes.
-        if(marker.options._sig!==sig){
-          marker.setIcon(eventIcon({ ...e, isNew: false },ac));
-          marker.options._sig=sig;
-        }
-        marker.options.category=e.category;
-        marker.options.threatKind=kindNow;
-      }else{
-        marker=L.marker([e.lat,e.lon],{
-          icon:eventIcon(e,ac),
-          category:e.category,
-          threatKind:classifyThreat(e),
-          pane:'threatPane',
-        }).on('click',()=>onSelect(currentByTrack.get(tid)||e));
-        marker.options._sig=sig;
-        markerByTrack.set(tid,marker);
-        clusters.addLayer(marker);
-      }
+      const m=upsertMarker(e,now);
+      if(m)seenTracks.add(e.trackId||e.id);
 
       // Uncertainty circle
       if(e.uncertaintyKm)L.circle([e.lat,e.lon],{radius:e.uncertaintyKm*1000,color:META[e.category]?.color||'#efb55b',weight:1,fillOpacity:.025,className:'uncertainty'}).addTo(uncertainties);
@@ -221,14 +254,20 @@ export function createSituationMap(el,onSelect){
       if(!seenTracks.has(tid)){try{clusters.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
     }
     // Selected-track trail: last confirmed positions only (source trail for
-    // MAPA, accumulated history otherwise), thin and muted. Never global.
+    // MAPA, accumulated history otherwise), thin and muted. Older segments
+    // fade out; the newest segment near the target is most visible. Never
+    // global, never a forecast.
     if(selTrail&&Array.isArray(selTrail.points)&&selTrail.points.length>1){
       const col=META[selTrail.category]?.color||'#efb55b';
-      const line=selTrail.points.map(p=>[p.lat,p.lon]);
-      L.polyline(line,{color:col,weight:1.5,opacity:.45,dashArray:'2 5',interactive:false}).addTo(trails);
-      selTrail.points.forEach((p,i)=>{
-        if(i===selTrail.points.length-1)return;
-        L.circleMarker([p.lat,p.lon],{radius:2,color:col,weight:1,opacity:.4,fillOpacity:.3,interactive:false}).addTo(trails);
+      const pts=selTrail.points.slice(-8);
+      for(let i=0;i<pts.length-1;i++){
+        const f=(i+1)/(pts.length-1);
+        L.polyline([[pts[i].lat,pts[i].lon],[pts[i+1].lat,pts[i+1].lon]],{color:col,weight:i===pts.length-2?2:1.2,opacity:(0.12+0.38*f).toFixed(2),dashArray:'2 5',interactive:false}).addTo(trails);
+      }
+      pts.forEach((p,i)=>{
+        if(i===pts.length-1)return;
+        const f=(i+1)/pts.length;
+        L.circleMarker([p.lat,p.lon],{radius:2,color:col,weight:1,opacity:(0.2+0.3*f).toFixed(2),fillOpacity:(0.15+0.25*f).toFixed(2),interactive:false}).addTo(trails);
       });
     }
   }
@@ -293,7 +332,16 @@ export function createSituationMap(el,onSelect){
   }
   function centerOnUser(){if(lastUser)map.setView([lastUser.lat,lastUser.lon],9)}
   function showHome(name){if(!geo)return;const f=name&&geo.features.find(x=>regionName(x)===name);const b=f?L.geoJSON(f).getBounds():regions.getBounds();if(b&&b.isValid())map.fitBounds(b,{padding:[12,12]})}
-  return{map,setRegions,setEvents,setWind,setReports,setRaionDots,setRaionShapes,setAlertShapes,setUserPos,centerOnUser,showHome,toggle,meta:META};
+  let selectedTrack=null;
+  function glyphEl(m){try{const el=m.getElement();if(!el)return null;return el.classList.contains('threat-marker')?el:el.querySelector('.threat-marker');}catch(e){return null;}}
+  function setSelectedTrack(tid){
+    selectedTrack=tid||null;
+    for(const [id,m] of markerByTrack){
+      const g=glyphEl(m);
+      if(g)g.classList.toggle('selected',id===selectedTrack);
+    }
+  }
+  return{map,setRegions,setEvents,updateTrack,removeTrack,setWind,setReports,setRaionDots,setRaionShapes,setAlertShapes,setUserPos,centerOnUser,showHome,setSelectedTrack,toggle,meta:META};
 }
 
 // ── Radar range rings ────────────────────────────────────────────────────────

@@ -137,6 +137,29 @@ test('event/blip marker HTML is a bare SVG (no circle/triangle/diamond/label wra
   }
 });
 
+test('unknown threat is a diamond with a path-drawn question mark (no text element)', () => {
+  const syms = symbols();
+  const body = syms.get('other').body;
+  assert.ok(!body.includes('<text'), 'no text glyphs');
+  for (const m of body.matchAll(/<circle[^>]*r="([\d.]+)"/g)) {
+    assert.ok(Number(m[1]) <= 3, 'only the question-mark dot, no ring mark');
+  }
+  const paths = [...body.matchAll(/<path[^>]*d="([^"]+)"/g)].map(m => m[1]);
+  assert.ok(paths.length >= 2, 'diamond outline + question-mark paths');
+  const box = bboxOf(body);
+  const w = box.maxX - box.minX, h = box.maxY - box.minY;
+  assert.ok(w > 20 && h > 20 && Math.abs(w - h) < 12, `diamond proportions (${w.toFixed(1)}x${h.toFixed(1)})`);
+});
+
+test('reference palette: UAV yellow, Shahed orange, recon cyan, aviation violet, KAB coral, unknown neutral', () => {
+  assert.equal(META.uav.color.toLowerCase(), '#ffc43d');
+  assert.equal(META.recon.color.toLowerCase(), '#62c7ff');
+  assert.equal(META.missile.color.toLowerCase(), '#ff4d67');
+  assert.equal(META.kab.color.toLowerCase(), '#ff806b');
+  assert.equal(META.aviation.color.toLowerCase(), '#9b6cff');
+  assert.equal(META.other.color.toLowerCase(), '#b8c5d1');
+});
+
 test('marker CSS: transparent container, per-kind sizes, directed rotation on the SVG', () => {
   const css = fs.readFileSync(path.join(root, 'assets/css/styles.css'), 'utf8');
   assert.ok(css.includes('.threat-marker svg.threat-svg'), 'threat SVG sizing rule exists');
