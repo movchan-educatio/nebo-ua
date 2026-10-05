@@ -54,7 +54,7 @@
 .mk-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--c,#efb55b);background:#0b131bd9;padding:1px 6px;border-radius:6px;white-space:nowrap;line-height:1.5}
 /* Radar blip: clean SVG */
 .radar-blip {
-  width: 30px; height: 30px;
+  width: 36px; height: 36px;
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
@@ -64,11 +64,17 @@
   justify-content: center;
 }
 .radar-blip svg {
-  width: 24px; height: 24px;
+  width: 28px; height: 28px;
   fill: currentColor;
   stroke: currentColor;
   stroke-width: 1.5;
+  transform-box: fill-box;
+  transform-origin: center;
+  filter: drop-shadow(0 0 3px rgba(0,0,0,.9));
 }
+.radar-blip.kind-shahed svg{width:30px;height:30px}
+.radar-blip.kind-ballistic svg,.radar-blip.kind-aviation svg{width:31px;height:31px}
+.radar-blip.kind-other svg{width:20px;height:20px}
 .radar-blip i {
   position: absolute;
   inset: -6px;
@@ -318,6 +324,35 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .threat-marker.kind-ballistic { filter: drop-shadow(0 0 6px rgba(255, 34, 51, 0.7)); animation: pulse-red 1.2s infinite; }
 .threat-marker.kind-kab { filter: drop-shadow(0 0 4px rgba(242, 144, 93, 0.5)); }
 .threat-marker.kind-aviation { filter: drop-shadow(0 0 4px rgba(125, 185, 255, 0.5)); }
+
+/* ── Small threat groups (2–4, NO card) ────────────────────────────────────────
+   Transparent composition; each silhouette keeps its own kind color.
+   Footprint ≤ ~70px; visual gap between icons ~6px. */
+.threat-group{position:relative;background:transparent!important;border:none!important;box-shadow:none!important;padding:0!important}
+.tg-item{position:absolute;transform:translate(-50%,-50%);color:var(--c,#f4a62a);display:block;width:26px;height:26px}
+.tg-item svg.tg-svg{width:26px;height:26px;fill:currentColor;stroke:currentColor;stroke-width:1.5;transform-box:fill-box;transform-origin:center;display:block;filter:drop-shadow(0 0 3px rgba(0,0,0,.9))}
+/* ── Compact cluster badge (5+): round radar badge, dominant icon + number ─── */
+.threat-cluster.is-badge{width:46px;height:46px;min-width:46px;min-height:46px;padding:0;border-radius:50%;flex-direction:column;gap:0;background:rgba(8,16,24,.92)!important;border:1.5px solid var(--c);box-shadow:0 4px 16px #000c;color:var(--c)}
+.threat-cluster.is-badge svg.tg-badge-svg{width:19px;height:19px;fill:currentColor;stroke:currentColor;stroke-width:1.5}
+.threat-cluster.is-badge b{font-size:13px;line-height:1;color:#fff;font-variant-numeric:tabular-nums}
+/* ── Adaptive marker sizing by map zoom (smooth, no re-render) ───────────────
+   Base sizes ≈ zoom 5–6 (28–32px). Bands scale the SVG only; the 40px touch
+   container stays constant and transparent. */
+.map-zoom-5 .threat-marker svg.threat-svg{scale:.94}
+.map-zoom-6 .threat-marker svg.threat-svg{scale:1}
+.map-zoom-7 .threat-marker svg.threat-svg{scale:1.05}
+.map-zoom-8 .threat-marker svg.threat-svg{scale:1.08}
+.map-zoom-9 .threat-marker svg.threat-svg,.map-zoom-10 .threat-marker svg.threat-svg,.map-zoom-11 .threat-marker svg.threat-svg,.map-zoom-12 .threat-marker svg.threat-svg{scale:1.16}
+@media (pointer:coarse){
+  .map-zoom-5 .threat-marker svg.threat-svg,.map-zoom-6 .threat-marker svg.threat-svg{scale:1.04}
+  .tg-item{width:28px;height:28px}
+  .tg-item svg.tg-svg{width:28px;height:28px}
+}
+/* ── Gentle hover grow (desktop only, never aggressive) ────────────────────── */
+@media (hover:hover){
+  .threat-marker:hover > svg.threat-svg{scale:1.1}
+  .threat-marker[data-directed="true"]:hover > svg.threat-svg{transform:rotate(var(--heading,0deg)) scale(1.1)}
+}
 
 /* Near threat outline */
 .threat-marker.near {

@@ -1,9 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark outline group: every filled silhouette gets a subtle dark halo
+       (stroke painted UNDER the fill) so markers stay readable over black
+       basemap and over red/orange/yellow alert polygons. Detail strokes
+       carry their own explicit stroke and are unaffected. -->
   <!-- ================= SHAHED / GERAN-2 =================
        Loitering munition, top view, nose up (0° = NORTH).
        Wide delta with notched (W) trailing edge, thick fuselage,
        tip winglets, wide rear propeller. NOT a plain triangle. -->
-  <symbol id="shahed" viewBox="0 0 64 64">
+  <symbol id="shahed" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Delta wing with W trailing-edge notch -->
     <path d="M32 4 L60 45 L45 41.5 L32 47.5 L19 41.5 L4 45 Z" fill="currentColor" stroke="none"/>
     <!-- Thick central fuselage overlapping the wing -->
@@ -15,12 +19,12 @@
     <!-- Wide rear propeller + hub -->
     <path d="M21 53 L43 53" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
     <circle cx="32" cy="53" r="2.4" fill="currentColor" stroke="none"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= GENERIC UAV (quadcopter) =================
        Neutral multicopter, top view. Solid rotor discs.
        NEVER used for confirmed Shahed. -->
-  <symbol id="uav" viewBox="0 0 64 64">
+  <symbol id="uav" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Diagonal arms (X config) -->
     <path d="M32 32 L15 15 M32 32 L49 15 M32 32 L15 49 M32 32 L49 49" stroke="currentColor" stroke-width="5" stroke-linecap="round" fill="none"/>
     <!-- Rotor discs -->
@@ -35,12 +39,12 @@
     <circle cx="50" cy="50" r="2.6" fill="currentColor" stroke="none"/>
     <!-- Central body -->
     <circle cx="32" cy="32" r="7" fill="currentColor" stroke="none"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= RECON (fixed-wing UAV) =================
        Wide tapered straight wings, thick fuselage, full tail unit,
        camera gimbal. Visually distinct from Shahed. -->
-  <symbol id="recon" viewBox="0 0 64 64">
+  <symbol id="recon" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Wide tapered straight wings (bold chord) -->
     <path d="M5 22 L59 22 L56 31 L8 31 Z" fill="currentColor" stroke="none"/>
     <!-- Thick fuselage -->
@@ -54,11 +58,12 @@
     <path d="M30.3 44 L33.7 44 L33.7 58 L30.3 58 Z" fill="currentColor" stroke="none"/>
     <!-- Camera gimbal -->
     <circle cx="32" cy="12" r="3" fill="currentColor" stroke="none" opacity="0.7"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= CRUISE MISSILE =================
-       Slender body, sharp nose, broad swept mid-wings, cruciform tail. -->
-  <symbol id="missile" viewBox="0 0 64 64">
+       Slender body, sharp nose, broad swept mid-wings, cruciform tail.
+       Nose up: heading rotates the whole silhouette. -->
+  <symbol id="missile" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Sharp nose + slender body -->
     <path d="M32 3 L36 14 L36 50 L28 50 L28 14 Z" fill="currentColor" stroke="none"/>
     <!-- Broad swept mid-wings -->
@@ -71,12 +76,12 @@
     <path d="M30.8 46 L33.2 46 L33.2 60 L30.8 60 Z" fill="currentColor" stroke="none"/>
     <!-- Exhaust -->
     <circle cx="32" cy="51" r="2.4" fill="currentColor" stroke="none" opacity="0.8"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= BALLISTIC MISSILE =================
        Heavy thick body, long conical nose, wide tail fins, nozzle cluster.
        Clearly heavier than the cruise missile. -->
-  <symbol id="ballistic" viewBox="0 0 64 64">
+  <symbol id="ballistic" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Thick body -->
     <path d="M26 20 L38 20 L38 47 L26 47 Z" fill="currentColor" stroke="none"/>
     <!-- Long conical nose -->
@@ -90,12 +95,12 @@
     <circle cx="28.6" cy="49.5" r="2.2" fill="currentColor" stroke="none"/>
     <circle cx="35.4" cy="49.5" r="2.2" fill="currentColor" stroke="none"/>
     <circle cx="32" cy="53.5" r="2.2" fill="currentColor" stroke="none"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= KAB (guided aerial bomb) =================
        Fat ogive body, blunt round nose, prominent UMPK wing band,
        cross tail. A bomb, NOT a missile. -->
-  <symbol id="kab" viewBox="0 0 64 64">
+  <symbol id="kab" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Fat ogive body, blunt nose -->
     <path d="M32 4 C37.5 10.5 40 19 40 28.5 L40 42 L32 53 L24 42 L24 28.5 C24 19 26.5 10.5 32 4 Z" fill="currentColor" stroke="none"/>
     <!-- Prominent UMPK wing band -->
@@ -107,11 +112,11 @@
     <path d="M30.5 40 L33.5 40 L33.5 55.5 L30.5 55.5 Z" fill="currentColor" stroke="none"/>
     <!-- Nose band -->
     <path d="M28 9.5 L36 9.5 L36 12.5 L28 12.5 Z" fill="currentColor" stroke="none" opacity="0.65"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= AVIATION (tactical jet) =================
        Pointed nose, big swept wings, twin canted fins, twin engines. -->
-  <symbol id="aircraft" viewBox="0 0 64 64">
+  <symbol id="aircraft" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
     <!-- Fuselage + pointed nose -->
     <path d="M32 3 L35.5 15 L35.5 49 L28.5 49 L28.5 15 Z" fill="currentColor" stroke="none"/>
     <!-- Big swept main wings -->
@@ -126,7 +131,7 @@
     <!-- Twin engine nozzles -->
     <circle cx="29.3" cy="49.5" r="2" fill="currentColor" stroke="none"/>
     <circle cx="34.7" cy="49.5" r="2" fill="currentColor" stroke="none"/>
-  </symbol>
+  </g></symbol>
 
   <!-- ================= OTHER (unknown contact) =================
        Neutral radar-contact mark: hollow ring + center dot + north tick.

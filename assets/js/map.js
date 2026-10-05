@@ -2,18 +2,22 @@ import{regionName}from'../../services/regions.js';
 import{territorialDanger,normOblast}from'../../services/districts.js';
 import{classifyThreat,accuracyTier,freshnessScore,ageClass,shouldShowHeading}from'../../services/threatClassify.js';
 
+// Module-relative URL of the threat icon sprite: resolves correctly from any
+// page base path (/, /nebo-ua/, /dev/, widget/...) without hardcoding it.
+const THREAT_SVG = new URL('../brand/threat-icons.svg', import.meta.url).href;
+
 // ── Threat metadata ───────────────────────────────────────────────────────────
 // 'shahed' is a distinct visual kind within the uav category.
 // 'recon' is a distinct kind for reconnaissance UAVs.
 const META={
-  shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#f5c04a'},
-  uav:      {label:'БПЛА',    icon:'uav',      color:'#efb55b'},
-  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#9d91ff'},
-  missile:  {label:'РАКЕТА',  icon:'missile',  color:'#ff6f7d'},
-  ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#ff5568'},
-  kab:      {label:'КАБ',     icon:'kab',      color:'#f2905d'},
-  aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#7db9ff'},
-  other:    {label:'Інше',    icon:'other',    color:'#a6b3bc'},
+  shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#ffb21c'},
+  uav:      {label:'БПЛА',    icon:'uav',      color:'#f4a62a'},
+  recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#5bbcff'},
+  missile:  {label:'РАКЕТА',  icon:'missile',  color:'#ff4d62'},
+  ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#ff1744'},
+  kab:      {label:'КАБ',     icon:'kab',      color:'#ff7a45'},
+  aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#9b7cff'},
+  other:    {label:'Інше',    icon:'other',    color:'#c7d0da'},
 };
 
 // ── Territorial danger colors ──────────────────────────────────────────────────
@@ -49,12 +53,19 @@ export function createSituationMap(el,onSelect){
   const dots=L.layerGroup().addTo(map);
   const shapes=L.layerGroup().addTo(map);
   const ashapes=L.layerGroup().addTo(map);
+  // Dedicated threat pane: targets render ABOVE polygon fills / oblast /
+  // raion borders (overlayPane z400, markerPane z600) but BELOW Leaflet
+  // popups (popupPane z700) and tooltips (tooltipPane z650). HUD and
+  // navigation are DOM above the map container.
+  if(!map.getPane('threatPane')) map.createPane('threatPane');
+  map.getPane('threatPane').style.zIndex=625;
   const clusters=L.markerClusterGroup({
     showCoverageOnHover:false,
     maxClusterRadius:80,
     disableClusteringAtZoom:11,
     spiderfyOnMaxZoom:true,
     iconCreateFunction:clusterIcon,
+    clusterPane:'threatPane',
   });
   map.addLayer(clusters);
   let geo=null,fitted=false;
@@ -132,6 +143,7 @@ export function createSituationMap(el,onSelect){
         icon:eventIcon(e,ac,fs),
         category:e.category,
         threatKind:classifyThreat(e),
+        pane:'threatPane',
       }).on('click',()=>onSelect(e));
       clusters.addLayer(marker);
 
@@ -225,6 +237,8 @@ export function createSituationMap(el,onSelect){
 // ── Radar map (radar tab) ─────────────────────────────────────────────────────
 export function createRadarMap(el,onSelect){
   const map=baseMap(el,[49,31],6,{zoomControl:true});
+  if(!map.getPane('threatPane')) map.createPane('threatPane');
+  map.getPane('threatPane').style.zIndex=625;
   const satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:18,crossOrigin:true,className:'sat-tiles'});
   const layer=L.layerGroup().addTo(map);
   const rings=L.layerGroup().addTo(map);
@@ -245,7 +259,7 @@ export function createRadarMap(el,onSelect){
     if(Number.isFinite(opts.guardKm)&&opts.guardKm>0)L.circle(center,{radius:opts.guardKm*1000,color:'#ff6f7d',weight:1.6,opacity:.6,dashArray:'8 8',fill:false,interactive:false}).addTo(guard);
     L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#66c7ff',fillOpacity:1,weight:2}).addTo(rings);
     events.filter(e=>e.lat!=null&&e.lon!=null&&accuracyTier(e)==='exact').slice(0,300).forEach(e=>{
-      L.marker([e.lat,e.lon],{icon:blipIcon(e),category:e.category,threatKind:classifyThreat(e)}).on('click',()=>onSelect(e)).addTo(layer);
+      L.marker([e.lat,e.lon],{icon:blipIcon(e),category:e.category,threatKind:classifyThreat(e),pane:'threatPane'}).on('click',()=>onSelect(e)).addTo(layer);
       if(Number.isFinite(e.heading)&&shouldShowHeading(e)){
         const h=Number(e.heading),s=Number(e.speed);
         const rad=(90-h)*(Math.PI/180),km10=s/6,cosLat=Math.cos(e.lat*Math.PI/180)||1;
@@ -291,7 +305,7 @@ function eventIcon(e,ac,fs){
   return L.divIcon({
     className:'',
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:${opacity}" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
-      <svg class="threat-svg"><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
+      <svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg>
     </div>`,
     iconSize:[40,40],iconAnchor:[20,20],
   });
@@ -300,7 +314,7 @@ function eventIcon(e,ac,fs){
 function blipIcon(e){
   const m=iconFor(e);
   const cls=['radar-blip','cat-'+(e.category||'other'),'kind-'+m.kind,e._distKm!=null&&e._distKm<25?'near':'',e._lvl==='red'?'lvl-red':''].filter(Boolean).join(' ');
-  return L.divIcon({className:'',html:`<div class="${cls}" style="--c:${m.color}"><svg class="threat-svg"><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg></div>`,iconSize:[36,36],iconAnchor:[18,18]});
+  return L.divIcon({className:'',html:`<div class="${cls}" style="--c:${m.color}"><svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg></div>`,iconSize:[36,36],iconAnchor:[18,18]});
 }
 
 function userIcon(){return L.divIcon({className:'',html:`<div class="user-pos-dot" title="Ваше положення"></div>`,iconSize:[16,16],iconAnchor:[8,8]})}
@@ -323,26 +337,64 @@ function clusterSummaryText(counts){
   const dom=sorted[0]?.[0]||'other';
   return{summary,summaryParts,dom};
 }
+// ── Small-group layout (2–4 targets, NO card) ──────────────────────────────────
+// Transparent composition of individual silhouettes, each keeping its OWN
+// kind icon and color (mixed groups stay readable). Footprint ≤ ~70px.
+// Layouts: 2 = side by side, 3 = triangle, 4 = compact 2x2. No count text:
+// the icons themselves show the quantity.
+const GROUP_LAYOUTS = {
+  2: { w: 64, h: 34, pts: [[17, 17], [47, 17]] },
+  3: { w: 66, h: 56, pts: [[33, 15], [17, 41], [49, 41]] },
+  4: { w: 70, h: 70, pts: [[19, 19], [51, 19], [19, 51], [51, 51]] },
+};
+function smallGroupHTML(items) {
+  const list = (items || []).slice(0, 4);
+  const lay = GROUP_LAYOUTS[list.length] || GROUP_LAYOUTS[4];
+  const spans = list.map((it, i) => {
+    const m = META[it.kind] || META.other;
+    const [x, y] = lay.pts[i];
+    return `<span class="tg-item" style="left:${x}px;top:${y}px;--c:${m.color}">`
+      + `<svg class="tg-svg" viewBox="0 0 64 64"><use href="${THREAT_SVG}#${m.icon}"/></svg></span>`;
+  }).join('');
+  return { html: `<div class="threat-group g${list.length}" style="width:${lay.w}px;height:${lay.h}px">${spans}</div>`, w: lay.w, h: lay.h };
+}
+// ── Compact badge (5+ targets): round radar badge, dominant silhouette + ─────
+// number. No big "8 БПЛА" text on the map; composition lives in title/aria
+// and reveals itself on tap (zoom/spiderfy) or hover.
+function clusterBadgeHTML(count, domKind, summaryText, titleText) {
+  const m = META[domKind] || META.other;
+  const title = titleText || `${count} повідомлень: ${summaryText || ''}`;
+  return `<div class="threat-cluster is-badge" style="--c:${m.color}" title="${title}" aria-label="${title}">`
+    + `<svg class="tg-badge-svg" viewBox="0 0 64 64"><use href="${THREAT_SVG}#${m.icon}"/></svg>`
+    + `<b>${count}</b></div>`;
+}
 function clusterIcon(cluster){
   const children=cluster.getAllChildMarkers();
   const counts={};
+  const items=[];
   for(const c of children){
     const k=c.options.threatKind||c.options.category||'other';
     counts[k]=(counts[k]||0)+1;
+    items.push({kind:k});
   }
   const n=cluster.getChildCount();
-  const{summary,summaryParts,dom}=clusterSummaryText(counts);
-  const m=META[dom]||META.other;
+  const{summaryParts}=clusterSummaryText(counts);
   const title=`${n} повідомлень: ${summaryParts.join(', ')}`;
+  if(n<=4&&items.length){
+    const g=smallGroupHTML(items);
+    return L.divIcon({
+      className:'',
+      html:g.html.replace('class="threat-group', `title="${title}" aria-label="${title}" class="threat-group`),
+      iconSize:[g.w,g.h],iconAnchor:[g.w/2,g.h/2],
+    });
+  }
+  const{summary,dom}=clusterSummaryText(counts);
+  void summary;
   return L.divIcon({
     className:'',
-    html:`<div class="threat-cluster" style="--c:${m.color}" title="${title}" aria-label="${title}">
-      <svg><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
-      <b>${n}</b>
-      <small class="cluster-summary">${summary}</small>
-    </div>`,
-    iconSize:[64,48],iconAnchor:[32,24],
+    html:clusterBadgeHTML(n,dom,summaryParts.slice(0,2).join(' · '),title),
+    iconSize:[46,46],iconAnchor:[23,23],
   });
 }
 
-export{META,iconFor,clusterSummaryText};
+export{META,iconFor,clusterSummaryText,smallGroupHTML,clusterBadgeHTML};
