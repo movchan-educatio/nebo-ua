@@ -3,10 +3,10 @@
 // Source: slawomirmatuszak/ukrainian_geodata → rayony.geojson
 import { fetchJson } from './http.js';
 
-// Use absolute path from GitHub Pages base (/nebo-ua/) to avoid relative fetch issues in ES modules
-const GEOJSON_BASE = '/nebo-ua/';
-const RAIONS_GEOJSON_URL = `${GEOJSON_BASE}assets/data/ukraine-raions.geojson`;
-const OBLASTS_GEOJSON_URL = `${GEOJSON_BASE}assets/data/ukraine-oblasts.geojson`;
+// Use import.meta.url so the path works regardless of the GitHub Pages
+// repository subpath (e.g. /nebo-ua/) or any other base.
+const RAIONS_GEOJSON_URL = new URL('../assets/data/ukraine-raions.geojson', import.meta.url).href;
+const OBLASTS_GEOJSON_URL = new URL('../assets/data/ukraine-oblasts.geojson', import.meta.url).href;
 
 let _raionsCache = null;
 let _oblastsCache = null;
