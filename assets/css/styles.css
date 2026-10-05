@@ -280,7 +280,7 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;bac
    Clean SVG-only markers: no background shapes, no fixed rotations.
    Color comes from --c CSS variable. Rotation via --heading for exact coords. */
 .threat-marker {
-  width: 32px; height: 32px;
+  width: 40px; height: 40px;
   background: transparent !important;
   border: none !important;
   border-radius: 0 !important;
@@ -290,15 +290,25 @@ body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;bac
   justify-content: center;
 }
 .threat-marker svg.threat-svg {
-  width: 28px; height: 28px;
+  width: 30px; height: 30px;
   fill: currentColor;
   stroke: currentColor;
   stroke-width: 1.5;
   transition: transform 0.15s ease-out;
+  transform-box: fill-box;
+  transform-origin: center;
 }
+/* Per-kind visual sizes (px): silhouettes stay distinct at 24–40px. */
+.threat-marker.kind-shahed svg.threat-svg{width:33px;height:33px}
+.threat-marker.kind-uav svg.threat-svg{width:28px;height:28px}
+.threat-marker.kind-recon svg.threat-svg{width:32px;height:32px}
+.threat-marker.kind-missile svg.threat-svg{width:32px;height:32px}
+.threat-marker.kind-ballistic svg.threat-svg{width:35px;height:35px}
+.threat-marker.kind-kab svg.threat-svg{width:30px;height:30px}
+.threat-marker.kind-aviation svg.threat-svg{width:34px;height:34px}
+.threat-marker.kind-other svg.threat-svg{width:22px;height:22px}
 .threat-marker[data-directed="true"] > svg.threat-svg {
   transform: rotate(var(--heading, 0deg));
-  transform-origin: center center;
 }
 
 /* Color is set via --c variable from JS; no per-kind background/border needed */

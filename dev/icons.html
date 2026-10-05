@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>NEBO.UA — DEV icon visual test (not part of production UI)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #061018; color: #edf7ff;
+    font-family: Inter, "Segoe UI", system-ui, sans-serif; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p.sub { color: #8fa4b5; font-size: 12px; margin: 0 0 20px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+  .card { border: 1px solid #21303c; border-radius: 14px; padding: 14px; background: #0b131b; }
+  .card h2 { font-size: 13px; margin: 0 0 2px; letter-spacing: .06em; }
+  .card small { color: #8fa4b5; font-size: 11px; }
+  .row { display: flex; align-items: flex-end; gap: 18px; margin-top: 12px; min-height: 48px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .cell span { font-size: 10px; color: #8fa4b5; }
+  .ic-shahed { color: #f5c04a; } .ic-uav { color: #efb55b; }
+  .ic-recon { color: #9d91ff; } .ic-missile { color: #ff6f7d; }
+  .ic-ballistic { color: #ff5568; } .ic-kab { color: #f2905d; }
+  .ic-aviation { color: #7db9ff; } .ic-other { color: #a6b3bc; }
+  svg.ic { fill: currentColor; stroke: currentColor; stroke-width: 1.5; }
+</style>
+</head>
+<body>
+<h1>NEBO.UA — threat icons visual test (DEV only)</h1>
+<p class="sub">Top-view silhouettes, nose up (0° = NORTH). Sizes 24 / 32 / 40 px on dark map background. This page is not linked from production UI.</p>
+<div class="grid" id="grid"></div>
+<script>
+const ICONS = [
+  ['shahed', 'SHAHED / GERAN'],
+  ['uav', 'GENERIC UAV'],
+  ['recon', 'RECON UAV'],
+  ['missile', 'CRUISE MISSILE'],
+  ['ballistic', 'BALLISTIC'],
+  ['kab', 'KAB'],
+  ['aircraft', 'AVIATION'],
+  ['other', 'OTHER (unknown)'],
+];
+const grid = document.getElementById('grid');
+for (const [id, label] of ICONS) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h2>${label}</h2><small>#${id} · viewBox 0 0 64 64</small><div class="row">` +
+    [24, 32, 40].map(px =>
+      `<div class="cell"><svg class="ic ic-${id}" width="${px}" height="${px}"><use href="../assets/brand/threat-icons.svg#${id}"/></svg><span>${px}px</span></div>`
+    ).join('') + `</div>`;
+  grid.appendChild(card);
+}
+</script>
+</body>
+</html>

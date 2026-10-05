@@ -293,7 +293,7 @@ function eventIcon(e,ac,fs){
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:${opacity}" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
       <svg class="threat-svg"><use href="./assets/brand/threat-icons.svg#${m.icon}"/></svg>
     </div>`,
-    iconSize:[32,32],iconAnchor:[16,16],
+    iconSize:[40,40],iconAnchor:[20,20],
   });
 }
 

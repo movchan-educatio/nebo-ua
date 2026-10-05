@@ -1,107 +1,139 @@
 <svg xmlns="http://www.w3.org/2000/svg">
-  <!-- SHAHED / GERAN-2: distinctive delta-wing loitering munition silhouette -->
-  <symbol id="shahed" viewBox="0 0 24 24">
-    <!-- Main delta wing -->
-    <path d="M12 1.5 L21.5 18 L12 15.5 L2.5 18 Z" fill="currentColor" stroke="none"/>
-    <!-- Fuselage -->
-    <path d="M12 1.5 L12 14" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
-    <!-- Engine exhaust -->
-    <path d="M11.5 14.5 L11.5 15.5 M12.5 14.5 L12.5 15.5" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
-    <!-- Wingtip details -->
-    <path d="M5 14.5 L3.5 17 M19 14.5 L20.5 17" stroke="currentColor" stroke-width="1" stroke-linecap="round"/>
+  <!-- ================= SHAHED / GERAN-2 =================
+       Loitering munition, top view, nose up (0° = NORTH).
+       Wide delta with notched (W) trailing edge, thick fuselage,
+       tip winglets, wide rear propeller. NOT a plain triangle. -->
+  <symbol id="shahed" viewBox="0 0 64 64">
+    <!-- Delta wing with W trailing-edge notch -->
+    <path d="M32 4 L60 45 L45 41.5 L32 47.5 L19 41.5 L4 45 Z" fill="currentColor" stroke="none"/>
+    <!-- Thick central fuselage overlapping the wing -->
+    <path d="M27.5 9 L36.5 9 L36.5 40 Q36.5 44 32 44 Q27.5 44 27.5 40 Z" fill="currentColor" stroke="none" opacity="0.9"/>
+    <!-- Nose tip -->
+    <path d="M29 9 L32 4 L35 9 Z" fill="currentColor" stroke="none"/>
+    <!-- Tip winglets -->
+    <path d="M8 43 L5 51 M56 43 L59 51" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" fill="none"/>
+    <!-- Wide rear propeller + hub -->
+    <path d="M21 53 L43 53" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <circle cx="32" cy="53" r="2.4" fill="currentColor" stroke="none"/>
   </symbol>
 
-  <!-- UAV: generic quadcopter / fixed-wing UAV top view -->
-  <symbol id="uav" viewBox="0 0 24 24">
-    <!-- Quadcopter body -->
-    <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
-    <!-- Arms -->
-    <path d="M12 9.5 L12 3.5 M12 14.5 L12 20.5 M9.5 12 L3.5 12 M14.5 12 L20.5 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-    <!-- Rotors -->
-    <circle cx="12" cy="3.5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/>
-    <circle cx="12" cy="20.5" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/>
-    <circle cx="3.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/>
-    <circle cx="20.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.2"/>
+  <!-- ================= GENERIC UAV (quadcopter) =================
+       Neutral multicopter, top view. Solid rotor discs.
+       NEVER used for confirmed Shahed. -->
+  <symbol id="uav" viewBox="0 0 64 64">
+    <!-- Diagonal arms (X config) -->
+    <path d="M32 32 L15 15 M32 32 L49 15 M32 32 L15 49 M32 32 L49 49" stroke="currentColor" stroke-width="5" stroke-linecap="round" fill="none"/>
+    <!-- Rotor discs -->
+    <circle cx="14" cy="14" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
+    <circle cx="50" cy="14" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
+    <circle cx="14" cy="50" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
+    <circle cx="50" cy="50" r="9" fill="currentColor" stroke="none" opacity="0.82"/>
+    <!-- Motor hubs -->
+    <circle cx="14" cy="14" r="2.6" fill="currentColor" stroke="none"/>
+    <circle cx="50" cy="14" r="2.6" fill="currentColor" stroke="none"/>
+    <circle cx="14" cy="50" r="2.6" fill="currentColor" stroke="none"/>
+    <circle cx="50" cy="50" r="2.6" fill="currentColor" stroke="none"/>
+    <!-- Central body -->
+    <circle cx="32" cy="32" r="7" fill="currentColor" stroke="none"/>
   </symbol>
 
-  <!-- RECON: fixed-wing reconnaissance UAV (Orlan, Supercam, etc.) -->
-  <symbol id="recon" viewBox="0 0 24 24">
-    <!-- Fuselage -->
-    <path d="M12 2 L12 22" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-    <!-- Straight wings -->
-    <path d="M4 11 L20 11" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
-    <!-- Tail -->
-    <path d="M9 20 L12 22 L15 20" fill="currentColor"/>
-    <!-- Wing pods -->
-    <circle cx="5.5" cy="11" r="1.2" fill="currentColor"/>
-    <circle cx="18.5" cy="11" r="1.2" fill="currentColor"/>
+  <!-- ================= RECON (fixed-wing UAV) =================
+       Wide tapered straight wings, thick fuselage, full tail unit,
+       camera gimbal. Visually distinct from Shahed. -->
+  <symbol id="recon" viewBox="0 0 64 64">
+    <!-- Wide tapered straight wings (bold chord) -->
+    <path d="M5 22 L59 22 L56 31 L8 31 Z" fill="currentColor" stroke="none"/>
+    <!-- Thick fuselage -->
+    <path d="M28.5 5 L35.5 5 L36.5 41 L34 55 L30 55 L27.5 41 Z" fill="currentColor" stroke="none"/>
+    <!-- Wingtip pods -->
+    <circle cx="8" cy="26.5" r="3" fill="currentColor" stroke="none"/>
+    <circle cx="56" cy="26.5" r="3" fill="currentColor" stroke="none"/>
+    <!-- Wide tailplane -->
+    <path d="M21 44 L43 44 L43 49 L21 49 Z" fill="currentColor" stroke="none"/>
+    <!-- Vertical fin -->
+    <path d="M30.3 44 L33.7 44 L33.7 58 L30.3 58 Z" fill="currentColor" stroke="none"/>
+    <!-- Camera gimbal -->
+    <circle cx="32" cy="12" r="3" fill="currentColor" stroke="none" opacity="0.7"/>
   </symbol>
 
-  <!-- MISSILE: cruise missile top view (slender body, small wings) -->
-  <symbol id="missile" viewBox="0 0 24 24">
-    <!-- Body -->
-    <path d="M12 1.5 L11.5 19 L12.5 19 Z" fill="currentColor"/>
-    <!-- Small delta wings -->
-    <path d="M11.5 14 L5 17 L11.5 15.5 Z" fill="currentColor"/>
-    <path d="M12.5 14 L19 17 L12.5 15.5 Z" fill="currentColor"/>
+  <!-- ================= CRUISE MISSILE =================
+       Slender body, sharp nose, broad swept mid-wings, cruciform tail. -->
+  <symbol id="missile" viewBox="0 0 64 64">
+    <!-- Sharp nose + slender body -->
+    <path d="M32 3 L36 14 L36 50 L28 50 L28 14 Z" fill="currentColor" stroke="none"/>
+    <!-- Broad swept mid-wings -->
+    <path d="M28 31 L10 41 L10 45.5 L28 38.5 Z" fill="currentColor" stroke="none"/>
+    <path d="M36 31 L54 41 L54 45.5 L36 38.5 Z" fill="currentColor" stroke="none"/>
     <!-- Tail fins -->
-    <path d="M11.5 19 L8 22 L11.5 20 Z" fill="currentColor"/>
-    <path d="M12.5 19 L16 22 L12.5 20 Z" fill="currentColor"/>
-    <!-- Engine -->
-    <circle cx="12" cy="19.5" r="1" fill="none" stroke="currentColor" stroke-width="1.2"/>
-  </symbol>
-
-  <!-- BALLISTIC: ballistic missile (thicker body, conical nose, fins) -->
-  <symbol id="ballistic" viewBox="0 0 24 24">
-    <!-- Body -->
-    <path d="M11 2.5 L10.5 20 L13.5 20 L13 2.5 Z" fill="currentColor"/>
-    <!-- Conical nose -->
-    <path d="M10.5 3.5 L12 1.5 L13.5 3.5 Z" fill="currentColor" opacity="0.8"/>
-    <!-- Tail fins (4) -->
-    <path d="M10.5 18.5 L6 22 L10.5 19.5 Z" fill="currentColor"/>
-    <path d="M13.5 18.5 L18 22 L13.5 19.5 Z" fill="currentColor"/>
-    <path d="M10.5 18.5 L10.5 22 L9 20.5 Z" fill="currentColor" transform="rotate(90 12 20)"/>
-    <path d="M13.5 18.5 L13.5 22 L15 20.5 Z" fill="currentColor" transform="rotate(-90 12 20)"/>
-    <!-- Engine cluster -->
-    <circle cx="10.5" cy="20" r="0.8" fill="none" stroke="currentColor" stroke-width="1"/>
-    <circle cx="13.5" cy="20" r="0.8" fill="none" stroke="currentColor" stroke-width="1"/>
-    <circle cx="12" cy="20.8" r="0.8" fill="none" stroke="currentColor" stroke-width="1"/>
-  </symbol>
-
-  <!-- KAB: guided aerial bomb (FAB with UMPK) -->
-  <symbol id="kab" viewBox="0 0 24 24">
-    <!-- Bomb body -->
-    <path d="M12 2.5 C12 2.5 15.5 8 13.5 13 C11.5 18 8.5 18 6.5 13 C4.5 8 12 2.5 12 2.5 Z" fill="currentColor"/>
-    <!-- Guidance kit (wings) -->
-    <path d="M12 8 L6 11 L12 9.5 Z" fill="currentColor" opacity="0.9"/>
-    <path d="M12 8 L18 11 L12 9.5 Z" fill="currentColor" opacity="0.9"/>
-    <!-- Tail fins -->
-    <path d="M10 13 L8 15.5 L10 14 Z" fill="currentColor"/>
-    <path d="M14 13 L16 15.5 L14 14 Z" fill="currentColor"/>
-    <!-- Seeker -->
-    <circle cx="12" cy="5" r="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/>
-  </symbol>
-
-  <!-- AVIATION: tactical aircraft (Su-34, Su-35, etc.) -->
-  <symbol id="aircraft" viewBox="0 0 24 24">
-    <!-- Fuselage -->
-    <path d="M12 1.5 L11.5 20 L12.5 20 Z" fill="currentColor"/>
-    <!-- Main wings (swept) -->
-    <path d="M11.5 11 L3 17 L5 15 Z" fill="currentColor"/>
-    <path d="M12.5 11 L21 17 L19 15 Z" fill="currentColor"/>
-    <!-- Tailplanes -->
-    <path d="M10.5 18 L6 21.5 L8.5 19.5 Z" fill="currentColor"/>
-    <path d="M13.5 18 L18 21.5 L15.5 19.5 Z" fill="currentColor"/>
+    <path d="M28 47 L17 55 L17 58 L28 52.5 Z" fill="currentColor" stroke="none"/>
+    <path d="M36 47 L47 55 L47 58 L36 52.5 Z" fill="currentColor" stroke="none"/>
     <!-- Vertical stabilizer -->
-    <path d="M11.5 18.5 L12 22 L12.5 18.5 Z" fill="currentColor"/>
-    <!-- Engine nozzles -->
-    <circle cx="11" cy="20" r="1" fill="none" stroke="currentColor" stroke-width="1"/>
-    <circle cx="13" cy="20" r="1" fill="none" stroke="currentColor" stroke-width="1"/>
+    <path d="M30.8 46 L33.2 46 L33.2 60 L30.8 60 Z" fill="currentColor" stroke="none"/>
+    <!-- Exhaust -->
+    <circle cx="32" cy="51" r="2.4" fill="currentColor" stroke="none" opacity="0.8"/>
   </symbol>
 
-  <!-- OTHER: generic unknown threat -->
-  <symbol id="other" viewBox="0 0 24 24">
-    <path d="M12 3 L2 21 h20 Z" fill="none" stroke="currentColor" stroke-width="2"/>
-    <path d="M12 9 v5 M12 17 h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+  <!-- ================= BALLISTIC MISSILE =================
+       Heavy thick body, long conical nose, wide tail fins, nozzle cluster.
+       Clearly heavier than the cruise missile. -->
+  <symbol id="ballistic" viewBox="0 0 64 64">
+    <!-- Thick body -->
+    <path d="M26 20 L38 20 L38 47 L26 47 Z" fill="currentColor" stroke="none"/>
+    <!-- Long conical nose -->
+    <path d="M32 2 L38 20 L26 20 Z" fill="currentColor" stroke="none"/>
+    <!-- Wide tail fins -->
+    <path d="M26 43 L9 57 L9 60.5 L26 51.5 Z" fill="currentColor" stroke="none"/>
+    <path d="M38 43 L55 57 L55 60.5 L38 51.5 Z" fill="currentColor" stroke="none"/>
+    <!-- Vertical stabilizers -->
+    <path d="M29.8 43 L29.8 60 M34.2 43 L34.2 60" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" fill="none"/>
+    <!-- Nozzle cluster -->
+    <circle cx="28.6" cy="49.5" r="2.2" fill="currentColor" stroke="none"/>
+    <circle cx="35.4" cy="49.5" r="2.2" fill="currentColor" stroke="none"/>
+    <circle cx="32" cy="53.5" r="2.2" fill="currentColor" stroke="none"/>
+  </symbol>
+
+  <!-- ================= KAB (guided aerial bomb) =================
+       Fat ogive body, blunt round nose, prominent UMPK wing band,
+       cross tail. A bomb, NOT a missile. -->
+  <symbol id="kab" viewBox="0 0 64 64">
+    <!-- Fat ogive body, blunt nose -->
+    <path d="M32 4 C37.5 10.5 40 19 40 28.5 L40 42 L32 53 L24 42 L24 28.5 C24 19 26.5 10.5 32 4 Z" fill="currentColor" stroke="none"/>
+    <!-- Prominent UMPK wing band -->
+    <path d="M10 25.5 L54 25.5 L54 34 L10 34 Z" fill="currentColor" stroke="none"/>
+    <!-- Horizontal tail fins -->
+    <path d="M23.5 41 L11 47.5 L11 50.5 L23.5 45.5 Z" fill="currentColor" stroke="none"/>
+    <path d="M40.5 41 L53 47.5 L53 50.5 L40.5 45.5 Z" fill="currentColor" stroke="none"/>
+    <!-- Vertical tail -->
+    <path d="M30.5 40 L33.5 40 L33.5 55.5 L30.5 55.5 Z" fill="currentColor" stroke="none"/>
+    <!-- Nose band -->
+    <path d="M28 9.5 L36 9.5 L36 12.5 L28 12.5 Z" fill="currentColor" stroke="none" opacity="0.65"/>
+  </symbol>
+
+  <!-- ================= AVIATION (tactical jet) =================
+       Pointed nose, big swept wings, twin canted fins, twin engines. -->
+  <symbol id="aircraft" viewBox="0 0 64 64">
+    <!-- Fuselage + pointed nose -->
+    <path d="M32 3 L35.5 15 L35.5 49 L28.5 49 L28.5 15 Z" fill="currentColor" stroke="none"/>
+    <!-- Big swept main wings -->
+    <path d="M28.5 24 L5 44 L5 48 L28.5 32.5 Z" fill="currentColor" stroke="none"/>
+    <path d="M35.5 24 L59 44 L59 48 L35.5 32.5 Z" fill="currentColor" stroke="none"/>
+    <!-- Tailplanes -->
+    <path d="M28 43 L16 54 L16 56.5 L28 49.5 Z" fill="currentColor" stroke="none"/>
+    <path d="M36 43 L48 54 L48 56.5 L36 49.5 Z" fill="currentColor" stroke="none"/>
+    <!-- Twin canted vertical fins -->
+    <path d="M27 42.5 L22.5 56 L25.5 56.5 L30 43 Z" fill="currentColor" stroke="none"/>
+    <path d="M37 42.5 L41.5 56 L38.5 56.5 L34 43 Z" fill="currentColor" stroke="none"/>
+    <!-- Twin engine nozzles -->
+    <circle cx="29.3" cy="49.5" r="2" fill="currentColor" stroke="none"/>
+    <circle cx="34.7" cy="49.5" r="2" fill="currentColor" stroke="none"/>
+  </symbol>
+
+  <!-- ================= OTHER (unknown contact) =================
+       Neutral radar-contact mark: hollow ring + center dot + north tick.
+       Not a weapon, not a geometric warning sign. -->
+  <symbol id="other" viewBox="0 0 64 64">
+    <circle cx="32" cy="35" r="15" fill="none" stroke="currentColor" stroke-width="4.5"/>
+    <circle cx="32" cy="35" r="3.6" fill="currentColor" stroke="none"/>
+    <path d="M32 9 L32 16" stroke="currentColor" stroke-width="4.5" stroke-linecap="round" fill="none"/>
   </symbol>
 </svg>
