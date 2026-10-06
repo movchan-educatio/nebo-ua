@@ -149,9 +149,8 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .threat-marker.advisory{border-style:none!important}
 .threat-marker.age-fresh,.threat-marker.age-recent,.threat-marker.age-aging,.threat-marker.age-old{opacity:1}
 .threat-marker[data-accuracy="area"],.threat-marker[data-accuracy="report"]{opacity:1}
-.threat-marker.selected::after{content:"";position:absolute;inset:-7px;border:1.5px solid var(--c);border-radius:50%;opacity:.85;pointer-events:none;animation:selHalo 1.6s ease-out infinite}
-@keyframes selHalo{0%{transform:scale(.82);opacity:.9}70%{transform:scale(1.12);opacity:.25}100%{transform:scale(1.18);opacity:0}}
-@media (prefers-reduced-motion:reduce){.threat-marker{transition:none}.threat-marker.selected::after{animation:none;opacity:.5}}
+.threat-marker.selected svg.threat-svg{scale:1.14;filter:drop-shadow(0 1px 2px rgba(0,0,0,.9)) brightness(1.25)}
+@media (prefers-reduced-motion:reduce){.threat-marker{transition:none}}
 .mk-label{position:absolute;top:calc(100% + 2px);left:50%;transform:translateX(-50%);font-size:9px;font-weight:900;letter-spacing:.07em;color:var(--c,#efb55b);background:#0b131bd9;padding:1px 6px;border-radius:6px;white-space:nowrap;line-height:1.5}
 .mk-count{position:absolute;right:-4px;bottom:-2px;font-size:10px;font-weight:800;font-variant-numeric:tabular-nums;color:#fff;background:#0b131bee;border:1px solid var(--c,#efb55b);border-radius:8px;padding:0 5px;line-height:1.6;white-space:nowrap;pointer-events:none}
 .map-zoom-5 .mk-label,.map-zoom-6 .mk-label,.map-zoom-5 .raion-tip,.map-zoom-6 .raion-tip,.map-zoom-5 .leaflet-tooltip,.map-zoom-6 .leaflet-tooltip,.map-zoom-5 .raion-dot,.map-zoom-6 .raion-dot{display:none!important}
@@ -176,7 +175,6 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 /* ── Bottom nav: floating centered pill ──────────────────────────────── */
 .marker-cluster-small,.marker-cluster-medium,.marker-cluster-large{background:#58c7ff2b!important}
 .marker-cluster div{background:#0b1b27!important;color:var(--text)!important;border:1px solid #58c7ff66}
-.uncertainty{stroke-dasharray:5 6}
 .user-pos-dot{width:16px;height:16px;border-radius:50%;background:#58c7ff;border:3px solid #fff;box-shadow:0 0 12px #58c7ff}
 .radar-pin{width:16px;height:16px;border-radius:50% 50% 50% 4px;background:#58c7ff;border:2px solid #fff;box-shadow:0 0 14px #58c7ff;transform:rotate(-45deg)}
 .wind-arrow{position:relative;width:44px;height:44px;display:grid;place-items:center;color:#7db9ff}

@@ -230,8 +230,8 @@ export function createSituationMap(el,onSelect){
       const m=upsertMarker(e,now);
       if(m)seenTracks.add(e.trackId||e.id);
 
-      // Uncertainty circle
-      if(e.uncertaintyKm)L.circle([e.lat,e.lon],{radius:e.uncertaintyKm*1000,color:META[e.category]?.color||'#efb55b',weight:1,fillOpacity:.025,className:'uncertainty'}).addTo(uncertainties);
+      // Uncertainty is shown as a number in the popup, never as a circle:
+      // no accuracy/uncertainty rings around targets on the main map.
 
       // Trail
       if(!e.stale&&e.trail?.length>1){

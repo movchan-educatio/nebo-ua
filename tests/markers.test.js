@@ -90,7 +90,8 @@ test('markers carry no square outlines, pulse rings or stale decoration hooks', 
   assert.ok(!css.includes('.threat-marker.near'), 'no white square outline rule');
   assert.ok(!css.includes('.threat-marker.lvl-red'), 'no red square outline rule');
   assert.ok(!css.includes('.threat-marker.new'), 'no add-time pulse ring rule');
-  assert.ok(css.includes('.threat-marker.selected::after'), 'only the selected halo remains');
+  assert.ok(!css.includes('.threat-marker.selected::after'), 'no selected halo circle');
+  assert.ok(css.includes('.threat-marker.selected svg.threat-svg'), 'selected state is scale/brightness only');
 });
 
 // ── Collapsible HUD ──────────────────────────────────────────────────────────
