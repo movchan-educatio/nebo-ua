@@ -178,4 +178,17 @@ test('content cards use one icon set, map markers untouched', () => {
   assert.ok(mapJs.includes('threat-icons.svg'), 'LIVE map markers still use combat sprite (untouched)');
 });
 
+test('no legacy *.html content routes in production navigation', () => {
+  const legacy = /["'`](?:\.?\/)?(about|how-it-works|sources|safety|faq|privacy|terms|contact)\.html["'`]/;
+  const files = ['index.html', '404.html', 'widget/index.html', 'service-worker.js',
+    ...DIRS.map((d) => `${d}/index.html`),
+    ...fs.readdirSync(path.join(root, 'assets/js')).filter((f) => f.endsWith('.js')).map((f) => `assets/js/${f}`),
+    ...fs.readdirSync(path.join(root, 'services')).filter((f) => f.endsWith('.js')).map((f) => `services/${f}`)];
+  assert.ok(files.length > 20, 'production file set collected');
+  for (const f of files) {
+    const m = read(f).match(legacy);
+    assert.ok(!m, `${f}: legacy content route ${m ? m[0] : ''} — use canonical /name/ instead`);
+  }
+});
+
 console.log('All architecture/content tests passed!');
