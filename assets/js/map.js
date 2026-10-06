@@ -409,11 +409,8 @@ export function createRadarMap(el,onSelect){
     L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#66c7ff',fillOpacity:1,weight:2}).addTo(rings);
     events.filter(e=>e.lat!=null&&e.lon!=null&&accuracyTier(e)==='exact').slice(0,300).forEach(e=>{
       L.marker([e.lat,e.lon],{icon:blipIcon(e),category:e.category,threatKind:classifyThreat(e),pane:'threatPane'}).on('click',()=>onSelect(e)).addTo(layer);
-      if(Number.isFinite(e.heading)&&shouldShowHeading(e)){
-        const h=Number(e.heading),s=Number(e.speed);
-        const rad=(90-h)*(Math.PI/180),km10=s/6,cosLat=Math.cos(e.lat*Math.PI/180)||1;
-        L.polyline([[e.lat,e.lon],[e.lat+(km10/111)*Math.sin(rad),e.lon+(km10/(111*Math.max(0.4,Math.abs(cosLat))))*Math.cos(rad)]],{color:META[e.category]?.color||'#efb55b',weight:1.2,opacity:.5,dashArray:'4 4',interactive:false}).addTo(vectors);
-      }
+      // NOTE: no forward heading projection here either — the rotated glyph
+      // alone shows direction. Nothing is drawn ahead of any marker.
     });
   }
 
