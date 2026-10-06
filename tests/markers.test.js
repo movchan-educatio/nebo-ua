@@ -3,72 +3,35 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { META, smallGroupHTML, clusterBadgeHTML } from '../assets/js/map.js';
+import { META } from '../assets/js/map.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mapSrc = fs.readFileSync(path.join(root, 'assets/js/map.js'), 'utf8');
 const css = fs.readFileSync(path.join(root, 'assets/css/styles.css'), 'utf8');
 
 // ── Palette: every combat kind visually distinct ─────────────────────────────
-test('palette: shahed/uav/kab/missile/ballistic/recon all differ', () => {
-  const colors = ['shahed', 'uav', 'recon', 'missile', 'ballistic', 'kab', 'aviation'].map(k => META[k].color);
+test('palette: shahed/uav/fpv/kab/missile/ballistic/recon all differ', () => {
+  const colors = ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'explosion'].map(k => META[k].color);
   assert.equal(new Set(colors).size, colors.length, 'each kind must have its own color: ' + colors.join(', '));
-  assert.equal(META.shahed.color.toLowerCase(), '#ffaa32');
-  assert.equal(META.ballistic.color.toLowerCase(), '#ff2a55');
+  assert.equal(META.shahed.color.toLowerCase(), '#ff7b4d');
+  assert.equal(META.ballistic.color.toLowerCase(), '#ff2f3e');
+  assert.equal(META.uav.color.toLowerCase(), '#ffc43d');
+  assert.equal(META.fpv.color.toLowerCase(), '#ff9f43');
+  assert.equal(META.explosion.color.toLowerCase(), '#ff6a00');
 });
 
-// ── Small groups: footprint, spacing, honesty, no card ───────────────────────
-function centers(html) {
-  return [...html.matchAll(/left:(\d+)px;top:(\d+)px/g)].map(m => [Number(m[1]), Number(m[2])]);
-}
-
-test('smallGroup: 2/3/4 footprints stay compact (<=70px), gaps >= 4px', () => {
-  const minis = 26;
-  for (const n of [2, 3, 4]) {
-    const items = Array.from({ length: n }, () => ({ kind: 'uav' }));
-    const g = smallGroupHTML(items);
-    assert.ok(g.w <= 70 && g.h <= 70, `group of ${n}: footprint ${g.w}x${g.h} must fit ~70px`);
-    const pts = centers(g.html);
-    assert.equal(pts.length, n);
-    for (let i = 0; i < pts.length; i++) {
-      for (let j = i + 1; j < pts.length; j++) {
-        const d = Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]);
-        assert.ok(d - minis >= 4, `group of ${n}: icons must not overlap (gap ${(d - minis).toFixed(1)}px)`);
-      }
-    }
-  }
+// ── No proximity clustering: one REAL trackId = one marker ──────────────────
+test('no UI clustering: markerClusterGroup and cluster icon factory are gone', () => {
+  assert.ok(!mapSrc.includes('markerClusterGroup'), 'no cluster group');
+  assert.ok(!mapSrc.includes('iconCreateFunction'), 'no cluster icon factory');
+  assert.ok(!mapSrc.includes('clusterPane'), 'no cluster pane');
+  assert.ok(mapSrc.includes('L.layerGroup()'), 'plain layer group for targets');
 });
 
-test('smallGroup: 3 uses triangle arrangement', () => {
-  const g = smallGroupHTML([{ kind: 'uav' }, { kind: 'uav' }, { kind: 'uav' }]);
-  const [top, left, right] = centers(g.html);
-  assert.ok(top[1] < left[1] && top[1] < right[1], 'one icon on top');
-  assert.ok(Math.abs(left[1] - right[1]) <= 2, 'two icons share the bottom row');
-  assert.ok(left[0] < top[0] && top[0] < right[0], 'top icon centered horizontally');
-});
-
-test('smallGroup: mixed kinds keep their own icons and colors (no dominant rewrite)', () => {
-  const g = smallGroupHTML([{ kind: 'kab' }, { kind: 'uav' }, { kind: 'uav' }]);
-  assert.ok(g.html.includes('#kab') && g.html.includes('#uav'), 'each silhouette keeps its own kind');
-  assert.ok(g.html.includes(META.kab.color) && g.html.includes(META.uav.color), 'each keeps its own color');
-});
-
-test('smallGroup: no card, no count text, transparent', () => {
-  const g = smallGroupHTML([{ kind: 'uav' }, { kind: 'uav' }, { kind: 'uav' }]);
-  assert.ok(!g.html.includes('background'), 'no background card');
-  assert.ok(!g.html.includes('cluster-summary'), 'no cluster summary line');
-  assert.ok(!/<b>\d+<\/b>/.test(g.html), 'no count number for 2-4 targets');
-  assert.ok(g.html.includes('threat-group'), 'transparent group container');
-});
-
-test('badge 5+: compact ≤70px badge, mini silhouettes + ×N, composition in title', () => {
-  const html = clusterBadgeHTML(8, 'uav', '7 БПЛА · 1 КАБ', '8 повідомлень: 7 БПЛА, 1 КАБ', ['uav', 'kab']);
-  assert.ok(html.includes('<b>×8</b>'), 'compact ×N count');
-  assert.ok(html.includes('is-badge'), 'badge styling hook');
-  assert.ok(!html.includes('<small'), 'no big composition text on the map');
-  assert.ok(html.includes('title="8 повідомлень: 7 БПЛА, 1 КАБ"'), 'composition available on tap/hover');
-  assert.ok(html.includes('#uav') && html.includes('#kab'), 'mixed group shows its own silhouettes');
-  assert.equal((html.match(/<svg class="tg-mini"/g) || []).length, 3, 'three mini silhouettes + ×N');
+test('source count badge: ×N only from explicit source count', () => {
+  assert.ok(mapSrc.includes('mk-count'), 'count badge hook exists');
+  assert.ok(mapSrc.includes('e.count'), 'badge reads the source count field');
+  assert.ok(mapSrc.includes('srcCount>1') || mapSrc.includes('>1'), 'badge only when count exceeds one');
 });
 
 // ── Threat pane / z-index ────────────────────────────────────────────────────
@@ -77,12 +40,11 @@ test('marker sprite refs are absolute (no bare #fragment that breaks outside ind
   assert.ok(mapSrc.includes('THREAT_SVG'), 'sprite URL derives from import.meta.url (base-independent)');
 });
 
-test('threatPane: dedicated pane above fills, below popups; markers + clusters use it', () => {
+test('threatPane: dedicated pane above fills, below popups; markers use it', () => {
   assert.ok(mapSrc.includes("createPane('threatPane')"), 'threatPane is created');
   assert.ok(mapSrc.includes('zIndex') && mapSrc.includes('625'), 'threatPane z-index 625 (fills ~400 < 625 < popups 700)');
   const markerPanes = (mapSrc.match(/pane:'threatPane'/g) || []).length;
   assert.ok(markerPanes >= 2, 'single threat markers render into threatPane');
-  assert.ok(mapSrc.includes("clusterPane:'threatPane'"), 'clusters render into threatPane');
 });
 
 // ── Zoom bands + hover + touch ───────────────────────────────────────────────

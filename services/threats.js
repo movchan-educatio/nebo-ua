@@ -1,6 +1,6 @@
 import { fetchJson } from './http.js';
 const URL = 'https://check-ua-proxy.kykyyzka.workers.dev/threats';
-const TYPES = new Set(['uav','recon','missile','ballistic','kab','mig31k','unknown']);
+const TYPES = new Set(['uav','recon','missile','ballistic','kab','mig31k','unknown','fpv','explosion']);
 export async function fetchThreats(signal) {
   const data = await fetchJson(URL, { signal, timeout: 9000 });
   const serverTime = validDate(data.serverTime);

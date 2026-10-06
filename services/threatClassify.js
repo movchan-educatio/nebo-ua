@@ -16,9 +16,15 @@ export const TTL_MINUTES = {
  * Text-based threat kind detector from title, subtype, or sourceType.
  */
 export function detectKind(parts) {
-  const s = (Array.isArray(parts) ? parts : [parts]).filter(Boolean).join(' ');
+  const list = (Array.isArray(parts) ? parts : [parts]).filter(Boolean);
+  const s = list.join(' ');
   if (!s) return null;
-  // Shahed/Geran - MUST be checked FIRST before generic uav
+  // Explicit FPV indication only — generic "дрон"/"БПЛА" is NEVER fpv.
+  if (/fpv|фпв/i.test(s)) return 'fpv';
+  // Explicit media explosion report only — never a generic "вибух" mention.
+  if (list.some(p => /^(explosion|media_explosion_report)$/i.test(String(p).trim()))) return 'explosion';
+  if (/повідомля(ють|є)\s+про\s+вибух|media[\s_-]*explosion/i.test(s)) return 'explosion';
+  // Shahed/Geran - MUST be checked before generic uav
   if (/shahed|шахед|герань|geran|камикадзе/i.test(s)) return 'shahed';
   // Ballistic missiles
   if (/баліст|баллист|ballistic|кинжал|кинджал|іскандер-м|искандер-м|kn-23|кн-23|s-300|с-300|s-400|с-400/i.test(s)) return 'ballistic';
@@ -63,16 +69,16 @@ export function accuracyTier(event) {
 
 /**
  * Detailed threat kind for icon selection.
- * Returns: 'shahed' | 'uav' | 'missile' | 'ballistic' | 'kab' | 'recon' | 'aviation' | 'other'
+ * Returns: 'shahed' | 'uav' | 'fpv' | 'missile' | 'ballistic' | 'kab' | 'recon' | 'aviation' | 'explosion' | 'other'
  */
 export function classifyThreat(event) {
   if (!event) return 'other';
   if (event.kind === 'shahed') return 'shahed';
   if (event.kind && event.kind !== 'other' && event.kind !== 'unknown') {
     const MAP_KIND = {
-      shahed: 'shahed', uav: 'uav', recon: 'recon',
+      shahed: 'shahed', uav: 'uav', fpv: 'fpv', recon: 'recon',
       missile: 'missile', ballistic: 'ballistic', kab: 'kab',
-      aviation: 'aviation', other: 'other',
+      aviation: 'aviation', explosion: 'explosion', other: 'other',
     };
     if (MAP_KIND[event.kind]) return MAP_KIND[event.kind];
   }

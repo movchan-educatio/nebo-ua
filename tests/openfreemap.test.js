@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { OPENFREEMAP, NEBO_ATTRIBUTION, NEBO_DARK_STYLE_URL, FALLBACK_RASTER_URL, shouldUseVector, vectorStyleSpec } from '../assets/js/basemap.js';
-import { META, getThreatVisual, rangeRings, RANGE_PRESETS, smallGroupHTML, clusterBadgeHTML } from '../assets/js/map.js';
+import { META, getThreatVisual, rangeRings, RANGE_PRESETS } from '../assets/js/map.js';
 import { haversineKm, bearingDeg, project } from '../assets/js/scope.js';
 import { territorialDanger } from '../services/districts.js';
 import { classifyThreat, accuracyTier, shouldShowHeading } from '../services/threatClassify.js';
@@ -65,7 +65,7 @@ test('raster fallback stays OSM when vector is unavailable (TZ §38)', () => {
 
 // ── Unified threat visuals (TZ §29) ─────────────────────────────────────────
 test('getThreatVisual: single registry for map/radar/list/cluster/popup', () => {
-  for (const kind of ['shahed', 'uav', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other']) {
+  for (const kind of ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'explosion', 'other']) {
     const v = getThreatVisual(kind);
     assert.equal(v.kind, kind);
     assert.equal(v.icon, META[kind].icon);
@@ -135,20 +135,17 @@ test('unknown district without polygon data: no oblast fallback invented', () =>
   assert.deepEqual(oblasts, []);
 });
 
-// ── Clusters: compact, never giant cards (TZ §18, §19) ──────────────────────
-test('cluster 2–4: transparent mini-icon composition, footprint ≤ ~70px', () => {
-  for (const n of [2, 3, 4]) {
-    const items = Array.from({ length: n }, () => ({ kind: 'uav' }));
-    const g = smallGroupHTML(items);
-    assert.ok(g.w <= 70 && g.h <= 70, `n=${n} got ${g.w}x${g.h}`);
-    assert.ok(g.html.includes('threat-group'));
-  }
+// ── No proximity clustering: one REAL trackId = one marker ──────────────────
+test('no UI clustering: every track renders its own marker', async () => {
+  const src = await readFile('assets/js/map.js', 'utf8');
+  assert.ok(!src.includes('markerClusterGroup'), 'no cluster group factory');
+  assert.ok(!src.includes('iconCreateFunction'), 'no cluster icon factory');
+  assert.ok(src.includes('markerByTrack'), 'markers persist per stable trackId');
 });
 
-test('cluster 5+: compact badge ≈ 64px with silhouettes + ×N', () => {
-  const html = clusterBadgeHTML(7, 'uav', '7 БПЛА', '7 повідомлень: 7 БПЛА', ['uav']);
-  assert.ok(html.includes('is-badge'));
-  assert.ok(html.includes('<b>×7</b>'));
+test('source count badge comes only from explicit source count', async () => {
+  const src = await readFile('assets/js/map.js', 'utf8');
+  assert.ok(src.includes('mk-count'), 'count badge hook exists');
 });
 
 // ── Real data only (TZ §20–§22) ─────────────────────────────────────────────

@@ -21,22 +21,21 @@
     <circle cx="32" cy="53" r="2.4" fill="currentColor" stroke="none"/>
   </g></symbol>
 
-  <!-- ================= GENERIC UAV (small fixed-wing) =================
-       Neutral fixed-wing UAV, top view, nose up. Straight tapered wings
-       of moderate chord, slim fuselage, inverted-V tail, nose propeller.
-       Distinct from the Shahed delta and from the wide recon wing.
+  <!-- ================= GENERIC UAV (conventional fixed-wing) =================
+       Bold conventional fixed-wing UAV, top view, nose up. Wide straight
+       wings with real chord, strong fuselage, round nose, compact tail.
+       Reads as "це БПЛА" at 22px. Distinct from Shahed delta, FPV quad,
+       slim recon and fighter silhouettes.
        Used for any unconfirmed "БПЛА/дрон" — NEVER the Shahed silhouette. -->
   <symbol id="uav" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
-    <!-- Straight tapered main wings -->
-    <path d="M10 26 L54 26 L50 33 L14 33 Z" fill="currentColor" stroke="none"/>
-    <!-- Slim fuselage -->
-    <path d="M29.8 8 L34.2 8 L34.8 40 L32 50 L30 50 L29.2 40 Z" fill="currentColor" stroke="none"/>
-    <!-- Nose + propeller -->
-    <circle cx="32" cy="8" r="2.2" fill="currentColor" stroke="none"/>
-    <path d="M22 8 L42 8" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" fill="none"/>
-    <!-- Inverted-V tail -->
-    <path d="M30.5 40 L22 50 L24.5 51.5 L32 43 Z" fill="currentColor" stroke="none"/>
-    <path d="M33.5 40 L42 50 L39.5 51.5 L32 43 Z" fill="currentColor" stroke="none"/>
+    <!-- Wide straight main wings -->
+    <path d="M6 24 L58 24 L53 36 L11 36 Z" fill="currentColor" stroke="none"/>
+    <!-- Strong fuselage with round nose -->
+    <path d="M32 4 C36 4 38 8 38 13 L39 40 L36 54 L28 54 L25 40 L26 13 C26 8 28 4 32 4 Z" fill="currentColor" stroke="none"/>
+    <!-- Compact tailplane -->
+    <path d="M18 45 L46 45 L46 50 L18 50 Z" fill="currentColor" stroke="none"/>
+    <!-- Tail fin -->
+    <path d="M30 45 L34 45 L33.5 56 L30.5 56 Z" fill="currentColor" stroke="none"/>
   </g></symbol>
 
   <!-- ================= RECON (fixed-wing UAV) =================
@@ -129,11 +128,40 @@
   </g></symbol>
 
   <!-- ================= OTHER (unknown contact) =================
-       Neutral diamond + question mark drawn as pure paths (no text element).
-       Not a weapon silhouette, not a geometric warning sign. -->
+        Neutral diamond + question mark drawn as pure paths (no text element).
+        Not a weapon silhouette, not a geometric warning sign. -->
   <symbol id="other" viewBox="0 0 64 64">
     <path d="M32 12 L50 32 L32 52 L14 32 Z" fill="none" stroke="currentColor" stroke-width="4"/>
     <path d="M26 26 Q26 21 32 21 Q38 21 38 26 Q38 30 34 32 L32 36" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
     <circle cx="32" cy="41" r="2.2" fill="currentColor" stroke="none"/>
+  </symbol>
+
+  <!-- ================= FPV QUADCOPTER =================
+        Top-view quadcopter: central body, 4 diagonal arms, 4 rotor rings
+        with motor dots. NOT a plane, NOT a Shahed, NOT generic UAV.
+        Used ONLY on explicit FPV source indication. -->
+  <symbol id="fpv" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+    <!-- Diagonal arms -->
+    <path d="M27 27 L19 19 M37 27 L45 19 M27 37 L19 45 M37 37 L45 45" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
+    <!-- Central body -->
+    <path d="M27 27 L37 27 L37 37 L27 37 Z" fill="currentColor" stroke="none"/>
+    <!-- Rotor rings -->
+    <circle cx="16" cy="16" r="6.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <circle cx="48" cy="16" r="6.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <circle cx="16" cy="48" r="6.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <circle cx="48" cy="48" r="6.5" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <!-- Motor dots -->
+    <circle cx="16" cy="16" r="1.8" fill="currentColor" stroke="none"/>
+    <circle cx="48" cy="16" r="1.8" fill="currentColor" stroke="none"/>
+    <circle cx="16" cy="48" r="1.8" fill="currentColor" stroke="none"/>
+    <circle cx="48" cy="48" r="1.8" fill="currentColor" stroke="none"/>
+  </g></symbol>
+
+  <!-- ================= MEDIA EXPLOSION REPORT =================
+        Orange disc + white burst drawn as pure paths (no text element).
+        Means "media report explosions", NOT a confirmed impact site. -->
+  <symbol id="explosion" viewBox="0 0 64 64">
+    <circle cx="32" cy="32" r="20" fill="currentColor" stroke="none"/>
+    <path d="M32 18 L35 27 L44 24 L38 31 L46 35 L37 36 L39 45 L32 38 L25 45 L27 36 L18 35 L26 31 L20 24 L29 27 Z" fill="#FFFFFF" stroke="none"/>
   </symbol>
 </svg>

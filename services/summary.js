@@ -12,8 +12,8 @@ export function plural(n, one, few, many) {
 }
 
 const KIND_LABEL = {
-  shahed: 'Шахед', uav: 'БПЛА', recon: 'розвідка', missile: 'ракета',
-  ballistic: 'балістика', kab: 'КАБ', aviation: 'авіація', other: 'інше',
+  shahed: 'Шахед', uav: 'БПЛА', fpv: 'FPV-дрон', recon: 'розвідка', missile: 'ракета',
+  ballistic: 'балістика', kab: 'КАБ', aviation: 'авіація', explosion: 'вибухи (ЗМІ)', other: 'інше',
 };
 
 /**
@@ -30,7 +30,7 @@ const KIND_LABEL = {
  */
 export function flowStats(events, opts = {}) {
   const { onlyFresh = true, visible = null } = opts;
-  const byKind = { shahed: 0, uav: 0, missile: 0, ballistic: 0, kab: 0, recon: 0, aviation: 0, other: 0 };
+  const byKind = { shahed: 0, uav: 0, fpv: 0, missile: 0, ballistic: 0, kab: 0, recon: 0, aviation: 0, explosion: 0, other: 0 };
   let exactTotal = 0;
   let exactAll = 0;
   const received = Array.isArray(events) ? events.length : 0;
@@ -71,7 +71,7 @@ export function kindShortLabel(kind) {
  */
 const THREAT_SPRITE = './assets/brand/threat-icons.svg';
 // HUD icon colors mirror the shared threat palette (assets/js/map.js META).
-const KIND_COLOR = { uav: '#FFC43D', shahed: '#FFAA32', missile: '#FF4D67', kab: '#FF806B' };
+const KIND_COLOR = { uav: '#FFC43D', shahed: '#FF7B4D', missile: '#FF4D67', kab: '#FF806B', fpv: '#FF9F43', explosion: '#FF6A00' };
 export function flowSummaryHTML(stats, raionCount) {
   const s = { uav: 0, shahed: 0, missiles: 0, kab: 0, exactTotal: 0, suppressed: 0, ...(stats || {}) };
   const rc = Number(raionCount) || 0;

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { plural, flowStats, flowSummaryHTML } from '../services/summary.js';
 import { territorialDanger } from '../services/districts.js';
-import { clusterSummaryText } from '../assets/js/map.js';
+import { normalizeNeptun, normalizeMapa } from '../services/normalize.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -119,18 +119,20 @@ test('flowSummaryHTML: plurals 1/5 and Shahed cell honesty', () => {
   assert.ok(withShahed.includes('ШАХЕД'), 'confirmed Shaheds get their own cell, never hidden in БПЛА');
 });
 
-// ── Cluster honesty: generic UAV is never renamed to Shahed ──────────────────
-test('clusterSummaryText: 10 UAV + 2 KAB stays honest, no invented Shahed', () => {
-  const { summary, dom } = clusterSummaryText({ uav: 10, kab: 2 });
-  assert.equal(summary, '10 БПЛА · 2 КАБ');
-  assert.equal(dom, 'uav');
-  assert.ok(!summary.includes('ШАХЕД'), 'must not claim Shahed without confirmation');
+// ── Source-count honesty: generic UAV is never renamed to Shahed ────────────
+test('source count passes through normalization without renaming kinds', () => {
+  const u = normalizeNeptun({ id: 'x', type: 'uav', title: 'БпЛА', lat: 50, lon: 31, count: 4, updatedAt: '2026-10-06T10:00:00Z' });
+  assert.equal(u.count, 4);
+  assert.equal(u.kind, null);
+  const m = normalizeMapa({ id: 9, kind: 'drone_piston', status: 'active', lat: 50, lon: 31, amount: 3, last_seen: 1759694410 });
+  assert.equal(m.count, 3);
 });
-
-test('clusterSummaryText: confirmed shaheds are named, dominant icon follows', () => {
-  const { summary, dom } = clusterSummaryText({ shahed: 5, missile: 2 });
-  assert.ok(summary.includes('ШАХЕД'), 'confirmed Shahed is named');
-  assert.equal(dom, 'shahed');
+test('flowStats counts fpv separately, never hidden in БПЛА', () => {
+  const fpv = normalizeMapa({ id: 7, kind: 'drone_fpv', status: 'active', lat: 50, lon: 31, last_seen: 1759694410 });
+  const uav = normalizeNeptun({ id: 'x', type: 'uav', title: 'БпЛА', lat: 50.1, lon: 31.1, updatedAt: '2026-10-06T10:00:00Z' });
+  const st = flowStats([fpv, uav]);
+  assert.equal(st.byKind.fpv, 1);
+  assert.equal(st.byKind.uav, 1);
 });
 
 // ── RAION DANGER MUST NEVER STYLE OBLAST POLYGON ────────────────────────────

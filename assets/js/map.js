@@ -13,13 +13,15 @@ const THREAT_SVG = new URL('../brand/threat-icons.svg', import.meta.url).href;
 // 'recon' is a distinct kind for reconnaissance UAVs.
 // Palette: Небо.UA threat color system (single source; radar/list use it too).
 const META={
-  shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#FFAA32'},
+  shahed:   {label:'ШАХЕД',   icon:'shahed',   color:'#FF7B4D'},
   uav:      {label:'БПЛА',    icon:'uav',      color:'#FFC43D'},
+  fpv:      {label:'FPV-ДРОН',icon:'fpv',      color:'#FF9F43'},
   recon:    {label:'РОЗВІДКА',icon:'recon',    color:'#62C7FF'},
   missile:  {label:'РАКЕТА',  icon:'missile',  color:'#FF4D67'},
-  ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#FF2A55'},
+  ballistic:{label:'БАЛІСТИКА',icon:'ballistic',color:'#FF2F3E'},
   kab:      {label:'КАБ',     icon:'kab',      color:'#FF806B'},
   aviation: {label:'АВІАЦІЯ', icon:'aircraft', color:'#9B6CFF'},
+  explosion:{label:'ЗМІ: ВИБУХИ',icon:'explosion',color:'#FF6A00'},
   other:    {label:'Інше',    icon:'other',    color:'#B8C5D1'},
 };
 
@@ -38,19 +40,24 @@ const DANGER_STYLE = {
 };
 
 // ── Unified threat visual registry ──────────────────────────────────────────
-// Single source of truth for Map, Radar, List, Recent Events, Cluster and
-// Popup visuals (TZ §29). Never copy SVG paths elsewhere: resolve the kind
+// Single source of truth for Map, Radar, List, Recent Events and Popup
+// visuals (TZ §29). Never copy SVG paths elsewhere: resolve the kind
 // once via classifyThreat, then read icon/color/size from here.
 const THREAT_SIZE = {
-  shahed: 26, uav: 24, recon: 24, missile: 24, ballistic: 26,
-  kab: 24, aviation: 25, other: 22,
+  shahed: 26, uav: 24, fpv: 24, recon: 23, missile: 24, ballistic: 26,
+  kab: 24, aviation: 25, explosion: 24, other: 22,
 };
+// Radar-ineligible kinds are event reports, not flying targets.
+const RADAR_EXCLUDED = new Set(['explosion']);
 export function getThreatVisual(input) {
   const kind = typeof input === 'string' ? input : classifyThreat(input);
   const m = META[kind] || META.other;
+  const realKind = META[kind] ? kind : 'other';
   return {
-    kind, icon: m.icon, color: m.color, label: m.label,
-    size: THREAT_SIZE[kind] || 26, cssClass: 'kind-' + kind,
+    kind: realKind, icon: m.icon, color: m.color, label: m.label,
+    size: THREAT_SIZE[realKind] || 24, cssClass: 'kind-' + realKind,
+    radarEligible: !RADAR_EXCLUDED.has(realKind),
+    mapEligible: true,
   };
 }
 
@@ -80,15 +87,11 @@ export function createSituationMap(el,onSelect){
   // navigation are DOM above the map container.
   if(!map.getPane('threatPane')) map.createPane('threatPane');
   map.getPane('threatPane').style.zIndex=625;
-  const clusters=L.markerClusterGroup({
-    showCoverageOnHover:false,
-    maxClusterRadius:80,
-    disableClusteringAtZoom:11,
-    spiderfyOnMaxZoom:true,
-    iconCreateFunction:clusterIcon,
-    clusterPane:'threatPane',
-  });
-  map.addLayer(clusters);
+  // One marker per REAL trackId — no proximity clustering, no counts invented
+  // from closeness. Source-reported group size (count>1) renders as a small
+  // ×N badge on that track's own marker, never as a merged bubble.
+  const targets=L.layerGroup();
+  map.addLayer(targets);
   let geo=null,fitted=false;
   // Persistent marker objects per stable trackId: the SAME L.marker instance
   // survives snapshots; only its position/icon refresh. setLatLng + the CSS
@@ -184,7 +187,7 @@ export function createSituationMap(el,onSelect){
       }).on('click',()=>onSelect(currentByTrack.get(tid)||e));
       marker.options._sig=sig;
       markerByTrack.set(tid,marker);
-      clusters.addLayer(marker);
+      targets.addLayer(marker);
       if(tid===selectedTrack){const g=glyphEl(marker);if(g)g.classList.add('selected');}
     }
     return marker;
@@ -196,7 +199,7 @@ export function createSituationMap(el,onSelect){
   }
   function removeTrack(tid){
     const m=markerByTrack.get(tid);
-    if(m){try{clusters.removeLayer(m);}catch(e){}markerByTrack.delete(tid);}
+    if(m){try{targets.removeLayer(m);}catch(e){}markerByTrack.delete(tid);}
     currentByTrack.delete(tid);
     if(selectedTrack===tid)setSelectedTrack(null);
   }
@@ -251,7 +254,7 @@ export function createSituationMap(el,onSelect){
     // Prune markers whose tracks left the snapshot (backend drops them only
     // after repeated misses, so absence here means genuinely gone).
     for(const [tid,m] of markerByTrack){
-      if(!seenTracks.has(tid)){try{clusters.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
+      if(!seenTracks.has(tid)){try{targets.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
     }
     // Selected-track trail: last confirmed positions only (source trail for
     // MAPA, accumulated history otherwise), thin and muted. Older segments
@@ -324,7 +327,7 @@ export function createSituationMap(el,onSelect){
 
   function toggle(kind,on){
     if(kind==='satellite'){if(on){satellite.addTo(map);map.getContainer().classList.add('satellite-on')}else{if(map.hasLayer(satellite))map.removeLayer(satellite);map.getContainer().classList.remove('satellite-on')}return}
-    const layers={alerts:regions,area:areas,history:trails,uncertainty:uncertainties,monitoring:clusters,boundaries:regions,wind:wind,reports:reports,raions:dots,shapes:shapes};
+    const layers={alerts:regions,area:areas,history:trails,uncertainty:uncertainties,monitoring:targets,boundaries:regions,wind:wind,reports:reports,raions:dots,shapes:shapes};
     const l=layers[kind];
     if(!l)return;
     if(on&&!map.hasLayer(l))l.addTo(map);
@@ -434,7 +437,7 @@ export function createRadarMap(el,onSelect){
 // ── Base map factory ──────────────────────────────────────────────────────────
 // Basemap: OpenFreeMap vector style (OpenMapTiles schema, OSM geodata),
 // rendered inside Leaflet via MapLibre. Engine stays Leaflet — every
-// operational overlay (oblast/raion polygons, markers, clusters, trails,
+// operational overlay (oblast/raion polygons, markers, trails,
 // GPS/Home) remains a Leaflet layer above the basemap pane.
 function baseMap(el,center,zoom,opts={}){
   const map=L.map(el,{zoomControl:opts.zoomControl!==false,minZoom:5,maxZoom:12,attributionControl:false,preferCanvas:true}).setView(center,zoom);
@@ -474,11 +477,15 @@ function eventIcon(e,ac){
     e.advisory?'advisory':'',
     e.confirmed?'confirmed':'',
   ].filter(Boolean).join(' ');
-  // Clean SVG-only marker: no circular background, no label clutter at overview zoom
+  // Clean SVG-only marker: no circular background, no label clutter at overview zoom.
+  // Source-reported group size (count>1 from the source itself) renders as a
+  // compact ×N badge on that track's own marker — never merged from proximity.
+  const srcCount=Number(e.count);
+  const countBadge=Number.isFinite(srcCount)&&srcCount>1?`<span class="mk-count">×${Math.min(99,Math.floor(srcCount))}</span>`:'';
   return L.divIcon({
     className:'',
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:1" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
-      <svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg>
+      <svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg>${countBadge}
     </div>`,
     iconSize:[40,40],iconAnchor:[20,20],
   });
@@ -497,86 +504,4 @@ function raionDotIcon(st){return L.divIcon({className:'',html:'<div class="raion
 function reportIcon(){return L.divIcon({className:'',html:`<div class="user-report" title="Локальна мітка"><span>R</span></div>`,iconSize:[28,28],iconAnchor:[14,14]})}
 function graticule(){const lines=[];for(let lon=20;lon<=42;lon+=2)lines.push([[43,lon],[53,lon]]);for(let lat=44;lat<=52;lat+=2)lines.push([[lat,20],[lat,42]]);return lines.map(l=>L.polyline(l,{color:'#66c7ff',weight:1,opacity:.16,interactive:false}))}
 
-// ── Cluster icon with threat-type composition ─────────────────────────────────
-// Pure composition: honest per-kind counts using real threat labels.
-// Never renames a kind (generic UAV stays "БПЛА", never "ШАХЕД").
-function clusterSummaryText(counts){
-  const sorted=Object.entries(counts||{}).sort((a,b)=>b[1]-a[1]);
-  const summaryParts=[];
-  for(const [k,v] of sorted){
-    summaryParts.push(`${v} ${META[k]?.label||k}`);
-  }
-  const summary=summaryParts.slice(0,2).join(' · ');
-  const dom=sorted[0]?.[0]||'other';
-  return{summary,summaryParts,dom};
-}
-// ── Small-group layout (2–4 targets, NO card) ──────────────────────────────────
-// Transparent composition of individual silhouettes, each keeping its OWN
-// kind icon and color (mixed groups stay readable). Footprint ≤ ~70px.
-// Layouts: 2 = side by side, 3 = triangle, 4 = compact 2x2. No count text:
-// the icons themselves show the quantity.
-const GROUP_LAYOUTS = {
-  2: { w: 64, h: 34, pts: [[17, 17], [47, 17]] },
-  3: { w: 66, h: 56, pts: [[33, 15], [17, 41], [49, 41]] },
-  4: { w: 70, h: 70, pts: [[19, 19], [51, 19], [19, 51], [51, 51]] },
-};
-function smallGroupHTML(items) {
-  const list = (items || []).slice(0, 4);
-  const lay = GROUP_LAYOUTS[list.length] || GROUP_LAYOUTS[4];
-  const spans = list.map((it, i) => {
-    const m = META[it.kind] || META.other;
-    const [x, y] = lay.pts[i];
-    return `<span class="tg-item" style="left:${x}px;top:${y}px;--c:${m.color}">`
-      + `<svg class="tg-svg" viewBox="0 0 64 64"><use href="${THREAT_SVG}#${m.icon}"/></svg></span>`;
-  }).join('');
-  return { html: `<div class="threat-group g${list.length}" style="width:${lay.w}px;height:${lay.h}px">${spans}</div>`, w: lay.w, h: lay.h };
-}
-// ── Compact badge (5+ targets): up to 3 mini silhouettes + ×N ─────────────
-// Max ~64px wide. No big "8 БПЛА" text on the map; full composition lives in
-// title/aria and reveals itself on tap (zoom/spiderfy) or hover.
-function clusterBadgeHTML(count, domKind, summaryText, titleText, topKinds) {
-  const m = META[domKind] || META.other;
-  const title = titleText || `${count} повідомлень: ${summaryText || ''}`;
-  const distinct = (Array.isArray(topKinds) && topKinds.length ? topKinds : [domKind]).slice(0, 3);
-  // Always show three mini silhouettes (repeat the dominant kind when the
-  // group is single-kind), then the compact ×N count.
-  const kinds = [distinct[0], distinct[1] || distinct[0], distinct[2] || distinct[0]];
-  const minis = kinds.map((k) => {
-    const mm = META[k] || META.other;
-    return `<svg class="tg-mini" viewBox="0 0 64 64" style="color:${mm.color}" aria-hidden="true"><use href="${THREAT_SVG}#${mm.icon}"/></svg>`;
-  }).join('');
-  return `<div class="threat-cluster is-badge" style="--c:${m.color}" title="${title}" aria-label="${title}">`
-    + `<span class="tg-minis">${minis}</span>`
-    + `<b>×${count}</b></div>`;
-}
-function clusterIcon(cluster){
-  const children=cluster.getAllChildMarkers();
-  const counts={};
-  const items=[];
-  for(const c of children){
-    const k=c.options.threatKind||c.options.category||'other';
-    counts[k]=(counts[k]||0)+1;
-    items.push({kind:k});
-  }
-  const n=cluster.getChildCount();
-  const{summaryParts}=clusterSummaryText(counts);
-  const title=`${n} повідомлень: ${summaryParts.join(', ')}`;
-  if(n<=4&&items.length){
-    const g=smallGroupHTML(items);
-    return L.divIcon({
-      className:'',
-      html:g.html.replace('class="threat-group', `title="${title}" aria-label="${title}" class="threat-group`),
-      iconSize:[g.w,g.h],iconAnchor:[g.w/2,g.h/2],
-    });
-  }
-  const{summary,dom}=clusterSummaryText(counts);
-  void summary;
-  const topKinds=Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([k])=>k);
-  return L.divIcon({
-    className:'',
-    html:clusterBadgeHTML(n,dom,summaryParts.slice(0,2).join(' · '),title,topKinds),
-    iconSize:[64,40],iconAnchor:[32,20],
-  });
-}
-
-export{META,iconFor,THREAT_SIZE,NEBO_ATTRIBUTION,clusterSummaryText,smallGroupHTML,clusterBadgeHTML,rangeRings,RANGE_PRESETS};
+export{META,iconFor,THREAT_SIZE,NEBO_ATTRIBUTION,rangeRings,RANGE_PRESETS};

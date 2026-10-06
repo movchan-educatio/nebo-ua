@@ -252,6 +252,7 @@ function renderRadarNearest(center){
   let best=null,bd=null;
   for(const e of flowEvents()){
     if(e.lat==null||e.lon==null) continue;
+    if(getThreatVisual(e).radarEligible===false) continue;
     const d=distKm(center[0],center[1],e.lat,e.lon);
     if(bd==null||d<bd){bd=d;best=e;}
   }
@@ -285,6 +286,7 @@ function renderRadarHud(center){
       let n=0;
       for(const e of flowEvents()){
         if(e.lat==null||e.lon==null) continue;
+        if(getThreatVisual(e).radarEligible===false) continue;
         if(distKm(center[0],center[1],e.lat,e.lon)<=state.radarRange) n++;
       }
       cnt.textContent=`${n} ${pluralUa(n,'ЦІЛЬ','ЦІЛІ','ЦІЛЕЙ')}`;
@@ -342,7 +344,7 @@ function renderRadarPanels(center){
     }
     const list=$('#radarNearList');
     if(list){
-      const rows=flowEvents().filter(e=>e.lat!=null&&e.lon!=null).map(e=>({e,d:distKm(center[0],center[1],e.lat,e.lon)})).filter(x=>x.d<=state.radarRange*3).sort((a,b)=>a.d-b.d).slice(0,4);
+      const rows=flowEvents().filter(e=>e.lat!=null&&e.lon!=null&&getThreatVisual(e).radarEligible!==false).map(e=>({e,d:distKm(center[0],center[1],e.lat,e.lon)})).filter(x=>x.d<=state.radarRange*3).sort((a,b)=>a.d-b.d).slice(0,4);
       const inRange=rows.filter(x=>x.d<=state.radarRange).length;
       document.querySelector('#radarNearTitle').textContent=inRange>0?`НАЙБЛИЖЧІ ЦІЛІ (${state.radarRange} КМ)`:(rows.length?'НАЙБЛИЖЧІ ПОЗА РАДІУСОМ':`НАЙБЛИЖЧІ ЦІЛІ (${state.radarRange} КМ)`);
       list.innerHTML=rows.length?rows.map(({e,d})=>{
@@ -358,6 +360,8 @@ function renderRadarPanels(center){
 function describeThreat(e){
   const v=getThreatVisual(e);
   if(v.kind==='shahed')return 'Шахед';
+  if(v.kind==='fpv')return 'FPV-дрон';
+  if(v.kind==='explosion')return 'ЗМІ: вибухи';
   if(v.kind==='missile')return 'Крилата ракета';
   if(v.kind==='ballistic')return 'Балістична ракета';
   if(v.kind==='kab')return 'КАБ';
@@ -386,7 +390,7 @@ function renderRadarSelected(){
     const x=box.querySelector('.sel-close');if(x)x.onclick=()=>{try{state.selectedId=null;}catch(e){}renderRadarSelected();};
   }catch(e){}
 }
-function renderTimeline(){const items=state.timeline.slice(0,12);$('#timeline').innerHTML=items.length?items.map(x=>`<div class="timeline-item"><time>${clock(x.at,true)}</time><i></i><p>${esc(x.text)}${x.count>1?` <b>×${x.count}</b>`:''}<br><small>${esc(x.source)}</small></p></div>`).join(''):'<div class="empty">Зміни з’являться після наступного реального оновлення.</div>'}
+function renderTimeline(){const items=state.timeline.slice(0,12);const narrow=window.innerWidth<720&&!state.timelineFull;const shown=narrow?items.slice(0,5):items;$('#timeline').innerHTML=(shown.length?shown.map(x=>`<div class="timeline-item"><time>${clock(x.at,true)}</time><i></i><p>${esc(x.text)}${x.count>1?` <b>×${x.count}</b>`:''}<br><small>${esc(x.source)}</small></p></div>`).join(''):'<div class="empty">Зміни з’являться після наступного реального оновлення.</div>')+(narrow&&items.length>5?`<button type="button" class="text-button" id="timelineMore">Показати всі (${items.length})</button>`:'');const more=$('#timelineMore');if(more)more.onclick=()=>{state.timelineFull=true;renderTimeline();};}
 function renderRail(){const box=$('#railChanges');if(!box)return;const ten=state.timeline.filter(x=>Date.now()-x.at<10*60000),n=ten.filter(x=>x.text.startsWith('Нове')).reduce((sum,x)=>sum+(x.count||1),0),end=ten.filter(x=>x.text.includes('більше не')).reduce((sum,x)=>sum+(x.count||1),0);box.innerHTML=`<p><b>+${n}</b> нових моніторингових повідомлень</p><p><b>−${end}</b> подій більше не активні</p>`}
 function renderHistory(){const box=$('#historyScale');if(!box)return;const max=Math.max(1,...state.history.map(x=>x.events));box.innerHTML=state.history.map(x=>`<div class="history-bar" style="height:${18+Math.round(x.events/max*52)}px" title="${x.events} повідомлень"><span>${clock(x.at,true)}</span></div>`).join('')}
 function openDetail(e){if(!e)return;
@@ -468,7 +472,14 @@ function loadJSON(k,f){try{const v=JSON.parse(localStorage.getItem(k));return v=
 function flowEvents(){const all=tracks.getAll().map(t=>t.current);const list=all.length?all:state.snapshot.events;return state.onlyFresh?list.filter(e=>!e.stale):list}
 function selectedTrail(){try{const t=state.selectedId?tracks.get(state.selectedId):null;if(!t)return null;let pts=[];if(Array.isArray(t.current.trail)&&t.current.trail.length>1){pts=cleanTrail(t.current.trail,{max:8});}else{pts=[...t.history.map(p=>({lat:p.lat,lon:p.lon,t:p.t})),...(t.pos?[{lat:t.pos.lat,lon:t.pos.lon,t:eventTimeMs(t.current)}]:[])];}if(pts.length<2)return null;return{trackId:t.id,category:t.current.category,points:pts};}catch(e){return null}}
 function ageBadge(ts){const ms=ts instanceof Date?ts.getTime():new Date(ts).getTime();if(!Number.isFinite(ms))return'—';const s=Math.max(0,Math.round((Date.now()-ms)/1000));if(s<60)return`● ${s} с`;if(s<3600)return`◐ ${Math.floor(s/60)} хв`;return`○ ${Math.floor(s/3600)} год`}
-function trackFields(e){try{const t=tracks.get(e.trackId||e.id);if(!t)return'';const hist=t.history||[];const all=[...hist.map(p=>({t:p.t})),{t:eventTimeMs(t.current)}].filter(p=>p.t!=null);const lastFixed=all.length?new Date(Math.max(...all.map(p=>p.t))):null;const rows=all.slice(-6).map(p=>clock(new Date(p.t))).join(' · ');const n=all.length||1;const srcLabel=e.source==='MAPA'?'Позиції джерела':'Підтверджені позиції цієї сесії';return field('Статус',e.stale?'○ Застаріла':'● Актуальна')+field('Вік цілі',ageBadge(e.timestamp))+(lastFixed?field('Остання зафіксована позиція',clock(lastFixed)):'')+field(srcLabel,String(n))+(rows&&all.length>1?`<div class="explain-box">ТРАЄКТОРІЯ · ${esc(srcLabel.toLowerCase())}: ${n}<br>${esc(rows)}</div>`:'');}catch(err){return''}}
+function explosionNotice(e){
+  try{
+    if(getThreatVisual(e).kind!=='explosion')return'';
+    const exact=e.lat!=null&&e.lon!=null;
+    return `<div class="explain-box">ЗМІ ПОВІДОМЛЯЮТЬ ПРО ВИБУХИ${exact?'':'<br>ТОЧНЕ МІСЦЕ НЕВІДОМЕ — повідомлено лише район/місто'}. Це повідомлення, а не підтверджене місце удару.</div>`;
+  }catch(err){return''}
+}
+function trackFields(e){try{const t=tracks.get(e.trackId||e.id);if(!t)return explosionNotice(e);const hist=t.history||[];const all=[...hist.map(p=>({t:p.t})),{t:eventTimeMs(t.current)}].filter(p=>p.t!=null);const lastFixed=all.length?new Date(Math.max(...all.map(p=>p.t))):null;const rows=all.slice(-6).map(p=>clock(new Date(p.t))).join(' · ');const n=all.length||1;const srcLabel=e.source==='MAPA'?'Позиції джерела':'Підтверджені позиції цієї сесії';return field('Статус',e.stale?'○ Застаріла':'● Актуальна')+field('Вік цілі',ageBadge(e.timestamp))+(lastFixed?field('Остання зафіксована позиція',clock(lastFixed)):'')+field(srcLabel,String(n))+(rows&&all.length>1?`<div class="explain-box">ТРАЄКТОРІЯ · ${esc(srcLabel.toLowerCase())}: ${n}<br>${esc(rows)}</div>`:'');}catch(err){return''}}
 function refreshSelection(){try{const d=$('#detailSheet');if(!d||!d.open||!state.selectedId)return;const cur=resolveSelection(tracks,state.selectedId);if(cur)openDetail(cur);}catch(e){}}
 function nearestEvent(){let best=null;for(const e of flowEvents())if(e._distKm!=null&&(!best||e._distKm<best._distKm))best=e;return best}function centerOf(f){const pts=[];walk(f.geometry.coordinates,pts);const b=pts.reduce((a,p)=>[Math.min(a[0],p[1]),Math.min(a[1],p[0]),Math.max(a[2],p[1]),Math.max(a[3],p[0])],[90,180,-90,-180]);return[(b[0]+b[2])/2,(b[1]+b[3])/2]}function walk(a,out){if(typeof a?.[0]==='number')out.push(a);else a?.forEach(x=>walk(x,out))}function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 setup();setupEnhancements({getSnapshot:()=>state.snapshot,onRegion:setRegion,onRender:renderSky});const _os=$('#openSources');if(_os)_os.onclick=()=>{$('#settingsDialog').close();showView('threatsView');setTimeout(()=>$('#sourceHealth').scrollIntoView({behavior:'smooth'}),80)};load();if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('./service-worker.js').catch(()=>{}));

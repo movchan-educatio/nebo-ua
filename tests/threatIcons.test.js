@@ -4,12 +4,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { classifyThreat } from '../services/threatClassify.js';
-import { META } from '../assets/js/map.js';
+import { accuracyTier } from '../services/threatClassify.js';
+import { META, getThreatVisual } from '../assets/js/map.js';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const svg = fs.readFileSync(path.join(root, 'assets/brand/threat-icons.svg'), 'utf8');
 
-const REQUIRED = ['shahed', 'uav', 'recon', 'missile', 'ballistic', 'kab', 'aircraft', 'other'];
+const REQUIRED = ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aircraft', 'explosion', 'other'];
 
 // All symbols with their viewBox + inner markup.
 function symbols() {
@@ -40,7 +41,7 @@ function bboxOf(body) {
   return { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
 }
 
-test('all 8 threat symbols exist with uniform viewBox 0 0 64 64', () => {
+test('all 10 threat symbols exist with uniform viewBox 0 0 64 64', () => {
   const syms = symbols();
   for (const id of REQUIRED) {
     assert.ok(syms.has(id), `missing symbol #${id}`);
@@ -98,6 +99,25 @@ test('mapping: explicit Shahed/Geran -> #shahed', () => {
     assert.equal(kind, 'shahed', t);
     assert.equal(META[kind].icon, 'shahed');
   }
+});
+
+test('mapping: explicit FPV -> #fpv, generic drone stays #uav', () => {
+  for (const t of ['FPV-дрон', 'fpv', 'ФПВ', 'FPV drone']) {
+    const kind = classifyThreat({ kind: null, subtype: t, sourceType: 'uav', category: 'uav' });
+    assert.equal(kind, 'fpv', t);
+    assert.equal(META[kind].icon, 'fpv');
+  }
+  for (const t of ['Дрон', 'дрон-камікадзе', 'БпЛА']) {
+    const kind = classifyThreat({ kind: null, subtype: t, sourceType: 'uav', category: 'uav' });
+    assert.ok(kind !== 'fpv', `${t} must not become FPV`);
+  }
+});
+
+test('mapping: explicit media explosion report -> #explosion, generic blast text stays out', () => {
+  const kind = classifyThreat({ kind: null, subtype: 'ЗМІ повідомляють про вибухи', category: 'other' });
+  assert.equal(kind, 'explosion');
+  assert.equal(META[kind].icon, 'explosion');
+  assert.equal(classifyThreat({ kind: null, subtype: 'чути вибухи', category: 'other' }), 'other');
 });
 
 test('mapping: generic БпЛА/дрон -> #uav, NEVER #shahed', () => {
@@ -168,6 +188,46 @@ test('marker CSS: transparent container, per-kind sizes, directed rotation on th
   }
   assert.ok(css.includes('[data-directed="true"]'), 'directed markers rotate only with real heading');
   assert.ok(css.includes('transform-box: fill-box'), 'rotation is centered on the silhouette');
+});
+
+// ── One registry for Map/Radar/HUD/List/Popup ───────────────────────────────
+const ALL_KINDS = ['uav', 'shahed', 'missile', 'ballistic', 'kab', 'aviation', 'recon', 'fpv', 'explosion', 'other'];
+
+test('visual consistency: one registry resolves every kind for all surfaces', () => {
+  const syms = symbols();
+  for (const kind of ALL_KINDS) {
+    const v = getThreatVisual(kind);
+    assert.equal(v.kind, kind);
+    assert.ok(syms.has(v.icon), `sprite has #${v.icon} for ${kind}`);
+    assert.ok(/^#[0-9a-f]{6}$/i.test(v.color), `${kind} has a color`);
+    assert.ok(Number.isFinite(v.size) && v.size >= 20 && v.size <= 26, `${kind} size 20–26`);
+    assert.ok(typeof v.label === 'string' && v.label.length > 0, `${kind} has a label`);
+    assert.equal(typeof v.radarEligible, 'boolean', `${kind} declares radar eligibility`);
+    assert.equal(typeof v.mapEligible, 'boolean', `${kind} declares map eligibility`);
+  }
+  assert.equal(getThreatVisual('explosion').radarEligible, false, 'explosion is not a radar target');
+  assert.equal(getThreatVisual('explosion').mapEligible, true, 'explosion renders on the map');
+});
+
+test('single classification: no parallel per-surface icon functions', () => {
+  const src = ['assets/js/map.js', 'assets/js/scope.js', 'assets/js/app.js', 'services/summary.js']
+    .map(f => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
+  for (const name of ['mapThreatIcon', 'radarThreatIcon', 'listThreatIcon', 'hudThreatIcon', 'popupThreatIcon']) {
+    assert.ok(!src.includes(name), `no parallel resolver ${name}`);
+  }
+  assert.ok(src.includes('getThreatVisual'), 'all surfaces use the shared resolver');
+});
+
+// ── Data safety: reports never become fabricated targets ────────────────────
+test('area-only explosion is not a precise target', () => {
+  const tier = accuracyTier({ areaOnly: true, lat: 49, lon: 32, locationPrecision: 'OBLAST' });
+  assert.equal(tier, 'area');
+});
+
+test('city-only report carries no fabricated lat/lon', () => {
+  // Raion-only records have no coordinates at all — nothing to mint a point from.
+  assert.equal(accuracyTier({ areaOnly: true, lat: null, lon: null, locationPrecision: 'RAION' }), 'area');
+  assert.equal(accuracyTier({ areaOnly: true, lat: null, lon: null, locationPrecision: 'OBLAST' }), 'area');
 });
 
 console.log('All threat icon tests passed!');

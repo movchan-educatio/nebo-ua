@@ -61,7 +61,7 @@ export function createScope(canvas, { onSelect } = {}) {
     if (spriteLoading || typeof fetch !== 'function') return;
     spriteLoading = true;
     fetch(THREAT_SPRITE_URL).then((r) => r.text()).then((txt) => {
-      for (const kind of ['shahed', 'uav', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other']) {
+      for (const kind of ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other']) {
         try {
           const v = getThreatVisual(kind);
           const m = txt.match(new RegExp('<symbol id="' + kind + '" viewBox="([^"]+)">([\\s\\S]*?)</symbol>'));
@@ -241,6 +241,8 @@ export function createScope(canvas, { onSelect } = {}) {
       }
       const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
       const v = getThreatVisual(e);
+      // Event reports (e.g. media explosions) are never radar targets.
+      if (v.radarEligible === false) continue;
       const boost = sweepBoost(sweep, p.bearing);
       S.pts.push({ e, x: ox, y: oy, label: v.label, distKm: p.distKm });
       const glow = 0.55 + 0.45 * boost;
@@ -299,10 +301,11 @@ export function createScope(canvas, { onSelect } = {}) {
     // at the true bearing. Never faked inside the scope.
     let edgeNear = null;
     for (const { p, e } of edge) {
+      const v = getThreatVisual(e);
+      if (v.radarEligible === false) continue;
       if (!edgeNear || p.distKm < edgeNear.p.distKm) edgeNear = { p, e };
       const a = (p.bearing - 90) * Math.PI / 180;
       const ex = cx0 + Math.cos(a) * (RR - 16), ey = cy0 + Math.sin(a) * (RR - 16);
-      const v = getThreatVisual(e);
       const img = spriteFor(v.kind);
       ctx.globalAlpha = 0.9;
       if (img) {

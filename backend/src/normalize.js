@@ -2,16 +2,23 @@
 // but outputs JSON-serializable records with eventTime/receivedAt/latencyMs.
 const TYPE_MAP = {
   uav: 'uav', recon: 'recon', missile: 'missile', ballistic: 'ballistic',
-  kab: 'kab', mig31k: 'aviation', unknown: 'other',
+  kab: 'kab', mig31k: 'aviation', unknown: 'other', fpv: 'uav',
+  explosion: 'other', media_explosion_report: 'other',
   drone_piston: 'uav', drone_jet: 'uav', drone_fpv: 'uav',
   missile_cruise: 'missile', missile_ballistic: 'ballistic', bomb: 'kab',
 };
 const FRESH_MIN = { missile: 2, ballistic: 2, uav: 5, recon: 5, kab: 5, aviation: 5, other: 5 };
 
 export function detectKind(parts) {
-  const s = (Array.isArray(parts) ? parts : [parts]).filter(Boolean).join(' ');
+  const list = (Array.isArray(parts) ? parts : [parts]).filter(Boolean);
+  const s = list.join(' ');
   if (!s) return null;
-  // Shahed/Geran - MUST be checked FIRST before generic uav
+  // Explicit FPV indication only — generic "дрон"/"БПЛА" is NEVER fpv.
+  if (/fpv|фпв/i.test(s)) return 'fpv';
+  // Explicit media explosion report only — never a generic "вибух" mention.
+  if (list.some(p => /^(explosion|media_explosion_report)$/i.test(String(p).trim()))) return 'explosion';
+  if (/повідомля(ють|є)\s+про\s+вибух|media[\s_-]*explosion/i.test(s)) return 'explosion';
+  // Shahed/Geran - MUST be checked before generic uav
   if (/shahed|шахед|герань|geran|камикадзе/i.test(s)) return 'shahed';
   // Ballistic missiles
   if (/баліст|баллист|ballistic|кинжал|кинджал|іскандер-м|искандер-м|kn-23|кн-23|s-300|с-300|s-400|с-400/i.test(s)) return 'ballistic';
@@ -93,6 +100,7 @@ export function normalizeNeptunThreat(raw, receivedAt = new Date()) {
     positionQuality: raw.positionQuality || null,
     uncertaintyKm: num(raw.uncertaintyKm),
     sourceCount: num(raw.sourceCount),
+    count: num(raw.count),
     areaOnly,
     advisory: raw.advisory === true,
     status: raw.status || 'active',
@@ -133,6 +141,7 @@ export function normalizeMapa(raw, receivedAt = new Date()) {
     positionQuality: 'source-position',
     uncertaintyKm: null,
     sourceCount: null,
+    count: num(raw.amount),
     areaOnly: false,
     advisory: false,
     status: 'active',
