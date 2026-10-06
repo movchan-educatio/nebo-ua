@@ -89,14 +89,22 @@ test('info pages exist, canonical, honest, with disclaimer', () => {
   assert.ok(contact.includes('github.com/movchan-educatio/nebo-ua'), 'contact: real channel');
 });
 
-test('AdSense: ready architecture, no script, no fake IDs', () => {
-  const all = ['index.html', 'about.html', 'sources.html', 'privacy.html', 'terms.html', 'contact.html', 'assets/js/app.js', 'services/ads.js']
-    .map(read).join('\n');
-  assert.ok(!all.includes('ca-pub-'), 'no publisher ID (real or fake)');
-  assert.ok(!all.includes('adsbygoogle'), 'no AdSense script installed');
-  assert.ok(!fs.existsSync(path.join(root, 'ads.txt')), 'no fake ads.txt');
-  const ads = read('services/ads.js');
-  assert.ok(ads.includes('adsEnabled:false'), 'advertising off by default');
+test('AdSense: real publisher ID, single script, valid ads.txt, no fakes', () => {
+  const PUB = 'ca-pub-1051121820445401';
+  const head = read('index.html');
+  const count = (head.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length;
+  assert.equal(count, 1, 'exactly one AdSense script in <head>');
+  assert.ok(head.includes(`client=${PUB}`), 'correct publisher ID');
+  for (const f of ['about.html', 'sources.html', 'privacy.html', 'terms.html', 'contact.html', '404.html', 'widget/index.html']) {
+    assert.ok(!read(f).includes('adsbygoogle'), `${f}: no duplicate script`);
+    assert.ok(!read(f).includes('ca-pub-'), `${f}: no publisher ID copy`);
+  }
+  const ads = read('ads.txt').trim();
+  assert.equal(ads, 'google.com, pub-1051121820445401, DIRECT, f08c47fec0942fa0');
+  const all = ['index.html', 'assets/js/app.js', 'services/ads.js'].map(read).join('\n');
+  assert.ok(!all.includes('ca-pub-000000'), 'no fake publisher ID');
+  const cfg = read('services/ads.js');
+  assert.ok(cfg.includes('adsEnabled:false'), 'ad slots stay disabled until explicit rollout');
 });
 
 test('PWA/service-worker present with versioned cache', () => {
