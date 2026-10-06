@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url><loc>https://nebo-ua.vercel.app/</loc><changefreq>always</changefreq><priority>1.0</priority></url>
-  <url><loc>https://nebo-ua.vercel.app/about.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://nebo-ua.vercel.app/sources.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
-  <url><loc>https://nebo-ua.vercel.app/privacy.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://nebo-ua.vercel.app/terms.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
-  <url><loc>https://nebo-ua.vercel.app/contact.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
-  <url><loc>https://nebo-ua.vercel.app/widget/</loc><changefreq>daily</changefreq><priority>0.5</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/</loc><lastmod>2026-10-06</lastmod><changefreq>always</changefreq><priority>1.0</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/about.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/sources.html</loc><changefreq>monthly</changefreq><priority>0.6</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/privacy.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/terms.html</loc><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/contact.html</loc><changefreq>monthly</changefreq><priority>0.4</priority></url>
+  <url><loc>https://movchan-educatio.github.io/nebo-ua/widget/</loc><changefreq>daily</changefreq><priority>0.5</priority></url>
 </urlset>

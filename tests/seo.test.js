@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
-const CANON = 'https://nebo-ua.vercel.app';
+const CANON = 'https://movchan-educatio.github.io/nebo-ua';
 
 test('robots exists, allows indexing, points to the primary sitemap', () => {
   const r = read('robots.txt');
@@ -37,10 +37,10 @@ test('index head: canonical, title, description, lang, viewport, icons', () => {
   assert.ok(h.includes('<html lang="uk"'), 'lang uk');
   assert.ok(h.includes('name="viewport"'), 'viewport');
   assert.ok(h.includes(`<link rel="canonical" href="${CANON}/">`), 'canonical on primary domain');
-  assert.ok(!h.includes('movchan-educatio.github.io/nebo-ua'), 'no old Pages canonical left');
+  assert.ok(!h.includes('nebo-ua.vercel.app'), 'no staging canonical left');
   assert.ok(!h.includes('localhost'), 'no localhost in head');
   const title = h.match(/<title>([^<]+)<\/title>/)[1];
-  assert.ok(title.includes('Небо.UA') && title.includes('Україн'), `natural title: ${title}`);
+  assert.ok(/небо[ .]?ua/i.test(title) && title.includes('Україн'), `natural title: ${title}`);
   assert.ok(title.length <= 120, 'title not stuffed');
   const desc = h.match(/name="description" content="([^"]+)"/)[1];
   assert.ok(desc.length >= 40 && desc.length <= 300, 'description length sane');
@@ -57,7 +57,8 @@ test('index head: OpenGraph, Twitter, structured data', () => {
   assert.ok(h.includes('og:locale" content="uk_UA"'), 'uk locale');
   assert.ok(h.includes('twitter:card'), 'twitter card');
   assert.ok(h.includes('"@type":"WebSite"'), 'JSON-LD WebSite');
-  assert.ok(h.includes('"@type":"WebApplication"'), 'JSON-LD WebApplication');
+  assert.ok(h.includes('"@type":"WebPage"'), 'JSON-LD WebPage');
+  assert.ok(h.includes('"@type":"FAQPage"'), 'JSON-LD FAQPage');
   assert.ok(h.includes('"inLanguage":"uk'), 'uk language tag');
   for (const fake of ['aggregateRating', 'reviewCount', 'downloadCount', 'interactionCount']) {
     assert.ok(!h.includes(fake), `no invented SEO data: ${fake}`);

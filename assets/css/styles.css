@@ -2,7 +2,7 @@
    Base #02070B; panels deep-navy translucent; cyan = nav/radar; gold = brand/active. */
 :root{color-scheme:dark;--bg:#02070B;--surface:#0b131bcc;--solid:#08151F;--raised:#0d1c28;--line:#173343;--text:#E7F2F8;--muted:#8CA4B3;--blue:#58C7FF;--red:#FF536A;--amber:#FFAA32;--green:#42E8A4;--gold:#F3BD3D;--nav:72px;font-family:Inter,"Segoe UI",system-ui,-apple-system,sans-serif}
 *{box-sizing:border-box}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text)}
+html,body{margin:0;width:100%;min-height:100%;overflow-x:hidden;overflow-y:auto;background:var(--bg);color:var(--text)}
 button,select{font:inherit}
 button{color:inherit}
 body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;background:radial-gradient(1200px 600px at 50% -10%,#10283a66,transparent 60%),radial-gradient(900px 500px at 85% 110%,#0f312744,transparent 60%)}
@@ -473,4 +473,29 @@ dialog[open]{animation:sheetIn .22s ease}
   .app-header{height:48px}
   .bottom-nav{height:58px}
   .nav-item span{display:none}
+}
+
+/* ── SEO section: below the LIVE app, normal document flow ─────────────── */
+.seo-section{position:relative;z-index:1;max-width:880px;margin:0 auto;padding:28px 18px calc(var(--nav) + 48px);color:var(--text)}
+.seo-section h1{font-size:24px;line-height:1.3;margin:8px 0 10px}
+.seo-section h2{font-size:18px;margin:26px 0 8px;color:var(--gold)}
+.seo-section p,.seo-section li{color:#C6D6E0;font-size:15px;line-height:1.65;overflow-wrap:break-word}
+.seo-section ul{padding-left:22px;margin:8px 0}
+.seo-section li{margin:4px 0}
+.seo-section a{color:var(--blue)}
+.seo-lead{font-size:16px;color:var(--text)}
+.seo-note{border:1px solid #26343f;border-radius:14px;padding:12px 14px;background:#08141d;font-size:14px}
+.seo-faq{border:1px solid var(--line);border-radius:12px;margin:8px 0;background:#08141d;overflow:hidden}
+.seo-faq summary{cursor:pointer;padding:12px 14px;font-size:15px;font-weight:600;list-style:none;display:flex;align-items:center;gap:8px;min-height:44px}
+.seo-faq summary::-webkit-details-marker{display:none}
+.seo-faq summary::before{content:"+";color:var(--gold);font-weight:800;flex:none}
+.seo-faq[open] summary::before{content:"–"}
+.seo-faq summary:hover{color:var(--blue)}
+.seo-faq summary:focus-visible{outline:2px solid var(--blue);outline-offset:-2px;border-radius:12px}
+.seo-faq p{margin:0;padding:0 14px 14px;font-size:14px}
+.seo-links{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:28px;padding-top:14px;border-top:1px solid #16242f;font-size:13px}
+@media(max-width:640px){
+  .seo-section{padding:22px 16px calc(var(--nav) + 40px)}
+  .seo-section h1{font-size:20px}
+  .seo-section p,.seo-section li{font-size:14px}
 }
