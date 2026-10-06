@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
-const CANON = 'https://movchan-educatio.github.io/nebo-ua';
+const CANON = 'https://nebo-ua.vercel.app';
 
 test('robots exists, allows indexing, points to the primary sitemap', () => {
   const r = read('robots.txt');
@@ -37,7 +37,7 @@ test('index head: canonical, title, description, lang, viewport, icons', () => {
   assert.ok(h.includes('<html lang="uk"'), 'lang uk');
   assert.ok(h.includes('name="viewport"'), 'viewport');
   assert.ok(h.includes(`<link rel="canonical" href="${CANON}/">`), 'canonical on primary domain');
-  assert.ok(!h.includes('nebo-ua.vercel.app'), 'no staging canonical left');
+  assert.ok(!h.includes('movchan-educatio.github.io/nebo-ua'), 'no mirror canonical left');
   assert.ok(!h.includes('localhost'), 'no localhost in head');
   const title = h.match(/<title>([^<]+)<\/title>/)[1];
   assert.ok(/небо[ .]?ua/i.test(title) && title.includes('Україн'), `natural title: ${title}`);
