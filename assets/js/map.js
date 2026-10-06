@@ -470,12 +470,8 @@ function eventIcon(e,ac){
     'cat-'+(e.category||'other'),
     'kind-'+m.kind,
     'age-'+(ac||'old'),
-    e._distKm!=null&&e._distKm<25?'near':'',
-    e._lvl==='red'?'lvl-red':'',
-    e.isNew?'new':'',
     e.stale?'stale':'',
     e.advisory?'advisory':'',
-    e.confirmed?'confirmed':'',
   ].filter(Boolean).join(' ');
   // Clean SVG-only marker: no circular background, no label clutter at overview zoom.
   // Source-reported group size (count>1 from the source itself) renders as a
@@ -493,7 +489,7 @@ function eventIcon(e,ac){
 
 function blipIcon(e){
   const m=iconFor(e);
-  const cls=['radar-blip','cat-'+(e.category||'other'),'kind-'+m.kind,e._distKm!=null&&e._distKm<25?'near':'',e._lvl==='red'?'lvl-red':''].filter(Boolean).join(' ');
+  const cls=['radar-blip','cat-'+(e.category||'other'),'kind-'+m.kind].filter(Boolean).join(' ');
   return L.divIcon({className:'',html:`<div class="${cls}" style="--c:${m.color}"><svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg></div>`,iconSize:[36,36],iconAnchor:[18,18]});
 }
 

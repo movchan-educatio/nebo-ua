@@ -49,8 +49,7 @@ test('threatPane: dedicated pane above fills, below popups; markers use it', () 
 
 // ── Zoom bands + hover + touch ───────────────────────────────────────────────
 // ── Map UI contract: every mapUI.* call in app.js must exist ─────────────────
-test('mapUI contract: called methods exist on the situation map', () => {
-  const appSrc = fs.readFileSync(path.join(root, 'assets/js/app.js'), 'utf8');
+test('mapUI contract: called methods exist on the situation map', () => {  const appSrc = fs.readFileSync(path.join(root, 'assets/js/app.js'), 'utf8');
   const called = new Set([...appSrc.matchAll(/mapUI\.([A-Za-z_$][\w$]*)\s*\(/g)].map(m => m[1]));
   const ret = mapSrc.match(/return\{map,([^{}]*)\}/);
   assert.ok(ret, 'situation map return object found');
@@ -80,6 +79,31 @@ test('all symbols fit inside viewBox (rotation cannot clip content box)', () => 
     for (const c of m[2].matchAll(/c[xy]="([\d.]+)"/g)) nums.push(Number(c[1]));
     for (const v of nums) assert.ok(v >= 0 && v <= 64, `#${m[1]}: coordinate ${v} inside viewBox`);
   }
+});
+
+// ── Clean markers: glyph only, no decorative frames ──────────────────────────
+test('markers carry no square outlines, pulse rings or stale decoration hooks', () => {
+  const iconBlock = mapSrc.slice(mapSrc.indexOf('function eventIcon'), mapSrc.indexOf('function blipIcon'));
+  for (const cls of ["'near'", "'lvl-red'", "'new'", "'confirmed'"]) {
+    assert.ok(!iconBlock.includes(cls), `eventIcon must not emit ${cls}`);
+  }
+  assert.ok(!css.includes('.threat-marker.near'), 'no white square outline rule');
+  assert.ok(!css.includes('.threat-marker.lvl-red'), 'no red square outline rule');
+  assert.ok(!css.includes('.threat-marker.new'), 'no add-time pulse ring rule');
+  assert.ok(css.includes('.threat-marker.selected::after'), 'only the selected halo remains');
+});
+
+// ── Collapsible HUD ──────────────────────────────────────────────────────────
+test('HUD collapse toggle: real button, aria, persisted preference', () => {
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.ok(html.includes('id="hudToggle"'), 'toggle button exists');
+  assert.ok(html.includes('aria-expanded'), 'aria-expanded present');
+  assert.ok(html.includes('aria-controls="hudBody"'), 'toggle controls the panel body');
+  assert.ok(html.includes('id="hudExpand"'), 'collapsed reopen control exists');
+  const app = fs.readFileSync(path.join(root, 'assets/js/app.js'), 'utf8');
+  assert.ok(app.includes('nebo-hud-collapsed'), 'preference persisted in localStorage');
+  assert.ok(css.includes('.map-hud.collapsed'), 'collapsed state styled');
+  assert.ok(css.includes('translateX(calc(-100%'), 'collapse slides, no layout jump');
 });
 
 console.log('All marker tests passed!');
