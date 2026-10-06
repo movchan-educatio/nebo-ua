@@ -24,7 +24,7 @@ test('sitemap valid, only real indexable URLs, no technical junk', () => {
     assert.ok(u.startsWith(CANON + '/'), `primary domain only: ${u}`);
     assert.ok(!/[?&]/.test(u), `no query URLs: ${u}`);
   }
-  const banned = ['debug', '/api', 'assets/', 'manifest', '.json', 'service-worker', 'node_modules'];
+  const banned = ['debug', '/api', 'assets/', 'manifest', '.json', 'service-worker', 'node_modules', 'widget', '.html'];
   for (const u of locs) for (const b of banned) assert.ok(!u.includes(b), `sitemap must not list ${b}: ${u}`);
   for (const u of locs) {
     const rel = u.slice((CANON + '/').length) || 'index.html';
@@ -58,7 +58,7 @@ test('index head: OpenGraph, Twitter, structured data', () => {
   assert.ok(h.includes('twitter:card'), 'twitter card');
   assert.ok(h.includes('"@type":"WebSite"'), 'JSON-LD WebSite');
   assert.ok(h.includes('"@type":"WebPage"'), 'JSON-LD WebPage');
-  assert.ok(h.includes('"@type":"FAQPage"'), 'JSON-LD FAQPage');
+  assert.ok(!h.includes('"@type":"FAQPage"'), 'FAQPage lives on /faq/ only, not home');
   assert.ok(h.includes('"inLanguage":"uk'), 'uk language tag');
   for (const fake of ['aggregateRating', 'reviewCount', 'downloadCount', 'interactionCount']) {
     assert.ok(!h.includes(fake), `no invented SEO data: ${fake}`);
@@ -66,28 +66,32 @@ test('index head: OpenGraph, Twitter, structured data', () => {
 });
 
 test('info pages exist, canonical, honest, with disclaimer', () => {
-  for (const [f, label] of [['about.html', 'Про проєкт'], ['sources.html', 'Джерела'], ['privacy.html', 'Конфіденційність'], ['terms.html', 'Умови'], ['contact.html', 'Контакти']]) {
+  for (const [d, label] of [['about', 'Про НЕБО.UA'], ['how-it-works', 'Як працює'], ['sources', 'Джерела'], ['safety', 'Безпека'], ['faq', 'Часті запитання'], ['privacy', 'Конфіденційність'], ['terms', 'Умови'], ['contact', 'Контакти']]) {
+    const f = `${d}/index.html`;
     const h = read(f);
     assert.ok(h.includes('<html lang="uk"'), `${f}: lang uk`);
-    assert.ok(h.includes(`<link rel="canonical" href="${CANON}/${f}">`), `${f}: self canonical`);
+    assert.ok(h.includes(`<link rel="canonical" href="${CANON}/${d}/">`), `${f}: self canonical with trailing slash`);
     assert.ok(h.includes('name="description"'), `${f}: description`);
     assert.ok(h.includes('name="viewport"'), `${f}: viewport`);
     assert.ok(!h.includes('noindex'), `${f}: indexable`);
     assert.ok(h.includes(label), `${f}: has heading`);
+    assert.ok((h.match(/<h1[\s>]/g) || []).length === 1, `${f}: single H1`);
   }
-  const about = read('about.html');
+  const about = read('about/index.html');
   assert.ok(about.includes('не офіційна система оповіщення'), 'about: not an official system');
-  const terms = read('terms.html');
+  const terms = read('terms/index.html');
   assert.ok(terms.includes('не замінює') && terms.includes('офіційні сигнали'), 'terms: disclaimer');
-  const sources = read('sources.html');
+  const sources = read('sources/index.html');
   for (const s of ['NEPTUN', 'MAPA']) assert.ok(sources.includes(s), `sources list ${s}`);
   assert.ok(sources.includes('area-only') || sources.includes('районна'), 'sources explain area-only');
-  const privacy = read('privacy.html');
+  const privacy = read('privacy/index.html');
   assert.ok(privacy.includes('localStorage'), 'privacy: localStorage');
   assert.ok(privacy.includes('Геолокація') || privacy.includes('геолокація'), 'privacy: geolocation');
   assert.ok(privacy.includes('не надсилаються на сервер') || privacy.includes('локально'), 'privacy: GPS stays local');
-  const contact = read('contact.html');
+  const contact = read('contact/index.html');
   assert.ok(contact.includes('github.com/movchan-educatio/nebo-ua'), 'contact: real channel');
+  const faq = read('faq/index.html');
+  assert.ok(faq.includes('"@type":"FAQPage"'), 'faq: FAQPage schema on /faq/');
 });
 
 test('AdSense: real publisher ID, single script, valid ads.txt, no fakes', () => {
@@ -96,7 +100,7 @@ test('AdSense: real publisher ID, single script, valid ads.txt, no fakes', () =>
   const count = (head.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length;
   assert.equal(count, 1, 'exactly one AdSense script in <head>');
   assert.ok(head.includes(`client=${PUB}`), 'correct publisher ID');
-  for (const f of ['about.html', 'sources.html', 'privacy.html', 'terms.html', 'contact.html', '404.html', 'widget/index.html']) {
+  for (const f of ['about/index.html', 'how-it-works/index.html', 'sources/index.html', 'safety/index.html', 'faq/index.html', 'privacy/index.html', 'terms/index.html', 'contact/index.html', '404.html', 'widget/index.html']) {
     assert.ok(!read(f).includes('adsbygoogle'), `${f}: no duplicate script`);
     assert.ok(!read(f).includes('ca-pub-'), `${f}: no publisher ID copy`);
   }
