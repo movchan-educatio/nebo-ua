@@ -200,6 +200,27 @@ export function resolveSelection(store, trackId) {
   return store.get(trackId)?.current || null;
 }
 
+// Trail selection for map rendering (pure): returns [{trackId,category,points}]
+// for tracks that genuinely have ≥2 confirmed positions — MAPA source trail
+// or accumulated session history. Fresh, visible tracks only; capped.
+export function selectTrails(trackList, visible, { maxTracks = 40, maxPoints = 8 } = {}) {
+  const out = [];
+  for (const t of trackList || []) {
+    if (out.length >= maxTracks) break;
+    const cur = t?.current;
+    if (!cur || cur.stale) continue;
+    if (visible && cur.category && !visible.has(cur.category)) continue;
+    let pts = null;
+    if (Array.isArray(cur.trail) && cur.trail.length > 1) {
+      pts = cleanTrail(cur.trail, { max: maxPoints });
+    } else if (t.history?.length && t.pos) {
+      pts = [...t.history.map(p => ({ lat: p.lat, lon: p.lon, t: p.t })), { lat: t.pos.lat, lon: t.pos.lon, t: t.posT }].slice(-maxPoints);
+    }
+    if (pts && pts.length > 1) out.push({ trackId: t.id, category: cur.category, points: pts });
+  }
+  return out;
+}
+
 // Debug Target Inspector payload (pure): everything a QA engineer needs for
 // one track, computed only from confirmed source data. Shown in ?debug only.
 export function inspectTrack(store, trackId, nowMs = Date.now()) {

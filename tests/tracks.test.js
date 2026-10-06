@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createStore, syncStore, cleanTrail, resolveSelection, eventTimeMs, planMove, moveDurationKm, inspectTrack } from '../services/tracks.js';
+import { createStore, syncStore, cleanTrail, resolveSelection, eventTimeMs, planMove, moveDurationKm, inspectTrack, selectTrails } from '../services/tracks.js';
 
 const T = (iso) => new Date(iso);
 function ev(id, lat, lon, iso, extra = {}) {
@@ -238,8 +238,7 @@ test('reconnect snapshot does not duplicate target or trail', () => {
   assert.deepEqual(s.get('t').history, []);
 });
 
-test('inspectTrack reports live state for the inspector', () => {
-  const s = createStore();
+test('inspectTrack reports live state for the inspector', () => {  const s = createStore();
   s.upsert({ id: 't', trackId: 't', lat: 50, lon: 31, heading: 90, speed: 150, source: 'MAPA', timestamp: new Date('2026-10-06T10:00:00Z'), category: 'uav' });
   const now = Date.parse('2026-10-06T10:00:30Z');
   const r = inspectTrack(s, 't', now);
@@ -252,4 +251,20 @@ test('inspectTrack reports live state for the inspector', () => {
   assert.equal(r.points, 1);
   assert.equal(r.lastChangeS, 30);
   assert.equal(inspectTrack(s, 'missing', now), null);
+});
+
+test('selectTrails returns only fresh tracks with 2+ confirmed positions', () => {
+  const s = createStore();
+  const T = (iso) => new Date(iso);
+  s.upsert({ id: 'm', trackId: 'm', source: 'MAPA', category: 'uav', lat: 50.2, lon: 31.2, stale: false,
+    trail: [{ lon: 31.0, lat: 50.0, timestamp: T('2026-10-06T10:00:00Z') }, { lon: 31.2, lat: 50.2, timestamp: T('2026-10-06T10:02:00Z') }],
+    timestamp: T('2026-10-06T10:02:00Z') });
+  s.upsert({ id: 'n', trackId: 'n', source: 'NEPTUN', category: 'uav', lat: 49, lon: 32, stale: false, timestamp: T('2026-10-06T10:00:00Z') });
+  s.upsert({ id: 'n', trackId: 'n', source: 'NEPTUN', category: 'uav', lat: 49.1, lon: 32.1, stale: false, timestamp: T('2026-10-06T10:01:00Z') });
+  s.upsert({ id: 'solo', trackId: 'solo', source: 'NEPTUN', category: 'uav', lat: 48, lon: 33, stale: false, timestamp: T('2026-10-06T10:01:00Z') });
+  s.upsert({ id: 'old', trackId: 'old', source: 'MAPA', category: 'uav', lat: 47, lon: 34, stale: true,
+    trail: [{ lon: 34, lat: 47, timestamp: T('2026-10-06T09:00:00Z') }], timestamp: T('2026-10-06T09:00:00Z') });
+  const out = selectTrails(s.getAll(), new Set(['uav']));
+  assert.deepEqual(out.map(t => t.trackId).sort(), ['m', 'n']);
+  assert.ok(out.every(t => t.points.length >= 2));
 });

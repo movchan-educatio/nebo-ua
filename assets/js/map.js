@@ -204,7 +204,7 @@ export function createSituationMap(el,onSelect){
     if(selectedTrack===tid)setSelectedTrack(null);
   }
 
-  function setEvents(events,visible,selTrail){
+  function setEvents(events,visible,selTrail,trailList){
     applyZoomClass();
     const seenTracks=new Set();
     areas.clearLayers();
@@ -233,28 +233,35 @@ export function createSituationMap(el,onSelect){
       // Uncertainty is shown as a number in the popup, never as a circle:
       // no accuracy/uncertainty rings around targets on the main map.
 
-      // Trail
-      if(!e.stale&&e.trail?.length>1){
-        const pts=e.trail.map(p=>[p.lat,p.lon]);
-        for(let i=0;i<pts.length-1;i++){
-          L.polyline([pts[i],pts[i+1]],{color:META[e.category]?.color||'#efb55b',weight:2,opacity:0.18+(i/Math.max(1,pts.length-1))*0.62,dashArray:'3 7'}).addTo(trails);
-        }
-      }
-
-      // Heading arrow – only when source has reliable position AND direction.
-      if(Number.isFinite(e.heading)&&shouldShowHeading(e)){
-        const rad=(90-Number(e.heading))*(Math.PI/180);
-        const km10=Number(e.speed)/6;
-        const cosLat=Math.cos(e.lat*Math.PI/180)||1;
-        const dLat=(km10/111)*Math.sin(rad);
-        const dLon=(km10/(111*Math.max(0.4,Math.abs(cosLat))))*Math.cos(rad);
-        L.polyline([[e.lat,e.lon],[e.lat+dLat,e.lon+dLon]],{color:META[e.category]?.color||'#efb55b',weight:1.5,opacity:.55,dashArray:'5 5'}).addTo(trails);
-      }
+      // NOTE: no forward heading line and no full-route polyline here.
+      // Direction is shown ONLY by rotating the glyph itself (orientation,
+      // never position). Trails render exclusively from confirmed past
+      // positions via the trail lists below — nothing is drawn ahead of
+      // the marker, so no line can be read as a forecast or landing point.
     }
     // Prune markers whose tracks left the snapshot (backend drops them only
     // after repeated misses, so absence here means genuinely gone).
     for(const [tid,m] of markerByTrack){
       if(!seenTracks.has(tid)){try{targets.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
+    }
+    // Background trails for every fresh track with ≥2 confirmed positions
+    // (MAPA source trail or session history). Thin, muted, behind markers.
+    // Selected track keeps its stronger emphasis below.
+    if(Array.isArray(trailList)){
+      for(const tr of trailList){
+        if(!tr||!Array.isArray(tr.points)||tr.points.length<2)continue;
+        if(selTrail&&tr.trackId===selTrail.trackId)continue;
+        const col=META[tr.category]?.color||'#efb55b';
+        const pts=tr.points.slice(-8);
+        for(let i=0;i<pts.length-1;i++){
+          const f=(i+1)/(pts.length-1);
+          L.polyline([[pts[i].lat,pts[i].lon],[pts[i+1].lat,pts[i+1].lon]],{color:col,weight:1.2,opacity:(0.10+0.22*f).toFixed(2),dashArray:'1 4',interactive:false}).addTo(trails);
+        }
+        pts.forEach((p,i)=>{
+          if(i===pts.length-1)return;
+          L.circleMarker([p.lat,p.lon],{radius:1.6,color:col,weight:1,opacity:.3,fillOpacity:.25,interactive:false}).addTo(trails);
+        });
+      }
     }
     // Selected-track trail: last confirmed positions only (source trail for
     // MAPA, accumulated history otherwise), thin and muted. Older segments
