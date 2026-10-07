@@ -3,7 +3,7 @@ import { normalizeNeptunThreat, normalizeMapa, normalizeAlert, isFreshEvent } fr
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
-import { loadPrev, saveState, loadLatest, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
+import { loadPrev, saveState, loadLatest, loadBundle, saveBundle, meaningfulFp, shouldWrite, isAlreadyPersisted, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
 
@@ -26,6 +26,21 @@ function healthItem(result, extra = {}) {
 
 function withFreshness(events, nowMs) {
   return events.map(e => ({ ...e, stale: e.stale || !isFreshEvent(e.category, e.eventTime, nowMs) }));
+}
+
+// Lightweight KV write telemetry (in-memory only: zero KV writes).
+// Counters may split across isolates; ratios (skipped vs wrote) are what matter.
+// Post-deploy measurement: filter worker logs for {"kv":"put"} / {"kv":"summary"}.
+const kvStats = { cycles: 0, wrote: 0, skippedUnchanged: 0, skippedThrottled: 0, skippedRace: 0 };
+function kvSummaryTick() {
+  if (kvStats.cycles % 60 !== 0) return;
+  try {
+    console.log(JSON.stringify({
+      kv: 'summary', cycles: kvStats.cycles, wrote: kvStats.wrote,
+      skippedUnchanged: kvStats.skippedUnchanged, skippedThrottled: kvStats.skippedThrottled,
+      skippedRace: kvStats.skippedRace,
+    }));
+  } catch { /* logging must never break the pipeline */ }
 }
 
 async function runPipeline(env) {
@@ -51,7 +66,13 @@ async function runPipeline(env) {
     ]);
   } catch (e) { console.error('checks failed', e); }
 
-  const prev = await loadPrev(env.NEBO_STATE);
+  // Coalesced state: ONE bundle key holds snapshot + prev actives + fingerprints.
+  // Legacy v1:prev-actives is read once as migration fallback, then left to expire.
+  let bundle = await loadBundle(env.NEBO_STATE);
+  let prev = bundle?.prev || null;
+  if (!bundle) {
+    try { prev = await loadPrev(env.NEBO_STATE); } catch { prev = null; }
+  }
   const alertsOk = alertsRes.ok;
   const threatsOk = threatsRes.ok && !threatsRes.stale;
   const mapaOk = mapaRes.ok;
@@ -107,8 +128,38 @@ async function runPipeline(env) {
     await journalUpsert(env.nebo_journal, [...protAlerts.active, ...protThreats.active].filter(e => !e.stale), nowIso, 'active');
     await journalUpsert(env.nebo_journal, [...protAlerts.active, ...protThreats.active].filter(e => e.stale), nowIso, 'stale');
     await journalEnd(env.nebo_journal, [...protAlerts.ended, ...protThreats.ended], nowIso);
-    await saveState(env.NEBO_STATE, snapshot, { alerts: protAlerts.active, threats: protThreats.active });
-  } catch (e) { console.error('persist failed', e); }
+  } catch (e) { console.error('journal failed', e); }
+  const newPrev = { alerts: protAlerts.active, threats: protThreats.active };
+  const { fpAlerts, fpThreats, fpHealth } = meaningfulFp(newPrev.alerts, newPrev.threats, health);
+  const decision = shouldWrite({ stored: bundle, fpAlerts, fpThreats, fpHealth, nowMs });
+  kvStats.cycles++;
+  if (!decision.write) {
+    if (decision.reason === 'threats-throttled') kvStats.skippedThrottled++;
+    else kvStats.skippedUnchanged++;
+  } else {
+    // Race protection: a concurrent cycle may have persisted this exact state
+    // after our read — re-check before spending a PUT.
+    let raced = false;
+    try {
+      raced = isAlreadyPersisted(await loadBundle(env.NEBO_STATE), bundle?.writtenAt, { fpAlerts, fpThreats, fpHealth });
+    } catch { /* re-read failure must not block the write */ }
+    if (raced) {
+      kvStats.skippedRace++;
+    } else {
+      try {
+        await saveBundle(env.NEBO_STATE, { snapshot, prev: newPrev, fpAlerts, fpThreats, fpHealth, writtenAt: nowMs });
+        kvStats.wrote++;
+        bundle = { snapshot, prev: newPrev, fpAlerts, fpThreats, fpHealth, writtenAt: nowMs };
+        try {
+          console.log(JSON.stringify({
+            kv: 'put', reason: decision.reason,
+            alerts: newPrev.alerts.length, threats: newPrev.threats.length,
+          }));
+        } catch { /* logging must never break the pipeline */ }
+      } catch (e) { console.error('persist failed', e); }
+    }
+  }
+  kvSummaryTick();
   try {
     const prevIds = prev
       ? { alerts: prev.alerts.map(a => a.id), threats: prev.threats.map(e => e.id) }
