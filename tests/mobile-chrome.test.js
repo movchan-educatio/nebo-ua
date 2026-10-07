@@ -30,3 +30,16 @@ test('only the secondary clock hides on the narrowest phones', () => {
   assert.match(styles, /@media\(max-width:359px\)\{\s*\.header-center time\{display:none\}\s*\}/)
   assert.doesNotMatch(styles, /\.live-pill\s*\{\s*display:none/)
 })
+
+test('flow stats adapt to the HUD panel width, not the viewport', () => {
+  // The embed iframe is narrower than standalone at the same viewport,
+  // so the 3-cell grid must respond to its container (container queries).
+  assert.match(styles, /\.map-hud\{container-type:inline-size;container-name:hud\}/)
+  assert.match(styles, /@container hud \(max-width:279px\)\{[\s\S]*?\.flow-stat svg\.flow-ico\{width:18px;height:18px\}/)
+  assert.match(styles, /@container hud \(max-width:239px\)\{[\s\S]*?\.flow-stat svg\.flow-ico\{width:16px;height:16px\}/)
+  assert.match(styles, /\.flow-cells\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/)
+  const cq = styles.match(/@container hud \(max-width:239px\)\{([\s\S]*?)\n\}/)?.[1] ?? ''
+  assert.match(cq, /\.flow-stat\{[^}]*overflow:hidden/)
+  assert.match(cq, /\.flow-stat i\{[^}]*text-overflow:ellipsis/)
+  assert.doesNotMatch(cq, /position:\s*absolute/)
+})

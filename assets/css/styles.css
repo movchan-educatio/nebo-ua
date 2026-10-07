@@ -474,6 +474,29 @@ dialog[open]{animation:sheetIn .22s ease}
   .brand img{width:100px}
   .flow-stat b{font-size:17px}
 }
+/* ── Flow stats: container-responsive, not viewport-responsive ────────────
+   The HUD panel is ~64px narrower inside the WAR LIVE embed iframe
+   (page gutters + card padding) than on standalone at the same viewport,
+   so viewport media queries cannot see the squeeze. The cells adapt to the
+   real panel width instead. Grid stays 3 stable cells; nothing is
+   absolutely positioned, nothing can invade a neighbour cell. */
+.map-hud{container-type:inline-size;container-name:hud}
+@container hud (max-width:279px){
+  .flow-cells{gap:6px}
+  .flow-stat{gap:6px}
+  .flow-stat svg.flow-ico{width:18px;height:18px}
+  .flow-stat b{font-size:17px}
+  .flow-stat i{font-size:9px;letter-spacing:.02em}
+}
+@container hud (max-width:239px){
+  .flow-cells{gap:4px}
+  .flow-stat{gap:4px;overflow:hidden}
+  .flow-stat svg.flow-ico{width:16px;height:16px}
+  .flow-stat b{font-size:15px;min-width:0}
+  .flow-stat i{font-size:8px;letter-spacing:0;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .hud-head{gap:6px}
+  .hud-label{letter-spacing:.08em}
+}
 /* Mobile chrome: keep the brand, live state and actions in non-overlapping tracks. */
 @media(max-width:600px){
   .map-view{--rail-left:max(12px,env(safe-area-inset-left,0px));--rail-right:max(12px,env(safe-area-inset-right,0px))}
