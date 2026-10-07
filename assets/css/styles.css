@@ -471,8 +471,31 @@ dialog[open]{animation:sheetIn .22s ease}
   .bottom-nav{width:calc(100% - 20px)}
 }
 @media(max-width:359px){
-  .brand img{width:104px}
+  .brand img{width:100px}
   .flow-stat b{font-size:17px}
+}
+/* Mobile chrome: keep the brand, live state and actions in non-overlapping tracks. */
+@media(max-width:600px){
+  .map-view{--rail-left:max(12px,env(safe-area-inset-left,0px));--rail-right:max(12px,env(safe-area-inset-right,0px))}
+  .app-header{
+    display:grid;
+    grid-template-columns:auto minmax(0,1fr) auto;
+    column-gap:2px;
+    margin-left:max(12px,env(safe-area-inset-left,0px));
+    margin-right:max(12px,env(safe-area-inset-right,0px));
+    padding:6px 4px;
+  }
+  .brand{min-width:0}
+  .header-center{width:100%;min-width:0;margin:0;overflow:hidden;justify-self:stretch}
+  .header-center>*{max-width:100%}
+  .header-center .live-pill{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+  .header-actions{margin-left:0;gap:6px;justify-self:end}
+  .header-actions .icon-btn{width:38px;height:38px;flex:none}
+  .map-hud,.hud-expand{left:var(--rail-left)}
+  .map-controls{right:var(--rail-right)}
+}
+@media(max-width:359px){
+  .header-center time{display:none}
 }
 @media(max-height:520px) and (orientation:landscape){
   :root{--header-h:48px;--bottom-nav-h:58px}
