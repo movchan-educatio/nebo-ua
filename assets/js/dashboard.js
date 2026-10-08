@@ -216,12 +216,15 @@ function renderLayerPanel() {
   const p = $('#layerPanel');
   const rows = [
     ['satellite', 'Супутник'], ['relief', 'Рельєф'], ['monitoring', 'Моніторинг'], ['alerts', 'Тривоги'],
-    ['shapes', 'Межі'], ['wind', 'Вітер'],
+    ['shapes', 'Межі'],
   ];
-  p.innerHTML = rows.map(([k, n]) => {
-    const on = k === 'satellite' ? state.base === 'sat' : k === 'relief' ? state.base === 'relief' : true;
-    return `<label style="display:flex;gap:8px;align-items:center;min-height:40px;font-size:13px"><input type="checkbox" data-layer="${k}"${on ? ' checked' : ''}>${n}</label>`;
-  }).join('');
+  p.innerHTML = `<div class="layer-head"><span>Шари карти</span><button type="button" class="layer-close" data-close-layers aria-label="Закрити панель шарів">×</button></div>`
+    + rows.map(([k, n]) => {
+      const on = k === 'satellite' ? state.base === 'sat' : k === 'relief' ? state.base === 'relief' : true;
+      return `<label style="display:flex;gap:8px;align-items:center;min-height:40px;font-size:13px"><input type="checkbox" data-layer="${k}"${on ? ' checked' : ''}>${n}</label>`;
+    }).join('');
+  const close = p.querySelector('[data-close-layers]');
+  if (close) close.onclick = () => { p.hidden = true; };
   p.querySelectorAll('input').forEach(i => i.onchange = () => {
     const k = i.dataset.layer;
     if (k === 'satellite') { applyBasemap(i.checked ? 'sat' : 'dark'); if (i.checked) p.querySelector('[data-layer="relief"]').checked = false; return; }

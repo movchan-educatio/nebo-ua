@@ -376,15 +376,8 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.globalAlpha = 1;
     if (!S.pts.length) {
-      // Small muted line BELOW the clean center — never over the crosshair.
-      ctx.fillStyle = '#5f7d8f'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-      const anyCoord = S.events.some(e => e.lat != null && e.lon != null);
-      ctx.fillText(
-        eligible.length ? 'СКАНУВАННЯ…'
-          : anyCoord ? 'ЦІЛЕЙ У РАДІУСІ НЕМАЄ'
-            : 'НЕМАЄ ПІДТВЕРДЖЕНИХ ЦІЛЕЙ',
-        cx0, cy0 + 26);
-      ctx.textAlign = 'left';
+      // No caption on the scope: the panel below already states the count and
+      // the contacts list. Keeps the radar clean and readable.
     }
     if (S.pin) {
       const p = project(S.pin.lat, S.pin.lon, S.center, S.range, size);

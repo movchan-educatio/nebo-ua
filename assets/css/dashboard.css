@@ -114,6 +114,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .search-results[hidden]{display:none}
 .search-results button{background:#0d1826f5;border:0;border-bottom:1px solid var(--line-soft);color:var(--text);text-align:left;padding:11px 13px;cursor:pointer;font-size:13px}
 .search-results button small{display:block;color:var(--muted);font-size:11px}
+/* Layers dropdown: anchored inside the map, left of the control rail, never
+   taller than the map itself (old styles.css positioning used undefined
+   rail vars and dropped the panel into the page corner). */
+.layer-panel{position:absolute;z-index:520;right:62px;top:12px;width:min(232px,calc(100% - 86px));max-height:calc(100% - 24px);overflow:auto;border-radius:16px;padding:12px}
+.layer-panel[hidden]{display:none}
 
 /* ── Threats (right) ── */
 .threat-list{display:grid;gap:9px;max-height:420px;overflow:auto;scrollbar-width:thin}
@@ -276,11 +281,11 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .dash{padding:8px}
   .dash-main{grid-template-columns:minmax(0,1fr)}
   .right-col{display:grid;gap:var(--gap)}
-  .threat-list{max-height:260px}
+  .threat-list{max-height:none}
   .map-wrap{height:min(34dvh,320px);min-height:240px}
   /* Radar is its own compact panel straight under the map. */
   .radar-mini.radar-own-panel{margin-top:8px;padding:10px}
-  .radar-mini.radar-own-panel .radar-screen{width:min(100%,300px)}
+  .radar-mini.radar-own-panel .radar-screen{width:min(100%,340px)}
   /* Compact bottom row; the radar sits inside the stats panel on mobile. */
   .stats-row{grid-template-columns:minmax(0,1fr);gap:8px}
   .stat-cards{grid-template-columns:repeat(3,1fr);gap:6px}
@@ -292,8 +297,11 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .stats-row .radar-mini{margin-top:10px;padding:10px 0 0;background:none;border:0;box-shadow:none;border-top:1px solid #ffffff10}
   .radar-mini .radar-ranges{grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:8px}
   .radar-mini .radar-ranges button{min-height:30px;font-size:11px;padding:0}
-  .radar-mini .radar-screen{width:min(100%,240px);aspect-ratio:1;max-height:none;margin:0 auto}
+  .radar-mini .radar-screen{width:min(100%,280px);aspect-ratio:1;max-height:none;margin:0 auto}
   .radar-mini .radar-note{font-size:10px;margin-top:6px}
+  /* Mobile: drop the extra captions so the scope keeps the space. */
+  #radarNote{display:none}
+  .radar-contacts .radar-empty{display:none}
   .map-toolbar{padding:8px 10px;gap:6px}
   .map-toolbar .seg button{padding:6px 10px;font-size:11px}
   .map-search{height:36px}
@@ -308,7 +316,7 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   #legendBtn,.scalebar{display:none!important}
   .map-updated{bottom:10px}
   .dash{padding-bottom:calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 28px)}
-  .bottom-nav{position:fixed;z-index:1000;left:50%;transform:translateX(-50%);bottom:max(8px,env(safe-area-inset-bottom));width:min(500px,calc(100% - 20px));height:var(--bottomnav-h);border-radius:20px;display:grid;grid-template-columns:repeat(4,1fr);padding:6px;transition:transform .25s ease,opacity .25s ease}
+  .bottom-nav{position:fixed;z-index:1000;left:50%;transform:translateX(-50%);bottom:max(8px,env(safe-area-inset-bottom));width:min(500px,calc(100% - 20px));height:var(--bottomnav-h);border-radius:20px;display:grid;grid-template-columns:repeat(3,1fr);padding:6px;transition:transform .25s ease,opacity .25s ease}
   .bottom-nav.nav-hidden{transform:translateX(-50%) translateY(calc(100% + 24px));opacity:0;pointer-events:none}
   .bottom-nav.nav-collapsed{transform:translateX(-50%) translateY(calc(100% + 24px));opacity:0;pointer-events:none}
   .nav-collapse{position:absolute;top:-12px;right:14px;width:32px;height:24px;border-radius:12px;border:1px solid var(--line);
