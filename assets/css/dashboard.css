@@ -170,6 +170,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .map-zoom-6 .oblast-name,.map-zoom-7 .oblast-name{font-size:11px}
 .map-zoom-8 .oblast-name{font-size:11px;opacity:.9}
 .map-zoom-9 .oblast-name{font-size:12px;opacity:.95}
+/* Detail level: raion/community views hide oblast names (raion labels take over). */
+.detail-raion .oblast-name,.detail-community .oblast-name{display:none}
+.detail-community .leaflet-tooltip.raion-tip{font-size:11px}
 .oblast-name.label-hidden{display:none}
 
 /* Panels: minimal chevron collapse toggles, always in-flow in the header. */

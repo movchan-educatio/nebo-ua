@@ -7,7 +7,7 @@ import { createStore, syncStore, selectTrails } from '../../services/tracks.js';
 import { createSituationMap, getThreatVisual } from './map.js';
 import { createScope, haversineKm } from './scope.js';
 import { fetchRegions } from '../../services/regions.js';
-import { oblastRaions, raionAlertActive, territorialDanger, normOblast } from '../../services/districts.js';
+import { oblastRaions, raionAlertActive, territorialDanger, normOblast, raionMatches } from '../../services/districts.js';
 import { getOblastRaionPolygons } from '../../services/raionShapesLocal.js';
 import { loadSelectedPlace } from '../../services/locations.js';
 import {
@@ -344,21 +344,53 @@ async function refreshMap() {
   if (state.geo) {
     try { mapUI.setRegions(state.geo, st.alerts, st.events); } catch { /* keep old frame */ }
   }
-  // Raion fills for stats + shapes (honest polygons only).
+  // Raion fills for the selected detail level + centroids for labelled dots.
   try {
     const { fills } = territorialDanger(st.alerts, st.events);
     raionFills = fills || [];
     const withPolys = [];
     for (const f of raionFills.slice(0, 60)) {
+      // Skip "fills" whose district slot is the oblast name itself (not a raion).
+      if (!f.district || f.district === f.oblast) continue;
       try {
         const polys = await getOblastRaionPolygons(f.oblast);
-        const g = (polys || []).find(g => g.name === f.district);
-        if (g?.polys) withPolys.push({ ...f, polys: g.polys });
+        // Alias/suffix-aware match ("Уманський" ↔ "Уманський район").
+        const g = (polys || []).find(g => { try { return raionMatches(g.name, f.district); } catch { return g.name === f.district; } });
+        if (g?.polys) withPolys.push({ ...f, district: g.name, polys: g.polys });
       } catch { /* skip missing geometry: no phantom polygons */ }
     }
-    const vis = state.detail === 'country' ? withPolys
-      : state.detail === 'oblast' ? [] : withPolys;
-    mapUI.setAlertShapes(vis, onTerritory);
+    const detail = state.detail;
+    const showRaions = detail === 'raion' || detail === 'community';
+    mapUI.setAlertShapes(showRaions ? withPolys : [], onTerritory);
+    // Level-specific labelling: oblasts at country/oblast, raions deeper.
+    try { mapUI.map.getContainer().classList.toggle('detail-raion', detail === 'raion'); } catch { /* ignore */ }
+    try { mapUI.map.getContainer().classList.toggle('detail-community', detail === 'community'); } catch { /* ignore */ }
+    if (showRaions) {
+      const dots = [];
+      const firstRing = (polys) => {
+        const p0 = polys && polys[0];
+        if (!Array.isArray(p0) || !p0.length) return null;
+        // p0 is either an array of rings or a single ring of [lat,lon] pairs.
+        if (Array.isArray(p0[0]) && Array.isArray(p0[0][0])) return p0[0];
+        if (Array.isArray(p0[0]) && Number.isFinite(p0[0][0])) return p0;
+        return null;
+      };
+      for (const f of withPolys.slice(0, 40)) {
+        const ring = firstRing(f.polys);
+        if (!ring || !ring.length) continue;
+        let lat = 0, lon = 0, n = 0;
+        for (const p of ring) {
+          if (!Array.isArray(p) || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) continue;
+          lat += p[0]; lon += p[1]; n++;
+        }
+        if (!n) continue;
+        if (!Number.isFinite(lat / n) || !Number.isFinite(lon / n)) continue;
+        dots.push({ name: f.district, region: f.oblast, status: f.level === 'critical' || f.level === 'alert' ? 'alert' : 'mon', lat: lat / n, lon: lon / n });
+      }
+      mapUI.setRaionDots(dots, onTerritory);
+    } else {
+      mapUI.setRaionDots([], onTerritory);
+    }
   } catch { /* shapes best effort */ }
   try {
     syncStore(state.tracks, st.events);
