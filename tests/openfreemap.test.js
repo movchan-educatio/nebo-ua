@@ -157,6 +157,7 @@ test('no coordinates → report tier (never a fake marker)', () => {
 test('no heading → no invented direction', () => {
   assert.equal(shouldShowHeading({ locationPrecision: 'COORDINATE', heading: null, speed: 100, areaOnly: false, stale: false }), false);
   assert.equal(shouldShowHeading({ locationPrecision: 'COORDINATE', heading: 90, speed: 100, areaOnly: false, stale: false }), true);
+  assert.equal(shouldShowHeading({ locationPrecision: 'COORDINATE', heading: 90, speed: null, areaOnly: false, stale: false }), true, 'course alone orients the nose');
 });
 
 test('basemap uses single-Leaflet UMD scripts, never a second ESM Leaflet', async () => {

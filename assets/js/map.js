@@ -314,9 +314,19 @@ export function createSituationMap(el,onSelect){
     currentByTrack.set(tid,e);
     let marker=markerByTrack.get(tid);
     const kindNow=classifyThreat(e);
-    const headingNow=shouldShowHeading(e)?Number(e.heading):null;
-    const sig=[kindNow,headingNow??'x',ac,e._lvl||''].join('|');
-    if(marker){
+    // Orientation: source course first; otherwise the bearing between the
+    // last two CONFIRMED trail fixes (real observed movement, not a guess).
+    let headingNow=shouldShowHeading(e)?Number(e.heading):null;
+    if(headingNow==null){
+      const tp=trailByTrack.get(tid);
+      if(Array.isArray(tp)&&tp.length>=2){
+        const b=tp[tp.length-1], a=tp[tp.length-2];
+        const dLat=b.lat-a.lat, dLon=(b.lon-a.lon)*Math.cos((a.lat*Math.PI)/180);
+        const d=Math.atan2(dLon,dLat)*180/Math.PI;
+        if(Number.isFinite(d)) headingNow=(d+360)%360;
+      }
+    }
+    const sig=[kindNow,headingNow??'x',ac,e._lvl||''].join('|');    if(marker){
       // Confirmed-point glide only: planMove gates same-track, both
       // confirmed, newer timestamp; duration scales with distance.
       const plan=planMove(prevEv,e);
@@ -341,14 +351,14 @@ export function createSituationMap(el,onSelect){
       // Skip setIcon entirely when nothing visual changed, so the SAME DOM
       // node (and its CSS glide transition) survives background refreshes.
       if(marker.options._sig!==sig){
-        marker.setIcon(eventIcon({ ...e, isNew: false },ac));
+        marker.setIcon(eventIcon({ ...e, isNew: false, _headingOverride: headingNow },ac));
         marker.options._sig=sig;
       }
       marker.options.category=e.category;
       marker.options.threatKind=kindNow;
     }else{
       marker=L.marker([e.lat,e.lon],{
-        icon:eventIcon(e,ac),
+        icon:eventIcon({ ...e, _headingOverride: headingNow },ac),
         category:e.category,
         threatKind:classifyThreat(e),
         pane:'threatPane',
@@ -657,7 +667,11 @@ export function ukraineFitOptions(){
 // ── Icon factories ─────────────────────────────────────────────────────────────
 function eventIcon(e,ac){
   const m=iconFor(e);
-  const heading=shouldShowHeading(e)?Number(e.heading):null;
+  // Orientation: explicit override (trail-derived bearing) wins, then the
+  // source course.
+  const heading=(e._headingOverride!=null&&Number.isFinite(e._headingOverride))
+    ? Number(e._headingOverride)
+    : (shouldShowHeading(e)?Number(e.heading):null);
   const cls=[
     'threat-marker',
     'cat-'+(e.category||'other'),

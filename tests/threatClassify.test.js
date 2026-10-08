@@ -172,12 +172,12 @@ test('ageClass: no timestamp → old', () => {
 
 // ── shouldShowHeading ─────────────────────────────────────────────────────────
 
-test('shouldShowHeading: COORDINATE + finite heading + speed > 0 + !stale → true', () => {
+test('shouldShowHeading: COORDINATE + finite heading + !stale → true', () => {
   const e = { locationPrecision: 'COORDINATE', areaOnly: false, stale: false, heading: 135, speed: 200 };
   assert.equal(shouldShowHeading(e), true);
 });
 
-test('shouldShowHeading: RAION precision → false', () => {
+test('shouldShowHeading: RAION precision without coords → false', () => {
   const e = { locationPrecision: 'RAION', areaOnly: false, stale: false, heading: 135, speed: 200 };
   assert.equal(shouldShowHeading(e), false);
 });
@@ -187,9 +187,9 @@ test('shouldShowHeading: heading=null → false', () => {
   assert.equal(shouldShowHeading(e), false);
 });
 
-test('shouldShowHeading: speed=0 → false', () => {
-  const e = { locationPrecision: 'COORDINATE', areaOnly: false, stale: false, heading: 90, speed: 0 };
-  assert.equal(shouldShowHeading(e), false);
+test('shouldShowHeading: course without speed still orients the glyph (speed not required)', () => {
+  const e = { locationPrecision: 'COORDINATE', areaOnly: false, stale: false, heading: 90, speed: null };
+  assert.equal(shouldShowHeading(e), true, 'source course alone is a confirmed direction');
 });
 
 test('shouldShowHeading: stale=true → false', () => {

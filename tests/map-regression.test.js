@@ -281,9 +281,9 @@ test('shouldShowHeading: no heading returns false', () => {
   assert.equal(shouldShowHeading(e), false);
 });
 
-test('shouldShowHeading: no speed returns false', () => {
+test('shouldShowHeading: course without speed still orients the glyph', () => {
   const e = { ...ShahedExact, speed: null };
-  assert.equal(shouldShowHeading(e), false);
+  assert.equal(shouldShowHeading(e), true, 'source course alone is enough to point the nose');
 });
 
 test('shouldShowHeading: stale event returns false', () => {

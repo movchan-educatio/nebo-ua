@@ -150,21 +150,20 @@ export function ageClass(event, nowMs = Date.now()) {
 }
 
 /**
- * Should a heading arrow be shown?
- * Only when ALL of:
- *  - locationPrecision === 'COORDINATE' (real position, not area)
- *  - !areaOnly
- *  - heading is a finite number
- *  - speed > 0
+ * Should the glyph be rotated to a real heading?
+ * Heading is a CONFIRMED direction reported by the source; speed is NOT
+ * required for orientation (many sources give course without speed — the
+ * old speed>0 gate left every icon pointing north). Requirements:
+ *  - real coordinate (not area-only)
  *  - !stale
+ *  - finite heading from the source
  */
 export function shouldShowHeading(event) {
   if (!event) return false;
   if (event.areaOnly) return false;
   if (event.stale) return false;
-  if (event.locationPrecision !== 'COORDINATE') return false;
-  if (event.heading == null || event.speed == null) return false;
+  if (event.locationPrecision !== 'COORDINATE' && event.lat == null) return false;
+  if (event.heading == null) return false;
   const heading = Number(event.heading);
-  const speed   = Number(event.speed);
-  return Number.isFinite(heading) && Number.isFinite(speed) && speed > 0;
+  return Number.isFinite(heading);
 }
