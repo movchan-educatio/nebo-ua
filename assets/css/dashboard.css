@@ -215,7 +215,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .legend-strip{position:relative;padding-right:44px;align-items:center}
 .legend-strip .legend-title{color:var(--faint);font-size:12px;letter-spacing:.06em;flex:1 0 100%}
 .legend-strip.collapsed{display:flex;gap:8px}
-.legend-strip .legend-body{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;flex:1;justify-content:space-between}
+.legend-strip .legend-body{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:10px 14px;align-items:center;flex:1}
 .legend-strip.collapsed .legend-body{display:none}
 .collapse-btn.float{position:absolute;top:12px;right:8px;margin:0}
 .map-legend.collapsed>*:not(b){display:none}
@@ -306,6 +306,8 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   /* Mobile: drop the extra captions so the scope keeps the space. */
   #radarNote{display:none}
   .radar-contacts .radar-empty{display:none}
+  /* Mobile: wrap compactly — the desktop grid would fall to a single column. */
+  .legend-strip .legend-body{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:flex-start}
   .map-toolbar{padding:8px 10px;gap:6px}
   .map-toolbar .seg button{padding:6px 10px;font-size:11px}
   .map-search{height:36px}
