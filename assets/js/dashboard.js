@@ -282,8 +282,14 @@ async function loadRegionsGeo() {
 function renderLegend() {
   const el = $('#legendStrip');
   if (!el) return;
-  // Write into a dedicated body node so the collapse button (appended by
-  // setupCollapsibles) is never wiped by a re-render.
+  // Title stays OUTSIDE the body so a collapsed strip is never an empty pill.
+  let title = el.querySelector('.legend-title');
+  if (!title) {
+    title = document.createElement('b');
+    title.className = 'legend-title';
+    title.textContent = 'Умовні позначення:';
+    el.insertBefore(title, el.firstChild);
+  }
   let body = el.querySelector('.legend-body');
   if (!body) {
     body = document.createElement('div');
@@ -300,7 +306,7 @@ function renderLegend() {
     shahed: 'Шахед', uav: 'БПЛА', missile: 'Ракета', ballistic: 'Балістика',
     kab: 'КАБ', aviation: 'Авіація', recon: 'Розвідка',
   };
-  body.innerHTML = '<b>Умовні позначення:</b>'
+  body.innerHTML = ''
     + territory.map(([c, t]) => `<span class="row"><i style="background:${c}"></i>${t}</span>`).join('')
     + kinds.map(k => {
       const v = getThreatVisual(k);
@@ -428,20 +434,28 @@ function setupSegs() {
 function showStats() {
   const st = state.snapshot;
   const s = computeAlertStats(st?.alerts || []);
+  // Split point targets the SAME way the map does: current vs stale.
+  const withCoords = (st?.events || []).filter(e => e.lat != null && !e.areaOnly);
+  const fresh = withCoords.filter(e => !e.stale);
+  const stale = withCoords.filter(e => e.stale);
   const byKind = {};
-  for (const e of st?.events || []) {
-    if (e.lat == null || e.areaOnly) continue;
-    byKind[e.category || 'other'] = (byKind[e.category || 'other'] || 0) + 1;
+  for (const e of fresh) {
+    const v = (() => { try { return getThreatVisual(e); } catch { return { label: e.category || 'інше' }; } })();
+    byKind[v.label] = (byKind[v.label] || 0) + 1;
   }
+  const kindRows = Object.entries(byKind).sort((a, b) => b[1] - a[1])
+    .map(([k, v]) => `<p class="micro">• ${esc(k)}: <b>${v}</b></p>`).join('');
   openSheet(`<span class="kicker">СТАТИСТИКА</span><h2>Підтверджені дані</h2>
     <div class="terr-grid">
       <div class="terr-field"><span>Областей у тривозі</span><b>${s.oblasts}</b></div>
       <div class="terr-field"><span>Районів у тривозі</span><b>${s.raions}</b></div>
       <div class="terr-field"><span>Громад у тривозі</span><b>${s.communities}</b></div>
-      <div class="terr-field"><span>Точкових цілей</span><b>${(st?.events || []).filter(e => e.lat != null && !e.areaOnly).length}</b></div>
+      <div class="terr-field"><span>Активних точкових цілей</span><b>${fresh.length}</b></div>
+      <div class="terr-field"><span>Застарілих (не на карті)</span><b>${stale.length}</b></div>
     </div>
-    <p class="micro">Офіційні тривоги й моніторингові цілі рахуються окремо; одна територія з двох джерел — один запис. Період: поточний зріз ${state.lastSuccess ? esc(clock(state.lastSuccess)) : '—'}.</p>
-    ${Object.entries(byKind).map(([k, v]) => `<p class="micro">• ${esc(k)}: <b>${v}</b></p>`).join('') || '<p class="micro">Цілей немає.</p>'}`);
+    <p class="micro">Офіційні тривоги й моніторингові цілі рахуються окремо; одна територія з двох джерел — один запис. Активні цілі — ті, що зараз показані на карті; застарілі записи лишаються в списках, але не малюються як поточні позиції. Зріз: ${state.lastSuccess ? esc(clock(state.lastSuccess)) : '—'}.</p>
+    <h3 class="subheading">Активні цілі за типами</h3>
+    ${kindRows || '<p class="micro">Активних точкових цілей немає.</p>'}`);
 }
 async function loadRegionsDir() {
   if (state.regionsDir.length) return state.regionsDir;
