@@ -591,19 +591,6 @@ async function load() {
     refreshMap();
     try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ }
     updateNavDot(snap);
-    const notice = $('#networkNotice');
-    if (snap.health?.OFFICIAL?.status === 'offline') {
-      notice.hidden = false;
-      notice.innerHTML = '';
-      const t = document.createElement('span');
-      t.textContent = 'Офіційне джерело тимчасово недоступне. Показуємо NEPTUN/MAPA.';
-      const x = document.createElement('button');
-      x.className = 'notice-x';
-      x.setAttribute('aria-label', 'Приховати попередження');
-      x.textContent = '×';
-      x.onclick = () => { notice.hidden = true; };
-      notice.append(t, x);
-    } else notice.hidden = true;
   } catch {
     const el = $('#sysStatus');
     el.className = 'sysok bad';

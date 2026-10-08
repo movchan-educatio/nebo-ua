@@ -225,9 +225,6 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .sysok{box-shadow:none}
 .pill.on{box-shadow:none}
 .live-tag{box-shadow:none}
-.system-notice{margin:0 0 var(--gap);padding:8px 12px;border-radius:11px;background:#3a171cee;color:#ffd8db;font-size:12px;display:flex;align-items:center;gap:10px}
-.system-notice[hidden]{display:none}
-.notice-x{margin-left:auto;flex:none;width:30px;height:30px;border-radius:9px;border:1px solid #ffffff22;background:none;color:inherit;font-size:16px;cursor:pointer}
 dialog{border:1px solid var(--line);background:linear-gradient(160deg,#0d1824,#060d14);color:var(--text);border-radius:18px;padding:22px;max-width:min(92vw,480px);width:min(92vw,420px);text-align:center}
 dialog::backdrop{background:#01040980}
 dialog p{color:var(--muted);line-height:1.55;margin:0 0 16px;font-size:14px}
@@ -297,7 +294,6 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .stat-card{padding:10px 8px}
   .stat-card b{font-size:26px}
   .stat-card span{font-size:11px}
-  .system-notice{font-size:11px;padding:6px 10px}
   .clock small{display:none}
   .sysok span.txt{display:none}
   .sysok{padding:7px 9px}
