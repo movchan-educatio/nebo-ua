@@ -150,7 +150,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .radar-screen canvas{position:absolute;inset:0;width:100%;height:100%}
 .radar-az{position:absolute;font-size:10px;color:#9fe8c6;font-style:normal;text-decoration:none;background:#020805b0;padding:1px 5px;border-radius:6px}
 .radar-note{font-size:10px;line-height:1.3;color:#dceaf2;text-align:center;margin-top:4px}
-.radar-contacts{margin-top:6px;display:grid;gap:4px}
+.radar-contacts{margin-top:6px;display:grid;gap:4px;max-height:150px;overflow:auto}
 .radar-row{display:flex;align-items:center;gap:8px;font-size:11px;color:#dceaf2;background:#0d1826;border:1px solid var(--line-soft);border-radius:9px;padding:5px 8px;min-width:0}
 .radar-row svg{width:15px;height:15px;flex:none;fill:currentColor;stroke:currentColor}
 .radar-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}

@@ -341,6 +341,9 @@ function updateMiniRadar() {
         + (rows.length > shown.length ? `<p class="radar-empty">+${rows.length - shown.length} ще у радіусі</p>` : '');
     }
   }
+  // The contacts list changed the card height — keep the bottom glued to the
+  // map card (desktop/tablet).
+  try { fitRadarCard(); } catch { /* ignore */ }
 }
 async function refreshMap() {
   const st = state.snapshot;
@@ -800,6 +803,34 @@ function setupCollapsibles() {
     }
   }
 }
+// Desktop/tablet: the radar card must end exactly where the map card ends.
+// The scope square is sized from the leftover height, so the card can never
+// overflow below the map (min-height alone could not cap taller content).
+function fitRadarCard() {
+  const radar = document.querySelector('.radar-mini');
+  const mapPanel = document.querySelector('.map-panel');
+  const screen = radar ? radar.querySelector('.radar-screen') : null;
+  if (!radar || !mapPanel || !screen) return;
+  if (window.matchMedia('(max-width:760px)').matches) {
+    radar.style.height = '';
+    screen.style.width = '';
+    screen.style.height = '';
+    return;
+  }
+  radar.style.height = '';
+  screen.style.width = '';
+  screen.style.height = '';
+  const target = Math.round(mapPanel.getBoundingClientRect().bottom - radar.getBoundingClientRect().top);
+  if (!(target > 300)) return;
+  const naturalH = radar.getBoundingClientRect().height;
+  const maxS = Math.round(screen.getBoundingClientRect().width) || 0;
+  if (!(maxS > 120)) return;
+  const nonScreen = Math.max(110, naturalH - Math.round(screen.getBoundingClientRect().height));
+  const s = Math.max(180, Math.min(maxS, target - nonScreen - 6));
+  radar.style.height = target + 'px';
+  screen.style.width = s + 'px';
+  screen.style.height = s + 'px';
+}
 // Mobile: the radar lives in the bottom stats row (compact); desktop: back to
 // the right column. Pure DOM move — the scope keeps running in both places.
 function layoutRadar() {
@@ -815,17 +846,14 @@ function layoutRadar() {
       centerCol.insertBefore(radar, statsRow);
     }
     radar.classList.add('radar-own-panel');
-    radar.style.minHeight = '';
+    radar.style.height = '';
+    const screen = radar.querySelector('.radar-screen');
+    if (screen) { screen.style.width = ''; screen.style.height = ''; }
   } else {
     // Top of the right column, above «Поточні загрози»: visible on first paint.
     if (rightCol.firstElementChild !== radar) rightCol.insertBefore(radar, rightCol.firstElementChild);
     radar.classList.remove('radar-own-panel');
-    // Desktop/tablet: the radar card bottom aligns with the map card bottom.
-    const mapPanel = document.querySelector('.map-panel');
-    if (mapPanel) {
-      const target = Math.round(mapPanel.getBoundingClientRect().bottom - radar.getBoundingClientRect().top);
-      if (target > 240) radar.style.minHeight = target + 'px';
-    }
+    fitRadarCard();
   }
   try { scopeMini.setActive(true); } catch { /* ignore */ }
   try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }
