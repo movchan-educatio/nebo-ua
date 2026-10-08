@@ -148,7 +148,7 @@ svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .threat-marker.kind-kab svg.threat-svg{width:24px;height:24px}
 .threat-marker.kind-aviation svg.threat-svg{width:25px;height:25px}
 .threat-marker.kind-other svg.threat-svg{width:22px;height:22px}
-.threat-marker[data-directed="true"]>svg.threat-svg{transform:rotate(var(--heading,0deg))}
+.threat-marker[data-directed="true"]>svg.threat-svg{transform:rotate(var(--heading,0deg));transition:transform .9s ease-out}
 .threat-marker.stale{filter:grayscale(.55)}
 .threat-marker.advisory{border-style:none!important}
 .threat-marker.age-fresh,.threat-marker.age-recent,.threat-marker.age-aging,.threat-marker.age-old{opacity:1}

@@ -232,6 +232,77 @@ export function createSituationMap(el,onSelect){
     }catch(e){}
   }
 
+  // ── Movement animation along CONFIRMED positions (turns included) ────────
+  // When a track's trail has ≥2 confirmed fixes, the marker glides through
+  // those fixes in order instead of cutting straight to the newest one, so a
+  // real direction change reads as an animated turn. Only confirmed points
+  // are used — nothing is extrapolated.
+  const animByTrack=new Map();
+  function cancelAnim(tid){
+    const a=animByTrack.get(tid);
+    if(a){ try{ cancelAnimationFrame(a.raf); }catch(err){} animByTrack.delete(tid); }
+  }
+  function setGlyphHeading(marker,deg){
+    try{
+      const el=marker.getElement();
+      const svg=el&&el.querySelector('.threat-svg');
+      if(svg){
+        svg.style.transition='transform .9s ease-out';
+        svg.style.transform='rotate('+(deg||0)+'deg)';
+      }
+    }catch(err){}
+  }
+  function lerp(a,b,t){ return a+(b-a)*t; }
+  function bearingDeg(a,b){
+    const dLat=b.lat-a.lat, dLon=(b.lon-a.lon)*Math.cos((a.lat*Math.PI)/180);
+    let d=Math.atan2(dLon,dLat)*180/Math.PI;
+    if(!Number.isFinite(d)) d=0;
+    return (d+360)%360;
+  }
+  function animateThrough(marker,tid,pts){
+    cancelAnim(tid);
+    if(!Array.isArray(pts)||pts.length<2){ return false; }
+    // Segment lengths → proportional timing (longer legs take longer).
+    const legs=[]; let total=0;
+    for(let i=0;i<pts.length-1;i++){
+      const d=Math.hypot(pts[i+1].lat-pts[i].lat,(pts[i+1].lon-pts[i].lon)*Math.cos((pts[i].lat*Math.PI)/180));
+      legs.push(d); total+=d;
+    }
+    if(total<=1e-9){ return false; }
+    const DUR=1600; // total glide time for the confirmed path
+    const start=performance.now();
+    try{ const el=marker.getElement(); if(el) el.style.transitionDuration='0ms'; }catch(err){}
+    const step=(now)=>{
+      const t=Math.min(1,(now-start)/DUR);
+      const target=total*t;
+      let acc=0, lat=pts[0].lat, lon=pts[0].lon, seg=0;
+      for(let i=0;i<legs.length;i++){
+        if(acc+legs[i]>=target||i===legs.length-1){
+          const f=legs[i]>0?Math.min(1,(target-acc)/legs[i]):1;
+          lat=lerp(pts[i].lat,pts[i+1].lat,f);
+          lon=lerp(pts[i].lon,pts[i+1].lon,f);
+          seg=i;
+          break;
+        }
+        acc+=legs[i];
+      }
+      marker.setLatLng([lat,lon]);
+      setGlyphHeading(marker,bearingDeg(pts[seg],pts[seg+1]||pts[seg]));
+      if(t<1){
+        const raf=requestAnimationFrame(step);
+        animByTrack.set(tid,{raf});
+      }else{
+        animByTrack.delete(tid);
+        try{ const el=marker.getElement(); if(el) el.style.transitionDuration=''; }catch(err){}
+      }
+    };
+    const raf=requestAnimationFrame(step);
+    animByTrack.set(tid,{raf});
+    return true;
+  }
+  // trailByTrack: filled by setEvents from the trail list (confirmed fixes).
+  const trailByTrack=new Map();
+
   // Single-track marker upsert shared by full sync and live updates:
   // same L.marker object glides via planMove, DOM persists when visuals
   // are unchanged. Returns the marker, or null for non-point events.
@@ -249,15 +320,22 @@ export function createSituationMap(el,onSelect){
       // Confirmed-point glide only: planMove gates same-track, both
       // confirmed, newer timestamp; duration scales with distance.
       const plan=planMove(prevEv,e);
-      if(plan.animate){
-        try{
-          const el=marker.getElement();
-          if(el)el.style.transitionDuration=Math.min(1800,Math.max(600,plan.durationMs))+'ms';
-        }catch(err){}
-        marker.setLatLng([e.lat,e.lon]);
-      }else if(marker.getLatLng().lat!==e.lat||marker.getLatLng().lng!==e.lon){
-        try{const el=marker.getElement();if(el)el.style.transitionDuration='';}catch(err){}
-        marker.setLatLng([e.lat,e.lon]);
+      // Turn-aware animation: with ≥2 confirmed trail fixes for this track,
+      // glide through them in order (real turns animate). Otherwise fall
+      // back to the straight confirmed-point glide.
+      const trailPts=trailByTrack.get(tid);
+      const animated=plan.animate && trailPts && trailPts.length>=2 && animateThrough(marker,tid,trailPts);
+      if(!animated){
+        if(plan.animate){
+          try{
+            const el=marker.getElement();
+            if(el)el.style.transitionDuration=Math.min(1800,Math.max(600,plan.durationMs))+'ms';
+          }catch(err){}
+          marker.setLatLng([e.lat,e.lon]);
+        }else if(marker.getLatLng().lat!==e.lat||marker.getLatLng().lng!==e.lon){
+          try{const el=marker.getElement();if(el)el.style.transitionDuration='';}catch(err){}
+          marker.setLatLng([e.lat,e.lon]);
+        }
       }
       // Updates never replay the .new pulse ring: it renders once, on add.
       // Skip setIcon entirely when nothing visual changed, so the SAME DOM
@@ -294,6 +372,36 @@ export function createSituationMap(el,onSelect){
     if(selectedTrack===tid)setSelectedTrack(null);
   }
 
+  // Reference-style trail: dashed colored line along CONFIRMED positions +
+  // small arrowhead at the newest confirmed point showing true direction.
+  // Nothing is drawn beyond the last confirmed position — no forecast.
+  // Arrow size scales with zoom so it reads as a marker, never a blob.
+  function arrowSizeDeg(){
+    try{ const z=map.getZoom(); return Math.max(0.004, 0.020/Math.pow(2,Math.max(0,z-6))); }
+    catch(e){ return 0.012; }
+  }
+  function drawTrail(points,color,weightMul){
+    if(!Array.isArray(points)||points.length<2)return;
+    const latlngs=points.map(p=>[p.lat,p.lon]);
+    L.polyline(latlngs,{
+      color,weight:1.8*(weightMul||1),opacity:.7,dashArray:'7 9',
+      lineCap:'round',interactive:false,
+    }).addTo(trails);
+    const a=points[points.length-2], b=points[points.length-1];
+    const dLat=b.lat-a.lat, dLon=b.lon-a.lon;
+    const len=Math.hypot(dLat,dLon);
+    if(len>1e-6){
+      const uLat=dLat/len, uLon=dLon/len;
+      const k=Math.cos((b.lat*Math.PI)/180)||1;
+      const pLat=-uLon*k, pLon=uLat/k;
+      const size=arrowSizeDeg();
+      const tip=[b.lat+uLat*size, b.lon+uLon*size];
+      const l=[b.lat+pLat*size*0.6, b.lon+pLon*size*0.6];
+      const r=[b.lat-pLat*size*0.6, b.lon-pLon*size*0.6];
+      L.polygon([tip,l,r],{color,weight:0,fillColor:color,fillOpacity:.9,interactive:false}).addTo(trails);
+    }
+  }
+
   function setEvents(events,visible,selTrail,trailList){
     applyZoomClass();
     const seenTracks=new Set();
@@ -301,6 +409,26 @@ export function createSituationMap(el,onSelect){
     reported.clearLayers();
     trails.clearLayers();
     uncertainties.clearLayers();
+    // Trails FIRST: the animation below consumes trailByTrack for this cycle.
+    trailByTrack.clear();
+    if(Array.isArray(trailList)){
+      // Reference look: trails only for confirmed MOVING threats, capped so
+      // the map stays readable. UAV/recon churn is excluded (too many dots).
+      const TRAIL_KINDS=new Set(['shahed','missile','ballistic','kab','aviation']);
+      let trailBudget=8;
+      for(const tr of trailList){
+        if(!tr||!Array.isArray(tr.points)||tr.points.length<2)continue;
+        const pts=tr.points.slice(-6).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+        if(pts.length<2) continue;
+        trailByTrack.set(tr.trackId,pts);
+        const kind=(()=>{ try{ return classifyThreat(tr); }catch(e){ return 'other'; } })();
+        if(!TRAIL_KINDS.has(kind)) continue;
+        if(trailBudget<=0) continue;
+        trailBudget--;
+        if(selTrail&&tr.trackId===selTrail.trackId)continue;
+        drawTrail(pts, META[kind]?.color||'#efb55b', 1);
+      }
+    }
     const now=Date.now();
     for(const e of events){
       if(!visible.has(e.category))continue;
@@ -335,41 +463,12 @@ export function createSituationMap(el,onSelect){
       if(!seenTracks.has(tid)){try{targets.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
     }
     declutterTargets();
-    // Background trails for every fresh track with ≥2 confirmed positions
-    // (MAPA source trail or session history). Thin, muted, behind markers.
-    // Selected track keeps its stronger emphasis below.
-    if(Array.isArray(trailList)){
-      for(const tr of trailList){
-        if(!tr||!Array.isArray(tr.points)||tr.points.length<2)continue;
-        if(selTrail&&tr.trackId===selTrail.trackId)continue;
-        const col=META[tr.category]?.color||'#efb55b';
-        const pts=tr.points.slice(-8);
-        for(let i=0;i<pts.length-1;i++){
-          const f=(i+1)/(pts.length-1);
-          L.polyline([[pts[i].lat,pts[i].lon],[pts[i+1].lat,pts[i+1].lon]],{color:col,weight:1.2,opacity:(0.10+0.22*f).toFixed(2),dashArray:'1 4',interactive:false}).addTo(trails);
-        }
-        pts.forEach((p,i)=>{
-          if(i===pts.length-1)return;
-          L.circleMarker([p.lat,p.lon],{radius:1.6,color:col,weight:1,opacity:.3,fillOpacity:.25,interactive:false}).addTo(trails);
-        });
-      }
-    }
     // Selected-track trail: last confirmed positions only (source trail for
     // MAPA, accumulated history otherwise), thin and muted. Older segments
     // fade out; the newest segment near the target is most visible. Never
     // global, never a forecast.
     if(selTrail&&Array.isArray(selTrail.points)&&selTrail.points.length>1){
-      const col=META[selTrail.category]?.color||'#efb55b';
-      const pts=selTrail.points.slice(-8);
-      for(let i=0;i<pts.length-1;i++){
-        const f=(i+1)/(pts.length-1);
-        L.polyline([[pts[i].lat,pts[i].lon],[pts[i+1].lat,pts[i+1].lon]],{color:col,weight:i===pts.length-2?2:1.2,opacity:(0.12+0.38*f).toFixed(2),dashArray:'2 5',interactive:false}).addTo(trails);
-      }
-      pts.forEach((p,i)=>{
-        if(i===pts.length-1)return;
-        const f=(i+1)/pts.length;
-        L.circleMarker([p.lat,p.lon],{radius:2,color:col,weight:1,opacity:(0.2+0.3*f).toFixed(2),fillOpacity:(0.15+0.25*f).toFixed(2),interactive:false}).addTo(trails);
-      });
+      drawTrail(selTrail.points.slice(-8), META[selTrail.category]?.color||'#efb55b', 1.15);
     }
   }
 

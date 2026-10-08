@@ -159,7 +159,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 /* ── Leaflet markers: kind colors, clusters, oblast labels ── */
 .threat-marker{color:var(--c,#B8C5D1)}
 .threat-marker svg.threat-svg{width:30px;height:30px;filter:drop-shadow(0 1px 2px rgba(0,0,0,.85))}
-.map-zoom-6 .mk-label{display:block!important;font-size:8px;max-width:56px;overflow:hidden;text-overflow:ellipsis}
+.map-zoom-7 .mk-label{display:block!important;font-size:9px;max-width:56px;overflow:hidden;text-overflow:ellipsis}
 .threat-cluster{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;
   background:#07131ce0;border:2px solid var(--c,#B8C5D1);color:#fff;
   box-shadow:0 0 10px var(--c,#B8C5D1),inset 0 0 8px #00000099}
@@ -171,6 +171,24 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .map-zoom-8 .oblast-name{font-size:11px;opacity:.9}
 .map-zoom-9 .oblast-name{font-size:12px;opacity:.95}
 .oblast-name.label-hidden{display:none}
+
+/* Panels: collapse toggles (all screens) + column toggles (desktop). */
+.collapse-btn{width:28px;height:28px;border-radius:9px;border:1px solid var(--line);background:#0c1720;color:var(--muted);
+  font-size:15px;line-height:1;cursor:pointer;flex:none;display:grid;place-items:center}
+.collapse-btn:hover{color:var(--text);border-color:#4d7fa0}
+.collapse-btn.float{position:absolute;top:10px;right:10px}
+.panel.collapsed{padding-top:10px;padding-bottom:10px}
+.panel.collapsed>*:not(.panel-head){display:none}
+.panel.collapsed .panel-head{margin-bottom:0}
+.legend-strip{position:relative}
+.legend-strip.collapsed>*:not(b){display:none}
+.map-legend.collapsed>*:not(b){display:none}
+.map-legend .collapse-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;font-size:12px}
+.map-legend{padding-right:32px}
+.col-toggle{border:1px solid var(--line);background:#0c1720;color:var(--muted);border-radius:10px;font-size:11px;
+  padding:6px 10px;cursor:pointer;align-self:start;justify-self:end}
+.col-toggle:hover{color:var(--text);border-color:#4d7fa0}
+.col-hidden{display:none!important}
 
 /* Buttons: clear, matte, no neon glow. */
 .mainnav button.active{color:#fff;background:#1d4e73;box-shadow:none;border:1px solid #3f7ea8}
