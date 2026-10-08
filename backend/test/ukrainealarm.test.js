@@ -259,11 +259,26 @@ test('uaGet: 429/401/500/invalid-JSON/missing-key', async () => {
   } finally {
     r.restore();
   }
-  r = stubUa({ '/x': { status: 401, body: {} } });
+  r = stubUa({ '/x': { status: 401, body: {}, headers: { 'cf-ray': 'ray-401-abc' } } });
   try {
     await assert.rejects(uaGet({ ...env, UKRAINEALARM_API_KEY: 'SECRET-KEY-12345' }, '/x'), (e) => {
-      assert.match(e.message, /401\/403/);
+      assert.equal(e.status, 401);
+      assert.match(e.message, /HTTP 401/);
+      assert.match(e.message, /ray-401-abc/, 'ray id attached for support');
+      assert.equal(e.rayId, 'ray-401-abc');
       assert.ok(!e.message.includes('SECRET-KEY-12345'), 'key must not appear in errors');
+      return true;
+    });
+  } finally {
+    r.restore();
+  }
+  r = stubUa({ '/x': { status: 403, body: {} } });
+  try {
+    await assert.rejects(uaGet(env, '/x'), (e) => {
+      assert.equal(e.status, 403);
+      assert.match(e.message, /HTTP 403/);
+      assert.match(e.message, /WAF/, '403 classified as edge filter, not key rejection');
+      assert.equal(e.rayId, null, 'missing ray stays null, never faked');
       return true;
     });
   } finally {

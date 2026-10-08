@@ -53,11 +53,14 @@ export function authHeaderValue(key, scheme) {
 }
 
 export class UAHttpError extends Error {
-  constructor(status, message, retryAfterMs = null) {
+  constructor(status, message, retryAfterMs = null, rayId = null) {
     super(message);
     this.name = 'UAHttpError';
     this.status = status;
     this.retryAfterMs = retryAfterMs;
+    // Cloudflare ray ID of the upstream edge response (diagnostic only,
+    // never secret). Lets support locate a rejected request in their logs.
+    this.rayId = rayId;
   }
 }
 
@@ -90,16 +93,33 @@ export async function uaGet(env, path, { timeoutMs = 9000 } = {}) {
         Authorization: authHeaderValue(key, env.UKRAINEALARM_AUTH_SCHEME),
       },
     });
+    // Safe diagnostic headers only (names + non-sensitive values).
+    // Never logged/stored: Authorization, Cookie, Set-Cookie, bodies.
+    const rayId = (() => {
+      try {
+        return res.headers?.get?.('cf-ray') || null;
+      } catch {
+        return null;
+      }
+    })();
+    const raySuffix = rayId ? ` (ray ${rayId})` : '';
     if (res.status === 429) {
       const h = res.headers?.get
         ? (res.headers.get('Retry-After') || res.headers.get('retry-after'))
         : null;
-      throw new UAHttpError(429, 'UkraineAlarm: перевищено ліміт запитів', parseRetryAfterMs(h) ?? 60_000);
+      throw new UAHttpError(429, 'UkraineAlarm: перевищено ліміт запитів', parseRetryAfterMs(h) ?? 60_000, rayId);
     }
-    if (res.status === 401 || res.status === 403) {
-      throw new UAHttpError(res.status, 'UkraineAlarm: ключ відхилено (401/403). Перевірте секрет UKRAINEALARM_API_KEY.');
+    // 401 vs 403 are deliberately distinct: 401 means the key itself was
+    // rejected; 403 from this edge has been observed intermittently for
+    // valid keys (bot-mitigation sampling), so conflating them would
+    // misdirect the investigation. No retries, no scheme guessing here.
+    if (res.status === 401) {
+      throw new UAHttpError(401, `UkraineAlarm: ключ відхилено (HTTP 401)${raySuffix}. Перевірте секрет UKRAINEALARM_API_KEY.`, null, rayId);
     }
-    if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}`);
+    if (res.status === 403) {
+      throw new UAHttpError(403, `UkraineAlarm: доступ відхилено edge-сервером (HTTP 403)${raySuffix}. Схоже на WAF/фільтр, а не на невалідний ключ.`, null, rayId);
+    }
+    if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}${raySuffix}`, null, rayId);
     const text = await res.text();
     try {
       return JSON.parse(text);
