@@ -273,9 +273,9 @@ function renderLegend() {
     el.appendChild(body);
   }
   const territory = [
-    ['#F04444', 'Повітряна тривога'],
-    ['#F59E0B', 'Підвищена небезпека'],
-    ['#3E5468', 'Немає тривоги'],
+    ['#D9A441', 'Повітряна тривога'],
+    ['#C62839', 'Підвищена небезпека'],
+    ['#16233A', 'Немає тривоги'],
   ];
   const kinds = ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other'];
   const KIND_LABEL = {
