@@ -206,10 +206,8 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .map-legend.collapsed>*:not(b){display:none}
 .map-legend .collapse-btn{position:absolute;top:4px;right:4px;width:20px;height:20px;font-size:11px;margin:0}
 .map-legend{padding-right:28px}
-.col-toggle{border:1px solid var(--line);background:#0c1720;color:var(--muted);border-radius:10px;font-size:11px;
-  padding:6px 10px;cursor:pointer;align-self:start;justify-self:end}
-.col-toggle:hover{color:var(--text);border-color:#4d7fa0}
 .col-hidden{display:none!important}
+/* Column toggles removed (cleaner layout) — no dead styles. */
 
 /* One toggle collapses the whole bottom row (stats + recent events). */
 .stats-row.collapsed .panel{padding-top:10px;padding-bottom:10px}

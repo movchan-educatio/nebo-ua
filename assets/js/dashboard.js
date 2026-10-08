@@ -725,22 +725,6 @@ function setupCollapsibles() {
       head.appendChild(btn);
     }
   }
-
-  // Column-level toggles (desktop): hide sources / threats+radar columns.
-  const addColToggle = (col, label) => {
-    const c = document.querySelector(col);
-    if (!c) return;
-    const b = document.createElement('button');
-    b.className = 'col-toggle';
-    b.textContent = label;
-    b.onclick = () => {
-      c.classList.toggle('col-hidden');
-      try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }
-    };
-    document.querySelector('.dash').appendChild(b);
-  };
-  addColToggle('.sources-col', '⇤ Джерела');
-  addColToggle('.right-col', 'Загрози ⇥');
 }
 // Mobile: the radar lives in the bottom stats row (compact); desktop: back to
 // the right column. Pure DOM move — the scope keeps running in both places.
