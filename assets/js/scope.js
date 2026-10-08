@@ -153,7 +153,17 @@ export function createScope(canvas, { onSelect } = {}) {
       sctx.beginPath(); sctx.arc(cx, cy, R * f, 0, 7); sctx.stroke();
       sctx.globalAlpha = outer ? 0.75 : 0.5;
       sctx.fillStyle = outer ? 'rgba(238,255,245,0.95)' : 'rgba(220,255,236,0.72)';
-      sctx.fillText(outer ? km + ' км' : String(km), cx + 4, cy - R * f - 3);
+      if (outer) {
+        // Outer range label sits just INSIDE the ring on the NE diagonal:
+        // on the vertical axis it was clipped by the canvas edge and collided
+        // with the Пн cardinal chip.
+        const dg = Math.SQRT1_2;
+        sctx.textAlign = 'right';
+        sctx.fillText(km + ' км', cx + R * dg - 3, cy - R * dg + 12);
+        sctx.textAlign = 'left';
+      } else {
+        sctx.fillText(String(km), cx + 4, cy - R * f - 3);
+      }
     });
     // Diagonal guides (45°): reference CRT grid.
     sctx.globalAlpha = 0.3; sctx.lineWidth = 1; sctx.strokeStyle = 'rgba(224,255,240,0.7)';
@@ -221,7 +231,7 @@ export function createScope(canvas, { onSelect } = {}) {
   function frameBody(t) {
     const dt = Math.min(100, t - (last || t));
     last = t;
-    if (!reduced) sweep = (sweep + dt / 7000 * 360) % 360;
+    if (!reduced) sweep = (sweep + dt / 5000 * 360) % 360;
     resize();
     // Degenerate size (e.g. view just opened, layout pending): skip this
     // frame, the loop stays alive and draws as soon as layout settles.
@@ -274,7 +284,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const fromPrev = ((p.bearing - prevSweep) % 360 + 360) % 360;
       if (diff < 3 || fromPrev <= stepArc) litAt.set(key, t);
       const seen = litAt.get(key);
-      const decayMs = 6500;
+      const decayMs = 4800;
       const intensity = reduced
         ? 0.85
         : (seen == null ? 0 : Math.max(0.4, 1 - (t - seen) / decayMs));

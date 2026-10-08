@@ -5,7 +5,7 @@
 import { fetchAll, shouldPoll, POLL_MS } from '../../services/data.js';
 import { createStore, syncStore, selectTrails } from '../../services/tracks.js';
 import { createSituationMap, getThreatVisual } from './map.js';
-import { createScope, haversineKm } from './scope.js';
+import { createScope, haversineKm, bearingDeg } from './scope.js';
 import { fetchRegions } from '../../services/regions.js';
 import { oblastRaions, raionAlertActive, territorialDanger, normOblast, raionMatches } from '../../services/districts.js';
 import { getOblastRaionPolygons } from '../../services/raionShapesLocal.js';
@@ -320,6 +320,27 @@ function updateMiniRadar() {
     const word = mod10 === 1 && mod100 !== 11 ? 'ціль'
       : (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) ? 'цілі' : 'цілей';
     cnt.textContent = `${n} ${word} у радіусі ${scopeMiniRange} км ${c}`;
+  }
+  // Which exactly: compact list of the same in-radius contacts the scope
+  // plots (type · distance · bearing from the scope centre). Same filter as
+  // the blips — the list can never name a target the scope would not draw.
+  const list = $('#radarContacts');
+  if (list) {
+    const rows = inside.map(e => {
+      let d = NaN, brg = NaN;
+      try { d = haversineKm(center.lat, center.lon, e.lat, e.lon); brg = bearingDeg(center.lat, center.lon, e.lat, e.lon); } catch { /* skip */ }
+      return { v: getThreatVisual(e), d, brg };
+    }).filter(r => Number.isFinite(r.d) && Number.isFinite(r.brg)).sort((a, b) => a.d - b.d);
+    if (!rows.length) {
+      list.innerHTML = `<p class="radar-empty">Цілей у радіусі ${scopeMiniRange} км немає.</p>`;
+    } else {
+      const shown = rows.slice(0, 5);
+      list.innerHTML = shown.map(r => `
+        <div class="radar-row">${threatIcon(r.v.kind)}
+        <span>${esc(r.v.label)}</span>
+        <time>${r.d < 10 ? r.d.toFixed(1).replace('.', ',') : Math.round(r.d)} км · А${String(Math.round(r.brg)).padStart(3, '0')}°</time></div>`).join('')
+        + (rows.length > shown.length ? `<p class="radar-empty">+${rows.length - shown.length} ще у радіусі</p>` : '');
+    }
   }
 }
 async function refreshMap() {

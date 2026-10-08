@@ -64,7 +64,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 
 /* ── Dashboard grid ── */
 .dash{padding:var(--gap);display:grid;gap:var(--gap);max-width:1720px;margin:0 auto}
-.dash-main{display:grid;grid-template-columns:258px minmax(0,1fr) 318px;gap:var(--gap);align-items:start;min-height:0}
+.dash-main{display:grid;grid-template-columns:258px minmax(0,1fr) 340px;gap:var(--gap);align-items:start;min-height:0}
 .panel{padding:14px}
 .panel h2{margin:0 0 10px;font-size:17px}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
@@ -128,7 +128,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .live-tag.stale{color:var(--muted);border-color:var(--line)}
 
 /* ── Mini radar ── */
-.radar-mini{margin-top:var(--gap);padding:14px}
+.radar-mini{margin-top:var(--gap);padding:12px}
 /* Compact range presets: six small buttons in one row so the scope gets the
    space instead of the controls. */
 .radar-mini .radar-ranges{grid-template-columns:repeat(6,1fr)!important;gap:4px!important;margin-bottom:6px}
@@ -138,10 +138,16 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
   .radar-mini{height:min(62vh,620px);display:flex;flex-direction:column}
   .radar-mini .radar-screen{flex:1;min-height:0;width:auto;aspect-ratio:1;max-height:100%;margin:6px auto 0}
 }
-.radar-screen{position:relative;width:100%;aspect-ratio:1;max-height:300px;margin:0 auto;border-radius:50%;overflow:hidden;background:radial-gradient(circle,#0a2a18 0%,#061a0f 55%,#030c07 100%);box-shadow:0 0 0 1px #b9ffdc44,0 0 26px #9dffcc2e,inset 0 0 60px #000}
+.radar-screen{position:relative;width:100%;aspect-ratio:1;max-height:360px;margin:0 auto;border-radius:50%;overflow:hidden;background:radial-gradient(circle,#0a2a18 0%,#061a0f 55%,#030c07 100%);box-shadow:0 0 0 1px #b9ffdc44,0 0 26px #9dffcc2e,inset 0 0 60px #000}
 .radar-screen canvas{position:absolute;inset:0;width:100%;height:100%}
 .radar-az{position:absolute;font-size:10px;color:#9fe8c6;font-style:normal;text-decoration:none;background:#020805b0;padding:1px 5px;border-radius:6px}
 .radar-note{font-size:10px;line-height:1.3;color:#dceaf2;text-align:center;margin-top:4px}
+.radar-contacts{margin-top:6px;display:grid;gap:4px}
+.radar-row{display:flex;align-items:center;gap:8px;font-size:11px;color:#dceaf2;background:#0d1826;border:1px solid var(--line-soft);border-radius:9px;padding:5px 8px;min-width:0}
+.radar-row svg{width:15px;height:15px;flex:none;fill:currentColor;stroke:currentColor}
+.radar-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.radar-row time{margin-left:auto;flex:none;color:var(--muted);font-variant-numeric:tabular-nums;font-size:10px}
+.radar-empty{margin:2px 0 0;font-size:10px;color:var(--faint);text-align:center}
 
 /* ── Bottom stats ── */
 .stats-row{display:grid;grid-template-columns:300px minmax(0,1fr);gap:var(--gap);margin-top:var(--gap)}
@@ -253,13 +259,13 @@ dialog .info-links a{color:var(--blue);font-size:13px}
 
 /* ── Responsive ── */
 @media(max-width:1220px){
-  .dash-main{grid-template-columns:250px minmax(0,1fr) 300px}
+  .dash-main{grid-template-columns:250px minmax(0,1fr) 320px}
   .mainnav button{padding:9px 8px;font-size:12px}
 }
 @media(max-width:1020px){
   .mainnav{display:none}
   .menu-btn{display:grid}
-  .dash-main{grid-template-columns:minmax(0,1fr) 300px}
+  .dash-main{grid-template-columns:minmax(0,1fr) 320px}
   .sources-col{display:none}
   .sources-col.drawer-open{display:block;position:fixed;z-index:1200;left:12px;top:calc(var(--topbar-h) + 8px);width:min(320px,86vw);max-height:70dvh;overflow:auto}
   .stats-row{grid-template-columns:1fr}
@@ -274,7 +280,7 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .map-wrap{height:min(34dvh,320px);min-height:240px}
   /* Radar is its own compact panel straight under the map. */
   .radar-mini.radar-own-panel{margin-top:8px;padding:10px}
-  .radar-mini.radar-own-panel .radar-screen{width:min(100%,260px)}
+  .radar-mini.radar-own-panel .radar-screen{width:min(100%,300px)}
   /* Compact bottom row; the radar sits inside the stats panel on mobile. */
   .stats-row{grid-template-columns:minmax(0,1fr);gap:8px}
   .stat-cards{grid-template-columns:repeat(3,1fr);gap:6px}
@@ -286,7 +292,7 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .stats-row .radar-mini{margin-top:10px;padding:10px 0 0;background:none;border:0;box-shadow:none;border-top:1px solid #ffffff10}
   .radar-mini .radar-ranges{grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:8px}
   .radar-mini .radar-ranges button{min-height:30px;font-size:11px;padding:0}
-  .radar-mini .radar-screen{width:min(100%,200px);aspect-ratio:1;max-height:none;margin:0 auto}
+  .radar-mini .radar-screen{width:min(100%,240px);aspect-ratio:1;max-height:none;margin:0 auto}
   .radar-mini .radar-note{font-size:10px;margin-top:6px}
   .map-toolbar{padding:8px 10px;gap:6px}
   .map-toolbar .seg button{padding:6px 10px;font-size:11px}
