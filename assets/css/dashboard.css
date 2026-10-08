@@ -172,19 +172,22 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .map-zoom-9 .oblast-name{font-size:12px;opacity:.95}
 .oblast-name.label-hidden{display:none}
 
-/* Panels: collapse toggles (all screens) + column toggles (desktop). */
-.collapse-btn{width:28px;height:28px;border-radius:9px;border:1px solid var(--line);background:#0c1720;color:var(--muted);
-  font-size:15px;line-height:1;cursor:pointer;flex:none;display:grid;place-items:center}
-.collapse-btn:hover{color:var(--text);border-color:#4d7fa0}
-.collapse-btn.float{position:absolute;top:10px;right:10px}
+/* Panels: minimal chevron collapse toggles, always in-flow in the header. */
+.panel-head{display:flex;align-items:center;gap:8px}
+.panel-head h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.panel-head .link-btn{margin-left:auto}
+.collapse-btn{flex:none;width:22px;height:22px;padding:0;margin-left:auto;border:0;background:none;color:var(--faint);
+  font-size:11px;line-height:1;cursor:pointer;display:grid;place-items:center;border-radius:6px;transition:color .15s,background .15s}
+.panel-head .link-btn+.collapse-btn{margin-left:2px}
+.collapse-btn:hover{color:var(--text);background:#ffffff0d}
 .panel.collapsed{padding-top:10px;padding-bottom:10px}
 .panel.collapsed>*:not(.panel-head){display:none}
 .panel.collapsed .panel-head{margin-bottom:0}
 .legend-strip{position:relative}
 .legend-strip.collapsed>*:not(b){display:none}
 .map-legend.collapsed>*:not(b){display:none}
-.map-legend .collapse-btn{position:absolute;top:6px;right:6px;width:22px;height:22px;font-size:12px}
-.map-legend{padding-right:32px}
+.map-legend .collapse-btn{position:absolute;top:4px;right:4px;width:20px;height:20px;font-size:11px;margin:0}
+.map-legend{padding-right:28px}
 .col-toggle{border:1px solid var(--line);background:#0c1720;color:var(--muted);border-radius:10px;font-size:11px;
   padding:6px 10px;cursor:pointer;align-self:start;justify-self:end}
 .col-toggle:hover{color:var(--text);border-color:#4d7fa0}

@@ -563,12 +563,14 @@ function setupCollapsibles() {
     el.dataset.collapseId = id;
     const btn = document.createElement('button');
     btn.className = 'collapse-btn';
+    btn.type = 'button';
+    btn.title = 'Згорнути / розгорнути';
     btn.setAttribute('aria-label', 'Згорнути панель');
-    btn.textContent = '−';
+    btn.textContent = '▾';
     btn.onclick = (e) => {
       e.stopPropagation();
       const off = el.classList.toggle('collapsed');
-      btn.textContent = off ? '+' : '−';
+      btn.textContent = off ? '▸' : '▾';
       btn.setAttribute('aria-expanded', String(!off));
       saved[id] = off ? 1 : 0;
       persist();
@@ -576,7 +578,7 @@ function setupCollapsibles() {
     };
     if (head.classList.contains('panel-head')) head.appendChild(btn);
     else { btn.classList.add('float'); el.appendChild(btn); }
-    if (saved[id]) { el.classList.add('collapsed'); btn.textContent = '+'; }
+    if (saved[id]) { el.classList.add('collapsed'); btn.textContent = '▸'; }
   });
 
   // Column-level toggles (desktop): hide sources / threats+radar columns.
