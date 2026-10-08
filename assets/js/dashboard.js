@@ -766,16 +766,21 @@ function setupCollapsibles() {
 // the right column. Pure DOM move — the scope keeps running in both places.
 function layoutRadar() {
   const radar = document.querySelector('.radar-mini');
-  const statsPanel = document.querySelector('.stats-row .panel');
+  const centerCol = document.querySelector('.center-col');
+  const statsRow = document.querySelector('.stats-row');
   const rightCol = document.querySelector('.right-col');
-  if (!radar || !statsPanel || !rightCol) return;
+  if (!radar || !statsRow || !rightCol || !centerCol) return;
   const mobile = window.matchMedia('(max-width:760px)').matches;
   if (mobile) {
-    // Inside the stats panel, right under the three cards — fills the empty
-    // space instead of stacking another tall panel.
-    if (radar.parentElement !== statsPanel) statsPanel.appendChild(radar);
-  } else if (radar.parentElement !== rightCol) {
-    rightCol.appendChild(radar);
+    // Directly under the map — the radar is visible without hunting for it.
+    if (radar.nextElementSibling !== statsRow || radar.parentElement !== centerCol) {
+      centerCol.insertBefore(radar, statsRow);
+    }
+    radar.classList.add('radar-own-panel');
+  } else {
+    // Top of the right column, above «Поточні загрози»: visible on first paint.
+    if (rightCol.firstElementChild !== radar) rightCol.insertBefore(radar, rightCol.firstElementChild);
+    radar.classList.remove('radar-own-panel');
   }
   try { scopeMini.setActive(true); } catch { /* ignore */ }
   try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }

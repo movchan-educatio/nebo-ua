@@ -35,7 +35,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .flag i{background:#3d7ddb}
 .flag u{background:#ffd23d}
 .brand small{display:block;font-size:11px;color:var(--muted)}
-.mainnav{display:flex;gap:2px;margin:0 auto 0 14px}
+.mainnav{display:flex;gap:2px;flex:1;justify-content:space-evenly;margin:0 18px}
 .mainnav button{position:relative;border:0;background:none;color:var(--muted);font-size:13px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap}
 .nav-dot{position:absolute;top:5px;right:5px;width:9px;height:9px;border-radius:50%;background:var(--red);box-shadow:0 0 8px var(--red)}
 .nav-dot[hidden]{display:none}
@@ -277,7 +277,10 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .dash-main{grid-template-columns:minmax(0,1fr)}
   .right-col{display:grid;gap:var(--gap)}
   .threat-list{max-height:260px}
-  .map-wrap{height:min(40dvh,360px);min-height:260px}
+  .map-wrap{height:min(34dvh,320px);min-height:240px}
+  /* Radar is its own compact panel straight under the map. */
+  .radar-mini.radar-own-panel{margin-top:8px;padding:10px}
+  .radar-mini.radar-own-panel .radar-screen{width:min(100%,210px)}
   /* Compact bottom row; the radar sits inside the stats panel on mobile. */
   .stats-row{grid-template-columns:minmax(0,1fr);gap:8px}
   .stat-cards{grid-template-columns:repeat(3,1fr);gap:6px}
