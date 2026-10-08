@@ -429,21 +429,38 @@ export function createSituationMap(el,onSelect){
     if(selectedTrack===tid)setSelectedTrack(null);
   }
 
-  // Reference-style trail: dashed colored line along CONFIRMED positions +
-  // small arrowhead at the newest confirmed point showing true direction.
-  // Nothing is drawn beyond the last confirmed position — no forecast.
-  // Arrow size scales with zoom so it reads as a marker, never a blob.
+  // Reference-style trail: a solid coloured path along CONFIRMED positions
+  // with chevron arrowheads placed along it showing the direction of travel.
+  // Nothing is drawn beyond the last confirmed fix — no forecast.
   function arrowSizeDeg(){
-    try{ const z=map.getZoom(); return Math.max(0.004, 0.020/Math.pow(2,Math.max(0,z-6))); }
+    try{ const z=map.getZoom(); return Math.max(0.005, 0.022/Math.pow(2,Math.max(0,z-6))); }
     catch(e){ return 0.012; }
   }
   function drawTrail(points,color,weightMul){
     if(!Array.isArray(points)||points.length<2)return;
-    const latlngs=points.map(p=>[p.lat,p.lon]);
-    L.polyline(latlngs,{
-      color,weight:1.8*(weightMul||1),opacity:.7,dashArray:'7 9',
-      lineCap:'round',interactive:false,
-    }).addTo(trails);
+    const w=2.8*(weightMul||1);
+    const n=points.length-1;
+    for(let i=0;i<n;i++){
+      const a=points[i], b=points[i+1];
+      const f=(i+1)/n;                       // newer segment = more visible
+      L.polyline([[a.lat,a.lon],[b.lat,b.lon]],{
+        color,weight:w,opacity:(0.35+0.5*f).toFixed(2),lineCap:'round',interactive:false,
+      }).addTo(trails);
+      // Chevron («>») at the segment midpoint, pointing along the movement.
+      const dLat=b.lat-a.lat, dLon=(b.lon-a.lon)*Math.cos((a.lat*Math.PI)/180);
+      const len=Math.hypot(dLat,dLon);
+      if(len<1e-6) continue;
+      const uLat=dLat/len, uLon=dLon/len;
+      const k=Math.cos(((a.lat+b.lat)/2*Math.PI)/180)||1;
+      const pLat=-uLon*k, pLon=uLat/k;
+      const size=arrowSizeDeg();
+      const midLat=(a.lat+b.lat)/2, midLon=(a.lon+b.lon)/2;
+      const tip=[midLat+uLat*size*0.9, midLon+uLon*size*0.9];
+      const left=[midLat-uLat*size*0.5+pLat*size*0.75, midLon-uLon*size*0.5+pLon*size*0.75];
+      const right=[midLat-uLat*size*0.5-pLat*size*0.75, midLon-uLon*size*0.5-pLon*size*0.75];
+      L.polyline([left,tip,right],{color,weight:w*0.9,opacity:(0.5+0.45*f).toFixed(2),lineCap:'round',lineJoin:'round',interactive:false}).addTo(trails);
+    }
+    // Final arrowhead at the newest confirmed position.
     const a=points[points.length-2], b=points[points.length-1];
     const dLat=b.lat-a.lat, dLon=b.lon-a.lon;
     const len=Math.hypot(dLat,dLon);
@@ -455,7 +472,7 @@ export function createSituationMap(el,onSelect){
       const tip=[b.lat+uLat*size, b.lon+uLon*size];
       const l=[b.lat+pLat*size*0.6, b.lon+pLon*size*0.6];
       const r=[b.lat-pLat*size*0.6, b.lon-pLon*size*0.6];
-      L.polygon([tip,l,r],{color,weight:0,fillColor:color,fillOpacity:.9,interactive:false}).addTo(trails);
+      L.polygon([tip,l,r],{color,weight:0,fillColor:color,fillOpacity:.95,interactive:false}).addTo(trails);
     }
   }
 
