@@ -419,11 +419,12 @@ export function createSituationMap(el,onSelect){
     reported.clearLayers();
     trails.clearLayers();
     uncertainties.clearLayers();
-    // Trails FIRST: the animation below consumes trailByTrack for this cycle.
+    // Trails FIRST: fill trailByTrack (animation needs it this cycle) but do
+    // NOT draw yet — drawing is filtered to tracks whose marker is actually
+    // visible after declutter, so no orphan dashed segments float on the map.
+    const pendingTrails = [];
     trailByTrack.clear();
     if(Array.isArray(trailList)){
-      // Every kind may show a trail now; drones get a shorter, dimmer tail so
-      // the map stays readable. A hard budget prevents clutter.
       const PRIORITY_TRAIL=new Set(['shahed','missile','ballistic','kab','aviation']);
       let trailBudget=14;
       for(const tr of trailList){
@@ -436,7 +437,7 @@ export function createSituationMap(el,onSelect){
         if(trailBudget<=0) continue;
         trailBudget--;
         if(selTrail&&tr.trackId===selTrail.trackId)continue;
-        drawTrail(pts, META[kind]?.color||'#efb55b', PRIORITY_TRAIL.has(kind)?1:0.72);
+        pendingTrails.push({ tr, pts, kind, mul: PRIORITY_TRAIL.has(kind)?1:0.72 });
       }
     }
     const now=Date.now();
@@ -473,6 +474,14 @@ export function createSituationMap(el,onSelect){
       if(!seenTracks.has(tid)){try{targets.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
     }
     declutterTargets();
+    // Draw trails only for tracks whose marker survived declutter — a trail
+    // without a visible target would read as a stale, orphaned line.
+    for(const pt of pendingTrails){
+      const mk=markerByTrack.get(pt.tr.trackId);
+      const g=mk&&glyphEl(mk);
+      if(!g||g.classList.contains('target-hidden')) continue;
+      drawTrail(pt.pts, META[pt.kind]?.color||'#efb55b', pt.mul);
+    }
     // Selected-track trail: last confirmed positions only (source trail for
     // MAPA, accumulated history otherwise), thin and muted. Older segments
     // fade out; the newest segment near the target is most visible. Never
