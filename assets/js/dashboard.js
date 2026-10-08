@@ -53,17 +53,14 @@ function tickClock() {
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────
+// Theme toggle removed: the app ships one consistent dark theme (the approved
+// reference). Any previously stored 'light' preference is cleared so nobody is
+// stuck on the old, inconsistent light skin.
 function setupTheme() {
-  const root = document.documentElement;
-  try {
-    if (localStorage.getItem('nebo-theme') === 'light') root.dataset.theme = 'light';
-  } catch { /* ignore */ }
-  $('#themeButton').onclick = () => {
-    const next = root.dataset.theme === 'light' ? '' : 'light';
-    if (next) root.dataset.theme = next;
-    else delete root.dataset.theme;
-    try { localStorage.setItem('nebo-theme', next || 'dark'); } catch { /* ignore */ }
-  };
+  try { localStorage.removeItem('nebo-theme'); } catch { /* ignore */ }
+  try { delete document.documentElement.dataset.theme; } catch { /* ignore */ }
+  const btn = document.getElementById('themeButton');
+  if (btn) btn.remove();
 }
 
 // ── Views (dialog panels) ─────────────────────────────────────────────────

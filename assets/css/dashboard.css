@@ -334,16 +334,5 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   *{animation:none!important;transition:none!important}
 }
 
-/* ── Light theme (manual toggle only) ── */
-[data-theme="light"]{
-  --bg:#eef3f7; --bg2:#e2ebf1;
-  --panel:#fffffff2; --panel-solid:#ffffff; --panel2:#f2f7fa;
-  --line:#b9cfdd; --line-soft:#0b2a3a22;
-  --text:#0b1c28; --muted:#416179; --faint:#6b8ea3;
-  color-scheme:light;
-}
-[data-theme="light"] body{background-image:none}
-[data-theme="light"] .glass,[data-theme="light"] .topbar{background:linear-gradient(160deg,#ffffff,#eef4f8)}
-[data-theme="light"] .src-card,[data-theme="light"] .threat-row,[data-theme="light"] .stat-card{background:#f4f9fc}
-[data-theme="light"] .map-wrap{background:#dfe9ef}
-[data-theme="light"] .mainnav button.active{background:#0b6d9914;box-shadow:inset 0 0 0 1px #0b6d9944}
+/* Light theme removed: the app ships one consistent dark theme (reference).
+   No dead selectors left behind. */
