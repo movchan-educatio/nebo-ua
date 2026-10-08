@@ -30,6 +30,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--text);flex:none}
 .brand img{width:38px;height:38px}
 .brand b{display:block;font-size:17px;letter-spacing:.02em}
+.flag{display:inline-block;width:20px;height:13px;border-radius:3px;overflow:hidden;vertical-align:-1px;margin-left:5px;box-shadow:0 0 0 1px #ffffff2a}
+.flag i,.flag u{display:block;height:50%;text-decoration:none}
+.flag i{background:#3d7ddb}
+.flag u{background:#ffd23d}
 .brand small{display:block;font-size:11px;color:var(--muted)}
 .mainnav{display:flex;gap:2px;margin:0 auto}
 .mainnav button{border:0;background:none;color:var(--muted);font-size:13px;font-weight:600;padding:9px 12px;border-radius:10px;cursor:pointer;display:flex;align-items:center;gap:7px;white-space:nowrap}

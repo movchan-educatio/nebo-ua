@@ -114,6 +114,15 @@ function threatIcon(kind) {
   const v = getThreatVisual({ kind });
   return `<svg style="color:${v.color || '#8ca4b3'}"><use href="./assets/brand/threat-icons.svg#${v.icon || 'other'}"/></svg>`;
 }
+function durStr(t) {
+  const ms = Date.now() - new Date(t).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return '';
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return 'щойно';
+  if (m < 60) return `${m} хв тому`;
+  const h = Math.floor(m / 60);
+  return `${h} год ${m % 60} хв тому`;
+}
 function renderThreats(events) {
   const rows = groupThreats(events, 30);
   $('#threatCount').textContent = rows.filter(r => !r.stale).length;
@@ -122,7 +131,7 @@ function renderThreats(events) {
       <span class="threat-ico" style="background:#ffffff0d">${threatIcon(r.kind)}</span>
       <span><b>${esc(r.region || r.district || 'Невідома територія')}</b>
       <small>${esc(r.subtype || r.kind)} · ${esc(r.source || '')}</small>
-      <time>${r.eventTime ? esc(clock(r.eventTime)) + ' · ' + esc(ago(r.eventTime)) : '—'}</time></span>
+      <time>${r.eventTime ? esc(clock(r.eventTime)) + ' · ' + esc(durStr(r.eventTime)) : '—'}</time></span>
       <span class="live-tag${r.stale ? ' stale' : ''}">${r.stale ? 'STALE' : 'LIVE'}</span>
     </button>`).join('') : '<p class="micro">Активних точкових цілей немає.</p>';
 }

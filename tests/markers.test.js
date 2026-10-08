@@ -94,17 +94,14 @@ test('markers carry no square outlines, pulse rings or stale decoration hooks', 
   assert.ok(css.includes('.threat-marker.selected svg.threat-svg'), 'selected state is scale/brightness only');
 });
 
-// ── Collapsible HUD ──────────────────────────────────────────────────────────
-test('HUD collapse toggle: real button, aria, persisted preference', () => {
+// ── Territory card (bottom-sheet on mobile, overlay on desktop) ──────────
+test('territory card: real open/close control, aria-live, no dead button', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.ok(html.includes('id="hudToggle"'), 'toggle button exists');
-  assert.ok(html.includes('aria-expanded'), 'aria-expanded present');
-  assert.ok(html.includes('aria-controls="hudBody"'), 'toggle controls the panel body');
-  assert.ok(html.includes('id="hudExpand"'), 'collapsed reopen control exists');
-  const app = fs.readFileSync(path.join(root, 'assets/js/app.js'), 'utf8');
-  assert.ok(app.includes('nebo-hud-collapsed'), 'preference persisted in localStorage');
-  assert.ok(css.includes('.map-hud.collapsed'), 'collapsed state styled');
-  assert.ok(css.includes('translateX(calc(-100%'), 'collapse slides, no layout jump');
+  assert.ok(html.includes('id="terrCard"'), 'territory card exists');
+  const dash = fs.readFileSync(path.join(root, 'assets/js/dashboard.js'), 'utf8');
+  assert.ok(dash.includes('terrClose'), 'close control rendered and wired');
+  assert.ok(html.includes('aria-live="polite"'), 'aria-live present');
+  assert.ok(dash.includes('terrHistory'), 'history entry wired in dashboard logic');
 });
 
 console.log('All marker tests passed!');

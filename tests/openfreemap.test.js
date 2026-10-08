@@ -210,14 +210,14 @@ test('HUD copy is radar-style, no logbook wording or debug counts', async () => 
   assert.ok(body.includes('flow-compact'), 'mobile gets a 2-row compact line');
 });
 
-test('radar is a mode of the shared shell, not a dashboard page', async () => {
+test('radar is a compact panel plus an expanded mode, both honest about data', async () => {
   const html = await readFile('index.html', 'utf8');
-  const radarView = html.slice(html.indexOf('id="radarView"'), html.indexOf('id="radarView"') + 4000);
-  assert.ok(!radarView.includes('ПУБЛІЧНА ВІЗУАЛІЗАЦІЯ'), 'no dashboard kicker');
-  assert.ok(!radarView.includes('radarSearchForm'), 'no big search field');
-  assert.ok(!radarView.includes('radarSummary'), 'no big metric cards');
-  assert.ok(radarView.includes('radarHudMode') && radarView.includes('radarHudCount'), 'compact scope HUD present');
-  assert.ok(radarView.includes('id="radarNearest"'), 'nearest readout under the scope');
+  assert.ok(html.includes('id="scopeMini"'), 'compact radar canvas present');
+  assert.ok(html.includes('id="radarNote"') || html.includes('підтвердженими координатами'), 'honest data-limitation note present');
+  assert.ok(html.includes('data-range="100"'), 'range presets present');
+  const dash = await readFile('assets/js/dashboard.js', 'utf8');
+  assert.ok(dash.includes('scopeBig') || dash.includes('openRadarBig'), 'expanded radar mode exists');
+  assert.ok(dash.includes('areaOnly'), 'area-only records never plotted as targets');
 });
 
 test('Map↔Radar share viewport: radar stores center, map restores it', async () => {

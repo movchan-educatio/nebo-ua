@@ -12,9 +12,9 @@ const DIRS = ['about', 'how-it-works', 'sources', 'safety', 'faq', 'privacy', 't
 test('home is a LIVE app again: map present, no article section', () => {
   const h = read('index.html');
   assert.ok(h.includes('id="map"'), 'home has live map');
-  assert.ok(h.includes('id="scopeCanvas"'), 'home has radar');
+  assert.ok(h.includes('id="scopeMini"'), 'home has compact radar');
   assert.ok(h.includes('id="threatList"'), 'home has threats view');
-  assert.ok(h.includes('id="skyView"') || h.includes('skyView'), 'home has my-sky view');
+  assert.ok(h.includes('id="srcList"') || h.includes('sources-col'), 'home has sources panel');
   assert.ok(h.includes('bottom-nav'), 'home has app bottom navigation');
   assert.ok(!h.includes('seo-section'), 'no article section on home');
   assert.ok(!h.includes('seo-faq'), 'no home FAQ accordion (lives on /faq/)');
@@ -56,7 +56,7 @@ test('content pages: no app chrome, document flow, unique SEO', () => {
 
 test('desktop header nav + active state on every page', () => {
   const h = read('index.html');
-  assert.ok(h.includes('class="top-links"'), 'home has desktop section links');
+  assert.ok(h.includes('class="mainnav"'), 'home has desktop section nav');
   assert.ok(h.includes('id="menuButton"'), 'home has mobile menu button');
   for (const d of DIRS) {
     const p = read(`${d}/index.html`);
@@ -98,9 +98,10 @@ test('layout safe-area: header in document flow, content offset, no overlap arch
   assert.ok(css.includes('scroll-margin-top:calc(var(--header-h)'), 'anchors stop below header');
   assert.ok(css.includes('safe-area-inset-bottom'), 'iPhone safe area respected');
   const h = read('index.html');
-  const headerAt = h.indexOf('<header class="app-header');
-  const appAt = h.indexOf('id="app"');
-  assert.ok(headerAt > 0 && headerAt < appAt, 'DOM order: header before app');
+  const headerAt = h.indexOf('<header class="topbar"');
+  const dashAt = h.indexOf('class="dash-main"');
+  assert.ok(headerAt > 0 && headerAt < dashAt, 'DOM order: header before dashboard');
+  assert.ok(h.includes('env(safe-area-inset-bottom)') || read('assets/css/dashboard.css').includes('env(safe-area-inset-bottom)'), 'dashboard respects iPhone safe area');
   assert.ok(!/\.seo-section/.test(read('assets/css/styles.css')), 'dead article CSS removed from app bundle');
 });
 
