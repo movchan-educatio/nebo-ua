@@ -238,7 +238,15 @@ export function createScope(canvas, { onSelect } = {}) {
     const edge = [];
     let nearest = null;
     ensureSprites();
-    for (const e of S.events) {
+    // Priority order + cap: missiles/ballistic first so the scope never turns
+    // into an unreadable cloud of drone dots.
+    const PR = { ballistic: 1, missile: 2, shahed: 3, kab: 4, aviation: 5, fpv: 6, uav: 7, recon: 8, explosion: 99, other: 9 };
+    const ordered = [...S.events].sort((a, b) => {
+      const ka = (() => { try { return getThreatVisual(a).kind; } catch (e) { return 'other'; } })();
+      const kb = (() => { try { return getThreatVisual(b).kind; } catch (e) { return 'other'; } })();
+      return (PR[ka] || 9) - (PR[kb] || 9);
+    }).slice(0, 45);
+    for (const e of ordered) {
       if (e.lat == null || e.lon == null) continue;
       const p = project(e.lat, e.lon, S.center, S.range, size);
       if (p.distKm < (nearest == null ? Infinity : nearest)) nearest = p.distKm;
@@ -301,13 +309,30 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.fillStyle = '#eaf6ff';
     ctx.font = '10px system-ui';
-    // Kind labels next to inside blips (real kind names from the source).
-    for (const pt of S.pts.slice(0, 24)) {
-      ctx.globalAlpha = 0.9;
-      ctx.fillStyle = '#cfe8d8';
-      ctx.fillText(pt.label || '', pt.x + 13, pt.y + 4);
+    // Labels ONLY for high-signal kinds (missiles, ballistic, shaheds, KAB,
+    // aviation). Drone churn stays unlabeled — the radar must stay readable.
+    const LABEL_KINDS = new Set(['missile', 'ballistic', 'shahed', 'kab', 'aviation']);
+    const labeled = S.pts.filter(pt => {
+      try { return LABEL_KINDS.has(getThreatVisual(pt.e).kind); } catch (e) { return false; }
+    }).slice(0, 6);
+    for (const pt of labeled) {
+      ctx.globalAlpha = 0.95;
+      ctx.fillStyle = '#d8f5e2';
+      ctx.fillText(pt.label || '', pt.x + 12, pt.y + 4);
     }
     ctx.globalAlpha = 1;
+    // Cardinal marks drawn ON TOP with a dark chip so blips never hide them.
+    const cxm = W / 2, cym = H / 2, Rm = Math.min(W, H) / 2 - 6;
+    ctx.font = 'bold 11px system-ui';
+    for (const [txt, x, y] of [['Пн', cxm, cym - Rm + 12], ['Пд', cxm, cym + Rm - 6], ['Сх', cxm + Rm - 12, cym + 4], ['Зх', cxm - Rm + 5, cym + 4]]) {
+      const w = ctx.measureText(txt).width + 8;
+      ctx.globalAlpha = 0.85;
+      ctx.fillStyle = '#02120a';
+      ctx.fillRect(x - w / 2, y - 10, w, 15);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#9fe8c6';
+      ctx.fillText(txt, x - w / 2 + 4, y + 1);
+    }
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
     // Out-of-range contacts: threat silhouette + distance on the outer edge
     // at the true bearing. Never faked inside the scope.

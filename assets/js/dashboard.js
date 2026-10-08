@@ -205,11 +205,14 @@ function initMap() {
   $('#zoomIn').onclick = () => mapUI.map.zoomIn();
   $('#zoomOut').onclick = () => mapUI.map.zoomOut();
   $('#gpsButton').onclick = locateMe;
-  $('#legendBtn').onclick = () => {
-    const l = $('#mapLegend');
-    const open = l.classList.toggle('sheet-open');
-    $('#legendBtn').setAttribute('aria-expanded', String(open));
-  };
+  const legendBtn = $('#legendBtn');
+  const legendBox = $('#mapLegend');
+  if (legendBtn && legendBox) {
+    legendBtn.onclick = () => {
+      const open = legendBox.classList.toggle('sheet-open');
+      legendBtn.setAttribute('aria-expanded', String(open));
+    };
+  }
   $('#layerButton').onclick = () => { const p = $('#layerPanel'); p.hidden = !p.hidden; };
   renderLayerPanel();
 }
