@@ -251,11 +251,9 @@ export function createSituationMap(el,onSelect){
 
       // Oblast names render via the dedicated label layer (see fitUkraine).
 
-      // Click handler: show raion details if partial (raion-only alerts)
-      const a=list[0]||null;
-      const raionList = list.filter(x=>x.district).map(x=>x.district).filter(Boolean);
-      const partial = !list.some(x=>!x.district) && raionList.length > 0;
-      layer.on('click',()=>onSelect(a?{...a,raions:raionList,partial}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
+      // Click handlers intentionally absent: territories are informational
+      // only (the operator asked for no click-through on raions/oblasts).
+      layer.options.interactive = false;
     });
     if(!fitted) fitUkraine();
     // Oblast name labels: dedicated div-marker layer (guaranteed visible,
@@ -552,7 +550,10 @@ export function createSituationMap(el,onSelect){
     medium:   { color:'#FFFFFF', weight:0.8, opacity:0.4, fillColor:'#A87C22', fillOpacity:.92 },
     calm:     { color:'#8FB0C9', weight:0.6, opacity:0.28, fillColor:'#000000', fillOpacity:0 },
   };
-  function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,fillColor:s.fillColor,fillOpacity:s.fillOpacity}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
+  function setAlertShapes(items){
+    ashapes.clearLayers();
+    for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,opacity:s.opacity,fillColor:s.fillColor,fillOpacity:s.fillOpacity,interactive:false}).addTo(ashapes)}
+  }
 
   function setRaionShapes(items){
     shapes.clearLayers();
@@ -571,11 +572,11 @@ export function createSituationMap(el,onSelect){
     }
   }
 
-  function setRaionDots(items,onPick){
+  function setRaionDots(items){
     dots.clearLayers();
     for(const r of items||[]){
       if(!Number.isFinite(r.lat)||!Number.isFinite(r.lon))continue;
-      const _m=L.marker([r.lat,r.lon],{icon:raionDotIcon(r.status)}).on('click',()=>onPick&&onPick(r));
+      const _m=L.marker([r.lat,r.lon],{icon:raionDotIcon(r.status),interactive:false});
       // NON-PERMANENT TOOLTIP: shows on hover/click, does not clutter overview map permanently
       if(r.status==='alert')_m.bindTooltip(r.name||'Район',{permanent:false,direction:'top',offset:[0,-12],className:'raion-tip'});
       _m.addTo(dots);

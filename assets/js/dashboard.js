@@ -187,7 +187,7 @@ function renderStats(alerts, events) {
 // ── Map ───────────────────────────────────────────────────────────────────
 let mapUI = null, scopeMini = null, scopeMiniRange = 100, raionFills = [];
 function initMap() {
-  mapUI = createSituationMap($('#map'), onTerritory);
+  mapUI = createSituationMap($('#map'), null);
   mapUI.map.setView([48.6, 31.2], 6);
   scopeMini = createScope($('#scopeMini'));
   scopeMini.setActive(true);
@@ -244,52 +244,6 @@ function locateMe(silent) {
     updateMiniRadar();
   }, () => { /* denied/unavailable: keep place or Ukraine fallback */ },
   { timeout: 8000, maximumAge: 600000 });
-}
-function onTerritory(item) {
-  // item: raion fill {oblast, district, level} or oblast feature.
-  const card = $('#terrCard');
-  const oblast = item?.oblast || item?.region || item?.name || '';
-  const districtRaw = item?.district || null;
-  // Never double the word "район" ("Кропивницький район район").
-  const district = districtRaw && /район|громада/i.test(districtRaw)
-    ? districtRaw.replace(/\s*район$/i, '')
-    : districtRaw;
-  const st = state.snapshot;
-  const scope = oblast ? raionAlertActive(st?.alerts || [], oblast, districtRaw) : null;
-  const official = (st?.alerts || []).filter(a => a.official
-    && (!oblast || a.region === oblast)
-    && (!districtRaw || a.district === districtRaw));
-  const threats = (st?.events || []).filter(e => !oblast || e.region === oblast || e.derivedRegion === oblast).slice(0, 6);
-  const levels = [...new Set(official.map(a => a.level).filter(Boolean))];
-  const scopeText = official.length
-    ? (districtRaw ? 'Район у тривозі' : 'Уся область у тривозі')
-    : (scope && scope.scope === 'outside' ? 'Поза зоною тривоги' : 'Тривоги немає');
-  const rows = [
-    ...official.slice(0, 3).map(a => ({ t: a.eventTime, s: a.subtype || 'Повітряна тривога' })),
-    ...threats.slice(0, 4).map(e => ({ t: e.eventTime, s: e.subtype || e.kind || 'Ціль' })),
-  ];
-  const listHtml = rows.length
-    ? rows.map(r => `<p class="micro">• ${esc(r.s)}${r.t ? ' · ' + esc(clock(r.t)) + ' · ' + esc(durStr(r.t)) : ''}</p>`).join('')
-    : '<p class="micro">Немає активних загроз для цієї території.</p>';
-  card.innerHTML = `
-    <h3>${esc(district ? district + ' район' : oblast || 'Територія')}</h3>
-    <div class="sub">${esc(district ? (oblast || 'Територія') : 'Область')} · ${esc(scopeText)}</div>
-    <div class="terr-grid">
-      <div class="terr-field"><span>Статус</span><b>${official.length ? 'Тривога' : 'Спокійно'}</b></div>
-      <div class="terr-field"><span>Рівень</span><b>${levels.includes('red') ? 'Високий' : levels.includes('yellow') ? 'Підвищений' : '—'}</b></div>
-      <div class="terr-field"><span>Тривог</span><b>${official.length}</b></div>
-      <div class="terr-field"><span>Цілей поруч</span><b>${threats.length}</b></div>
-      <div class="terr-field"><span>Джерело</span><b>${esc(official[0]?.source || threats[0]?.source || '—')}</b></div>
-      <div class="terr-field"><span>Оновлено</span><b>${state.lastSuccess ? esc(clock(state.lastSuccess)) : '—'}</b></div>
-    </div>
-    ${listHtml}
-    <div class="terr-actions">
-      <button class="btn-primary" id="terrHistory">Історія тривог ›</button>
-      <button class="btn-ghost" id="terrClose">Закрити</button>
-    </div>`;
-  card.classList.add('open');
-  $('#terrClose').onclick = () => card.classList.remove('open');
-  $('#terrHistory').onclick = () => showHistory(oblast, districtRaw);
 }
 async function loadRegionsGeo() {
   if (state.geo) return state.geo;
@@ -398,7 +352,7 @@ async function refreshMap() {
     } catch { /* completion is best effort */ }
     // No level selector now: fills are always shown, raion dots always help
     // identify territories at a glance.
-    mapUI.setAlertShapes(withPolys, onTerritory);
+    mapUI.setAlertShapes(withPolys);
     try { mapUI.map.getContainer().classList.remove('detail-raion', 'detail-community'); } catch { /* ignore */ }
     {
       const dots = [];
@@ -422,7 +376,7 @@ async function refreshMap() {
         if (!Number.isFinite(lat / n) || !Number.isFinite(lon / n)) continue;
         dots.push({ name: f.district, region: f.oblast, status: f.level === 'critical' || f.level === 'alert' ? 'alert' : 'mon', lat: lat / n, lon: lon / n });
       }
-      mapUI.setRaionDots(dots, onTerritory);
+      mapUI.setRaionDots(dots);
     }
   } catch { /* shapes best effort */ }
   try {
@@ -500,10 +454,10 @@ function setupSearch() {
 }
 function focusTerritory(h) {
   if (!mapUI) return;
+  // Informational only: search pans/zooms to the territory, no detail card.
   if (h.kind === 'oblast' || !h.regionId) {
     try { mapUI.showHome(h.name); } catch { /* ignore */ }
   }
-  onTerritory({ oblast: h.name, district: h.kind === 'District' ? h.name : null });
 }
 
 // ── Basemap + relief toggles now live in the Шари panel ──────────────────

@@ -98,13 +98,13 @@ test('markers carry no square outlines, pulse rings or stale decoration hooks', 
 });
 
 // ── Territory card (bottom-sheet on mobile, overlay on desktop) ──────────
-test('territory card: real open/close control, aria-live, no dead button', () => {
+test('territories are informational only: no click-through card', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.ok(html.includes('id="terrCard"'), 'territory card exists');
+  assert.ok(!html.includes('id="terrCard"'), 'no territory card element');
   const dash = fs.readFileSync(path.join(root, 'assets/js/dashboard.js'), 'utf8');
-  assert.ok(dash.includes('terrClose'), 'close control rendered and wired');
-  assert.ok(html.includes('aria-live="polite"'), 'aria-live present');
-  assert.ok(dash.includes('terrHistory'), 'history entry wired in dashboard logic');
+  assert.ok(!dash.includes('onTerritory'), 'no territory click handler');
+  const mapSrc = fs.readFileSync(path.join(root, 'assets/js/map.js'), 'utf8');
+  assert.ok(mapSrc.includes('interactive:false') || mapSrc.includes('interactive: false'), 'territory layers are non-interactive');
 });
 
 console.log('All marker tests passed!');

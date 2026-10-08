@@ -113,19 +113,6 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .search-results button{background:#0d1826f5;border:0;border-bottom:1px solid var(--line-soft);color:var(--text);text-align:left;padding:11px 13px;cursor:pointer;font-size:13px}
 .search-results button small{display:block;color:var(--muted);font-size:11px}
 
-/* territory bottom-sheet card */
-.terr-card{position:absolute;z-index:550;left:12px;right:12px;bottom:12px;border-radius:15px;padding:14px 15px;display:none}
-.terr-card.open{display:block}
-.terr-card h3{margin:0 0 2px;font-size:16px}
-.terr-card .sub{font-size:12px;color:var(--muted);margin-bottom:9px}
-.terr-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;margin:10px 0}
-.terr-field{background:#0e1a23;border:1px solid #ffffff10;border-radius:11px;padding:8px 10px;font-size:12px}
-.terr-field span{display:block;font-size:10px;color:var(--muted);margin-bottom:2px}
-.terr-field b{font-variant-numeric:tabular-nums}
-.terr-actions{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
-.btn-primary{background:linear-gradient(180deg,#ffd97a,#e8a91f);color:#231603;border:0;border-radius:12px;min-height:42px;font-weight:800;padding:0 18px;cursor:pointer}
-.btn-ghost{background:#0e1a23;border:1px solid var(--line);border-radius:12px;min-height:42px;padding:0 16px;cursor:pointer}
-
 /* ── Threats (right) ── */
 .threat-list{display:grid;gap:9px;max-height:420px;overflow:auto;scrollbar-width:thin}
 .threat-row{display:flex;gap:11px;align-items:center;border:1px solid var(--line-soft);background:#0d1826;border-radius:13px;padding:10px 12px;cursor:pointer;width:100%;text-align:left;color:var(--text)}
@@ -329,7 +316,6 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .nav-item.active{color:var(--cyan)}
   /* Keep the last content clear of the fixed nav (safe-area aware). */
   body{padding-bottom:calc(var(--bottomnav-h) + env(safe-area-inset-bottom) + 36px)}
-  .terr-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:380px){
   .brand small{display:none}
