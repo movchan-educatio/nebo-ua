@@ -50,6 +50,9 @@ export function createScope(canvas, { onSelect } = {}) {
   const ectx = echoC.getContext('2d');
   const S = { events: [], center: [49, 31], range: 200, guardKm: null, pin: null, pts: [] };
   let sweep = 0, last = 0, raf = 0, active = false, W = 0, H = 0, staticKey = '';
+  // Per-contact illumination time: a target stays dark until the beam
+  // sweeps past its bearing, then fades — a real PPI-style detection.
+  const litAt = new Map();
   const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
   let pw = 0, ph = 0;
   // ── Shared SVG sprites (same silhouettes as the map) ─────────────────────
@@ -258,12 +261,27 @@ export function createScope(canvas, { onSelect } = {}) {
       const v = getThreatVisual(e);
       // Event reports (e.g. media explosions) are never radar targets.
       if (v.radarEligible === false) continue;
+      // ── True radar detection ─────────────────────────────────────────────
+      // A contact is INVISIBLE until the sweeping beam passes its bearing,
+      // then it lights up and fades over a few seconds — exactly how a PPI
+      // scope behaves. New contacts arriving later are picked up on the next
+      // sweep revolution. Nothing is shown before first illumination.
+      const key = e.trackId || e.id || (p.bearing + ':' + p.distKm);
+      const diff = ((sweep - p.bearing) % 360 + 360) % 360;
+      if (diff < 3) litAt.set(key, t);
+      const seen = litAt.get(key);
+      const decayMs = 5000;
+      let intensity = reduced
+        ? 0.85
+        : (seen == null ? 0 : Math.max(0, 1 - (t - seen) / decayMs));
+      if (intensity <= 0.04) continue; // not yet detected / fully faded
       const boost = sweepBoost(sweep, p.bearing);
-      S.pts.push({ e, x: ox, y: oy, label: v.label, distKm: p.distKm });
-      const glow = 0.55 + 0.45 * boost;
+      S.pts.push({ e, x: ox, y: oy, label: v.label, distKm: p.distKm, a: intensity });
+      const glow = (0.55 + 0.45 * boost) * intensity;
       // Same SVG silhouette as the map, rotated by reliable heading only.
       const img = spriteFor(v.kind);
-      const sPx = Math.max(20, Math.min(26, v.size));      if (img) {
+      const sPx = Math.max(20, Math.min(26, v.size));
+      if (img) {
         ectx.save();
         ectx.globalAlpha = glow;
         ectx.translate(ox, oy);
@@ -316,7 +334,7 @@ export function createScope(canvas, { onSelect } = {}) {
       try { return LABEL_KINDS.has(getThreatVisual(pt.e).kind); } catch (e) { return false; }
     }).slice(0, 6);
     for (const pt of labeled) {
-      ctx.globalAlpha = 0.95;
+      ctx.globalAlpha = 0.95 * (pt.a != null ? pt.a : 1);
       ctx.fillStyle = '#d8f5e2';
       ctx.fillText(pt.label || '', pt.x + 12, pt.y + 4);
     }
@@ -363,7 +381,8 @@ export function createScope(canvas, { onSelect } = {}) {
     if (!S.pts.length) {
       // Small muted line BELOW the clean center — never over the crosshair.
       ctx.fillStyle = '#5f7d8f'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-      ctx.fillText('ЦІЛЕЙ У РАДІУСІ НЕМАЄ', cx0, cy0 + 26);
+      const anyInRange = S.events.some(e => e.lat != null && e.lon != null);
+      ctx.fillText(anyInRange ? 'СКАНУВАННЯ…' : 'ЦІЛЕЙ У РАДІУСІ НЕМАЄ', cx0, cy0 + 26);
       ctx.textAlign = 'left';
     }
     if (S.pin) {
