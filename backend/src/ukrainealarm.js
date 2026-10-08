@@ -30,6 +30,12 @@ export const UA_REGIONS_TTL_S = 7 * 24 * 3600;
 export const UA_REGIONS_MAX_AGE_MS = 24 * 3600_000;
 export const UA_BACKOFF_CAP_MS = 15 * 60_000;
 
+// Client identification (NOT evasion): automated clients SHOULD identify
+// themselves. A missing User-Agent is a textbook bot signal for edge
+// filters and can raise challenge rates without any request ever reaching
+// key validation. This changes nothing about auth, frequency or retries.
+export const UA_USER_AGENT = 'nebo-ua-check-proxy/1.0 (+https://nebo-ua.vercel.app)';
+
 export const UA_ALERT_TYPES = ['AIR', 'ARTILLERY', 'URBAN_FIGHTS', 'CHEMICAL', 'NUCLEAR', 'INFO', 'UNKNOWN'];
 export const UA_TYPE_LABEL = {
   AIR: 'Повітряна тривога',
@@ -90,18 +96,28 @@ export async function uaGet(env, path, { timeoutMs = 9000 } = {}) {
       signal: ctrl.signal,
       headers: {
         Accept: 'application/json',
+        'User-Agent': UA_USER_AGENT,
         Authorization: authHeaderValue(key, env.UKRAINEALARM_AUTH_SCHEME),
       },
     });
     // Safe diagnostic headers only (names + non-sensitive values).
     // Never logged/stored: Authorization, Cookie, Set-Cookie, bodies.
-    const rayId = (() => {
+    // content-type discriminates by CONFIRMED sign: a Cloudflare challenge
+    // page is text/html ("Just a moment..."), a real API rejection is
+    // application/json. text/html on 401/403 means the request never
+    // reached key validation at all.
+    const safeHeader = (name) => {
       try {
-        return res.headers?.get?.('cf-ray') || null;
+        return res.headers?.get?.(name) || null;
       } catch {
         return null;
       }
-    })();
+    };
+    const rayId = safeHeader('cf-ray');
+    const contentType = safeHeader('content-type');
+    const edgeMark = contentType && !/application\/json/i.test(contentType)
+      ? `, edge content-type ${contentType.split(';')[0].trim()}`
+      : '';
     const raySuffix = rayId ? ` (ray ${rayId})` : '';
     if (res.status === 429) {
       const h = res.headers?.get
@@ -114,12 +130,12 @@ export async function uaGet(env, path, { timeoutMs = 9000 } = {}) {
     // valid keys (bot-mitigation sampling), so conflating them would
     // misdirect the investigation. No retries, no scheme guessing here.
     if (res.status === 401) {
-      throw new UAHttpError(401, `UkraineAlarm: ключ відхилено (HTTP 401)${raySuffix}. Перевірте секрет UKRAINEALARM_API_KEY.`, null, rayId);
+      throw new UAHttpError(401, `UkraineAlarm: ключ відхилено (HTTP 401)${raySuffix}${edgeMark}. Перевірте секрет UKRAINEALARM_API_KEY.`, null, rayId);
     }
     if (res.status === 403) {
-      throw new UAHttpError(403, `UkraineAlarm: доступ відхилено edge-сервером (HTTP 403)${raySuffix}. Схоже на WAF/фільтр, а не на невалідний ключ.`, null, rayId);
+      throw new UAHttpError(403, `UkraineAlarm: доступ відхилено edge-сервером (HTTP 403)${raySuffix}${edgeMark}. Схоже на WAF/фільтр, а не на невалідний ключ.`, null, rayId);
     }
-    if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}${raySuffix}`, null, rayId);
+    if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}${raySuffix}${edgeMark}`, null, rayId);
     const text = await res.text();
     try {
       return JSON.parse(text);

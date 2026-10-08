@@ -90,7 +90,7 @@ function stubUa(routes) {
   const calls = [];
   globalThis.fetch = async (url, opts = {}) => {
     const u = String(url);
-    calls.push({ url: u, auth: opts.headers?.Authorization });
+    calls.push({ url: u, auth: opts.headers?.Authorization, ua: opts.headers?.['User-Agent'] });
     const path = u.startsWith(UA) ? u.slice(UA.length) : u;
     const route = routes[path];
     if (route instanceof Error) throw route;
@@ -251,7 +251,41 @@ test('uaGet sends exact Authorization header, classifies errors, never leaks key
   }
 });
 
-test('uaGet: 429/401/500/invalid-JSON/missing-key', async () => {
+test('uaGet identifies the client with an honest User-Agent', async () => {
+  const { restore, calls } = stubUa({ '/api/v3/alerts/status': { lastActionIndex: 3 } });
+  try {
+    const { UA_USER_AGENT } = await import('../src/ukrainealarm.js');
+    await uaGet({ UKRAINEALARM_API_KEY: 'K', UKRAINEALARM_API_URL: 'https://api.ukrainealarm.com' }, '/api/v3/alerts/status');
+    assert.equal(calls[0].ua, UA_USER_AGENT);
+    assert.match(calls[0].ua, /^nebo-ua-check-proxy\//, 'identifying, not spoofing a browser');
+  } finally {
+    restore();
+  }
+});
+
+test('uaGet surfaces edge challenge content-type as a confirmed sign', async () => {
+  const env = { UKRAINEALARM_API_KEY: 'K', UKRAINEALARM_API_URL: 'https://api.ukrainealarm.com' };
+  let r = stubUa({ '/x': { status: 403, body: {}, headers: { 'cf-ray': 'ray-waf-1', 'content-type': 'text/html; charset=UTF-8' } } });
+  try {
+    await assert.rejects(uaGet(env, '/x'), (e) => {
+      assert.equal(e.status, 403);
+      assert.match(e.message, /edge content-type text\/html/, 'challenge page distinguished from API rejection');
+      return true;
+    });
+  } finally {
+    r.restore();
+  }
+  r = stubUa({ '/x': { status: 403, body: { error: 'forbidden' }, headers: { 'content-type': 'application/json' } } });
+  try {
+    await assert.rejects(uaGet(env, '/x'), (e) => {
+      assert.ok(!e.message.includes('edge content-type'), 'real API JSON rejection carries no edge mark');
+      return true;
+    });
+  } finally {
+    r.restore();
+  }
+});
+test('uaGet: 429/500/invalid-JSON/missing-key', async () => {
   const env = { UKRAINEALARM_API_KEY: 'K', UKRAINEALARM_API_URL: UA };
   let r = stubUa({ '/x': { status: 429, body: {}, headers: { 'Retry-After': '5' } } });
   try {
