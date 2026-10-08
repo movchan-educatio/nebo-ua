@@ -140,10 +140,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .radar-mini .radar-ranges button{min-height:28px!important;font-size:11px!important;padding:0!important;border-radius:8px!important}
 /* Desktop/tablet: the scope is a true square capped by the panel width. The
    old flex-stretch derived the side from the leftover height, so on tall
-   screens the circle grew past the panel and got clipped. */
+   screens the circle grew past the panel and got clipped. Vertical auto
+   margins centre it when the card is aligned to the map height. */
 @media(min-width:761px){
   .radar-mini{display:flex;flex-direction:column}
-  .radar-mini .radar-screen{flex:none;width:100%;aspect-ratio:1;max-height:none;margin:6px auto 0}
+  .radar-mini .radar-screen{flex:none;width:100%;aspect-ratio:1;max-height:none;margin:auto 0}
 }
 .radar-screen{position:relative;width:100%;aspect-ratio:1;max-height:360px;margin:0 auto;border-radius:50%;overflow:hidden;background:radial-gradient(circle,#0a2a18 0%,#061a0f 55%,#030c07 100%);box-shadow:0 0 0 1px #b9ffdc44,0 0 26px #9dffcc2e,inset 0 0 60px #000}
 .radar-screen canvas{position:absolute;inset:0;width:100%;height:100%}

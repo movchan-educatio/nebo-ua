@@ -815,10 +815,17 @@ function layoutRadar() {
       centerCol.insertBefore(radar, statsRow);
     }
     radar.classList.add('radar-own-panel');
+    radar.style.minHeight = '';
   } else {
     // Top of the right column, above «Поточні загрози»: visible on first paint.
     if (rightCol.firstElementChild !== radar) rightCol.insertBefore(radar, rightCol.firstElementChild);
     radar.classList.remove('radar-own-panel');
+    // Desktop/tablet: the radar card bottom aligns with the map card bottom.
+    const mapPanel = document.querySelector('.map-panel');
+    if (mapPanel) {
+      const target = Math.round(mapPanel.getBoundingClientRect().bottom - radar.getBoundingClientRect().top);
+      if (target > 240) radar.style.minHeight = target + 'px';
+    }
   }
   try { scopeMini.setActive(true); } catch { /* ignore */ }
   try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }
@@ -826,6 +833,9 @@ function layoutRadar() {
 function setupRadarLayout() {
   layoutRadar();
   window.addEventListener('resize', () => { layoutRadar(); });
+  // Map card may settle a tick later (fonts, scrollbar): realign once.
+  window.addEventListener('load', () => { layoutRadar(); });
+  setTimeout(() => { layoutRadar(); }, 600);
 }
 function setupMenu() {
   const b = $('#menuButton'), m = $('#topMenu');
