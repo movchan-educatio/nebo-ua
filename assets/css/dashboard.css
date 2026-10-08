@@ -213,8 +213,25 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .system-notice{margin:0 0 var(--gap);padding:8px 12px;border-radius:11px;background:#3a171cee;color:#ffd8db;font-size:12px;display:flex;align-items:center;gap:10px}
 .system-notice[hidden]{display:none}
 .notice-x{margin-left:auto;flex:none;width:30px;height:30px;border-radius:9px;border:1px solid #ffffff22;background:none;color:inherit;font-size:16px;cursor:pointer}
-dialog{border:1px solid var(--line);background:linear-gradient(160deg,#0d1824,#060d14);color:var(--text);border-radius:18px;padding:20px;max-width:min(92vw,480px)}
+dialog{border:1px solid var(--line);background:linear-gradient(160deg,#0d1824,#060d14);color:var(--text);border-radius:18px;padding:22px;max-width:min(92vw,480px);width:min(92vw,420px);text-align:center}
 dialog::backdrop{background:#01040980}
+dialog p{color:var(--muted);line-height:1.55;margin:0 0 16px;font-size:14px}
+dialog h2{margin:6px 0 12px}
+dialog .kicker{display:block;text-align:center}
+/* Dialog actions: one tidy centred row, real buttons. */
+dialog .prompt-actions{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;align-items:center}
+#audioPrompt p{text-align:center}
+dialog button:not(.sheet-close):not(.collapse-btn){min-height:44px;padding:0 20px;border-radius:12px;border:1px solid var(--line);background:#0e1a23;color:var(--text);font-size:14px;font-weight:600;cursor:pointer}
+dialog button:not(.sheet-close):not(.collapse-btn):hover{border-color:#4d7fa0}
+dialog .primary,#enableAudio{background:#1d6ca8;border:1px solid #3f8fd0;color:#fff}
+dialog .primary:hover,#enableAudio:hover{background:#2179ba}
+#laterAudio{background:#0e1a23;color:var(--muted)}
+dialog .toggle-row,dialog .range-row,dialog .time-row,dialog label{text-align:left}
+dialog .toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:6px 0;border-bottom:1px solid #ffffff0c;font-size:13px}
+dialog .toggle-row input{width:20px;height:20px;accent-color:var(--cyan)}
+dialog .sheet-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--text);cursor:pointer;padding:0}
+dialog .info-links{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin:4px 0 12px}
+dialog .info-links a{color:var(--blue);font-size:13px}
 .bottom-sheet{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--bottomnav-h) + 12px);width:min(94vw,520px);margin:0}
 .sheet-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--text);cursor:pointer}
 
