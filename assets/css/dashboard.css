@@ -130,10 +130,14 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 
 /* ── Mini radar ── */
 .radar-mini{margin-top:var(--gap);padding:14px}
+/* Compact range presets: six small buttons in one row so the scope gets the
+   space instead of the controls. */
+.radar-mini .radar-ranges{grid-template-columns:repeat(6,1fr)!important;gap:4px!important;margin-bottom:6px}
+.radar-mini .radar-ranges button{min-height:28px!important;font-size:11px!important;padding:0!important;border-radius:8px!important}
 /* Desktop: the radar panel matches the map/sources height exactly. */
 @media(min-width:761px){
   .radar-mini{height:min(62vh,620px);display:flex;flex-direction:column}
-  .radar-mini .radar-screen{flex:1;min-height:0;width:auto;aspect-ratio:1;max-height:100%;margin:0 auto}
+  .radar-mini .radar-screen{flex:1;min-height:0;width:auto;aspect-ratio:1;max-height:100%;margin:6px auto 0}
 }
 .radar-screen{position:relative;width:100%;aspect-ratio:1;max-height:300px;margin:0 auto;border-radius:50%;overflow:hidden;background:radial-gradient(circle,#06270f 0%,#04140a 55%,#020805 100%);box-shadow:0 0 0 1px #3dff9e33,0 0 34px #3dff9e22,inset 0 0 60px #000}
 .radar-screen canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -276,7 +280,7 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .map-wrap{height:min(34dvh,320px);min-height:240px}
   /* Radar is its own compact panel straight under the map. */
   .radar-mini.radar-own-panel{margin-top:8px;padding:10px}
-  .radar-mini.radar-own-panel .radar-screen{width:min(100%,210px)}
+  .radar-mini.radar-own-panel .radar-screen{width:min(100%,260px)}
   /* Compact bottom row; the radar sits inside the stats panel on mobile. */
   .stats-row{grid-template-columns:minmax(0,1fr);gap:8px}
   .stat-cards{grid-template-columns:repeat(3,1fr);gap:6px}
