@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS checks (
 );
 CREATE INDEX IF NOT EXISTS idx_checks_source_ts ON checks(source, ts);
 
+-- UkraineAlarm v3 sync state (version gate + 429 backoff). Tiny key/value
+-- store, written only on change: lastActionIndex when the upstream version
+-- moves, notBefore while honoring server-sent Retry-After.
+CREATE TABLE IF NOT EXISTS ua_sync (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
 -- Web Push subscriptions. No accounts: the endpoint IS the identity.
 -- places: JSON [{oblast, raion?, hromada?, settlement?}] (several allowed).
 -- categories: JSON {officialStart, officialEnd, uav, missile, ballistic, kab, aviation}.

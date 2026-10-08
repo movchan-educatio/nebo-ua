@@ -19,6 +19,13 @@ OFFICIAL_API_URL = ""
 NEPTUN_ALERTS_URL = "https://neptun.in.ua/api/v1/alerts"
 NEPTUN_THREATS_URL = "https://neptun.in.ua/api/v1/threats"
 MAPA_URL = "https://mapa.ua/api/v1/current"
+# UkraineAlarm API v3 (official alerts). The KEY is a Worker secret, never a var:
+#   wrangler secret put UKRAINEALARM_API_KEY
+# Optional auth-scheme prefix for the Authorization header, e.g. "Token".
+# Default "" sends the raw key (swagger-codegen default); set only if the
+# key issuance docs require a prefix.
+UKRAINEALARM_API_URL = "https://api.ukrainealarm.com"
+UKRAINEALARM_AUTH_SCHEME = ""
 # How many consecutive successful cycles an alert may be missing before it is closed.
 ALERT_MISS_LIMIT = "3"
 # Same for monitoring threats (1 miss -> stale, 3 misses -> dropped).
