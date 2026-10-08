@@ -72,10 +72,11 @@ function openSheet(html) {
   $('#detailContent').innerHTML = html;
   if (typeof d.showModal === 'function' && !d.open) d.showModal();
 }
-// Red dot on Сповіщення when events are newer than the last view.
-// Real delta only: compares max source eventTime with stored marker.
+// Red dot on Сповіщення only for RECENT unseen events (≤10 min old) — an old
+// record must never keep the indicator glowing forever.
 function updateNavDot(snap) {
   try {
+    const RECENT_MS = 10 * 60_000;
     let max = 0;
     for (const e of snap.events || []) {
       const t = new Date(e.eventTime || e.timestamp || 0).getTime();
@@ -83,7 +84,7 @@ function updateNavDot(snap) {
     }
     const seen = Number(localStorage.getItem('nebo-seen-max') || 0);
     const dot = $('#navDot');
-    if (dot) dot.hidden = !(max > seen && max > 0);
+    if (dot) dot.hidden = !(max > seen && max > Date.now() - RECENT_MS);
   } catch { /* badge best effort */ }
 }
 function setupViews() {
