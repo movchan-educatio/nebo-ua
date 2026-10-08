@@ -362,15 +362,11 @@ async function refreshMap() {
         if (g?.polys) withPolys.push({ ...f, district: g.name, polys: g.polys });
       } catch { /* skip missing geometry: no phantom polygons */ }
     }
-    const detail = state.detail;
-    // Territory fills are ALWAYS shown (reference: the map is never blank);
-    // the level only changes which labels/dots are visible.
-    const showRaions = true;
-    mapUI.setAlertShapes(showRaions ? withPolys : [], onTerritory);
-    // Level-specific labelling: oblasts at country/oblast, raions deeper.
-    try { mapUI.map.getContainer().classList.toggle('detail-raion', detail === 'raion'); } catch { /* ignore */ }
-    try { mapUI.map.getContainer().classList.toggle('detail-community', detail === 'community'); } catch { /* ignore */ }
-    if (showRaions) {
+    // No level selector now: fills are always shown, raion dots always help
+    // identify territories at a glance.
+    mapUI.setAlertShapes(withPolys, onTerritory);
+    try { mapUI.map.getContainer().classList.remove('detail-raion', 'detail-community'); } catch { /* ignore */ }
+    {
       const dots = [];
       const firstRing = (polys) => {
         const p0 = polys && polys[0];
@@ -393,8 +389,6 @@ async function refreshMap() {
         dots.push({ name: f.district, region: f.oblast, status: f.level === 'critical' || f.level === 'alert' ? 'alert' : 'mon', lat: lat / n, lon: lon / n });
       }
       mapUI.setRaionDots(dots, onTerritory);
-    } else {
-      mapUI.setRaionDots([], onTerritory);
     }
   } catch { /* shapes best effort */ }
   try {
@@ -477,7 +471,8 @@ function focusTerritory(h) {
 
 // ── Detail + basemap segs ─────────────────────────────────────────────────
 function setupSegs() {
-  $('#detailSeg').addEventListener('click', (e) => {
+  const detailSeg = $('#detailSeg');
+  if (detailSeg) detailSeg.addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;
     state.detail = b.dataset.detail;
