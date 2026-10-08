@@ -702,6 +702,28 @@ test('healthItem emits single contract: online + delayed flag (no separate statu
   }
 });
 
+test('regions directory: 404 when empty, flat public list when cached, no key material', async () => {
+  const store = keyKv();
+  const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
+  const empty = await worker.fetch(new Request('https://worker.test/v1/official/regions'), env);
+  assert.equal(empty.status, 404, 'empty directory is 404, never an authoritative empty list');
+  const { restore } = stubUa({ '/api/v3/regions': TREE });
+  try {
+    const { refreshRegionsTree } = await import('../src/ukrainealarm.js');
+    await refreshRegionsTree(env, true);
+  } finally {
+    restore();
+  }
+  const full = await worker.fetch(new Request('https://worker.test/v1/official/regions'), env);
+  assert.equal(full.status, 200);
+  const body = await full.json();
+  assert.ok(body.regions.length >= 3);
+  assert.ok(body.regions.every(r => typeof r.regionId === 'string' && 'parentId' in r));
+  const text = JSON.stringify(body);
+  assert.ok(!/UKRAINEALARM_API_KEY|Authorization|Bearer/i.test(text), 'no key material in public directory');
+  assert.equal(full.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
 test('public responses never carry key material (WAR LIVE separation: key stays server-side)', async () => {
   const { restore } = stubUa({
     ...directEmpty,

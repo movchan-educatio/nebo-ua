@@ -3,7 +3,7 @@ import { normalizeNeptunThreat, normalizeMapa, normalizeAlert, isFreshEvent } fr
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
-import { fetchOfficialUkraineAlarm, fetchRegionHistory } from './ukrainealarm.js';
+import { fetchOfficialUkraineAlarm, fetchRegionHistory, getRegionsTree } from './ukrainealarm.js';
 import { loadPrev, saveState, loadLatest, loadBundle, saveBundle, meaningfulFp, shouldWrite, isAlreadyPersisted, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
@@ -350,6 +350,26 @@ export default {
       // the stored snapshot is served as-is: honestly stale, never faked.
       const d1 = await latestPipelineCheck(env.nebo_journal);
       return json(buildStateResponse(bundle, d1, Date.now()));
+    }
+    if (url.pathname === '/v1/official/regions' && request.method === 'GET') {
+      // Public region directory (id/name/type/parent) for the history picker
+      // and search. Served from the KV tree cache; contains no key material
+      // and no alert content. 404 when the tree was never fetched (key
+      // missing or upstream unreachable) — never an empty list passed off
+      // as authoritative.
+      const tree = await getRegionsTree(env);
+      if (!tree.states?.length) return json({ error: 'Region directory not available yet' }, 404, 30);
+      const flat = [];
+      const walk = (nodes, parentId) => {
+        for (const n of nodes || []) {
+          if (n && typeof n.regionId === 'string') {
+            flat.push({ regionId: n.regionId, regionName: n.regionName || null, regionType: n.regionType || null, parentId: parentId || null });
+            walk(n.regionChildIds, n.regionId);
+          }
+        }
+      };
+      walk(tree.states, null);
+      return json({ v: 1, serverTime: new Date().toISOString(), regions: flat }, 200, 300);
     }
     if (url.pathname === '/v1/official/history' && request.method === 'GET') {
       // Validated read-through to UkraineAlarm regionHistory (last 25).
