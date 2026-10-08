@@ -422,21 +422,21 @@ export function createSituationMap(el,onSelect){
     // Trails FIRST: the animation below consumes trailByTrack for this cycle.
     trailByTrack.clear();
     if(Array.isArray(trailList)){
-      // Reference look: trails only for confirmed MOVING threats, capped so
-      // the map stays readable. UAV/recon churn is excluded (too many dots).
-      const TRAIL_KINDS=new Set(['shahed','missile','ballistic','kab','aviation']);
-      let trailBudget=8;
+      // Every kind may show a trail now; drones get a shorter, dimmer tail so
+      // the map stays readable. A hard budget prevents clutter.
+      const PRIORITY_TRAIL=new Set(['shahed','missile','ballistic','kab','aviation']);
+      let trailBudget=14;
       for(const tr of trailList){
         if(!tr||!Array.isArray(tr.points)||tr.points.length<2)continue;
-        const pts=tr.points.slice(-6).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+        const kind=(()=>{ try{ return classifyThreat(tr); }catch(e){ return 'other'; } })();
+        const maxPts=PRIORITY_TRAIL.has(kind)?6:4;
+        const pts=tr.points.slice(-maxPts).filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
         if(pts.length<2) continue;
         trailByTrack.set(tr.trackId,pts);
-        const kind=(()=>{ try{ return classifyThreat(tr); }catch(e){ return 'other'; } })();
-        if(!TRAIL_KINDS.has(kind)) continue;
         if(trailBudget<=0) continue;
         trailBudget--;
         if(selTrail&&tr.trackId===selTrail.trackId)continue;
-        drawTrail(pts, META[kind]?.color||'#efb55b', 1);
+        drawTrail(pts, META[kind]?.color||'#efb55b', PRIORITY_TRAIL.has(kind)?1:0.72);
       }
     }
     const now=Date.now();
