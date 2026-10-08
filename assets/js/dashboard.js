@@ -234,8 +234,10 @@ function renderLayerPanel() {
 function locateMe() {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition((pos) => {
+    state.userPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
     mapUI.setUserPos({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy });
     mapUI.centerOnUser();
+    updateMiniRadar();
   }, () => { /* denied: stay silent */ }, { timeout: 8000 });
 }
 function onTerritory(item) {
@@ -300,9 +302,18 @@ function renderLegend() {
 function updateMiniRadar() {
   const st = state.snapshot;
   if (!scopeMini || !st) return;
+  // Radar shows only CURRENT (non-stale) confirmed coordinates, same set as
+  // the map markers. Stale records stay in the lists but are never plotted
+  // as live radar contacts.
+  const fresh = (st.events || []).filter(e => e.lat != null && !e.areaOnly && !e.stale);
   try {
-    scopeMini.update((st.events || []).filter(e => e.lat != null && !e.areaOnly), null, { range: scopeMiniRange });
+    scopeMini.update(fresh, state.userPos || null, { range: scopeMiniRange });
   } catch { /* radar best effort */ }
+  const cnt = $('#radarCount');
+  if (cnt) {
+    const c = state.userPos ? 'від вас' : 'від центру України';
+    cnt.textContent = `${fresh.length} ${fresh.length === 1 ? 'ціль' : fresh.length < 5 ? 'цілі' : 'цілей'} у радіусі ${scopeMiniRange} км ${c}`;
+  }
 }
 async function refreshMap() {
   const st = state.snapshot;
@@ -338,7 +349,10 @@ async function refreshMap() {
         .map(e => ({ trackId: e.trackId || e.id, category: e.category, points: e.trail.slice(-8) }));
     }
     const sel = null;
-    mapUI.setEvents(st.events, new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']), sel, trails);
+    // Markers: only current (non-stale) confirmed targets — stale records
+    // stay in the panels but are not drawn as live positions.
+    const freshEvents = (st.events || []).filter(e => !e.stale);
+    mapUI.setEvents(freshEvents, new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']), sel, trails);
   } catch { /* markers best effort */ }
   // Mini radar: confirmed coordinates only (animated sweep).
   updateMiniRadar();
