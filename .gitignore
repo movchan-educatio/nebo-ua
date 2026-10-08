@@ -21,3 +21,5 @@ Thumbs.db
 *.key
 private/
 .wrangler/
+# Local visual-QA screenshots (Playwright captures, not production assets)
+shots/
