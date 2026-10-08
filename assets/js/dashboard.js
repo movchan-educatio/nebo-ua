@@ -88,8 +88,7 @@ function updateNavDot(snap) {
   } catch { /* badge best effort */ }
 }
 function setupViews() {
-  const handlers = { map: scrollMap, radar: scrollRadar, stats: showStats, history: showHistory, alerts: showAlerts, sources: showSources, about: () => location.assign('./about/') };
-  const onNav = (v) => {
+  const handlers = { map: scrollMap, radar: scrollRadar, stats: showStats, history: showHistory, alerts: showAlerts, sources: showSources, about: () => location.assign('./about/') };  const onNav = (v) => {
     $$('.mainnav button, .bottom-nav .nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === v));
     (handlers[v] || scrollMap)();
   };
@@ -115,7 +114,9 @@ function setupViews() {
 }
 function scrollMap() { $('#mapPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
 function scrollRadar() {
-  openRadarBig();
+  // Radar lives in the right column panel — just bring it into view.
+  const el = document.querySelector('.radar-mini');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 // ── Sources panel ─────────────────────────────────────────────────────────
@@ -584,16 +585,6 @@ function showSources() {
   openSheet(`<span class="kicker">ДЖЕРЕЛА ДАНИХ</span><h2>Статуси</h2>
     ${cards.map(c => `<div class="event-row"><span><b>${esc(c.name)}</b><br><small class="micro">${esc(c.sub)} · ${c.updatedAt ? 'оновлено ' + esc(clock(c.updatedAt)) : esc(c.error || 'очікування')}</small></span><span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'OFFLINE' ? 'off' : c.state === 'IDLE' ? 'idle' : 'warn'}" style="margin-left:auto">${esc(c.label)}</span></div>`).join('')}
     <p class="micro">Офіційні тривоги — <a href="https://www.ukrainealarm.com/" target="_blank" rel="noopener" class="top-links-link">UkraineAlarm</a> (ключ лише на сервері). НЕБО.UA не є його партнером. Моніторинг цілей — NEPTUN і MAPA. <a href="./sources/" class="top-links-link">Розгорнута сторінка&nbsp;джерел&nbsp;›</a></p>`);
-}
-function openRadarBig() {
-  openSheet(`<span class="kicker">РАДАР</span><h2>Розгорнутий огляд</h2>
-    <div class="radar-screen" style="max-height:420px"><canvas id="scopeBig" aria-label="Радар-огляд"></canvas></div>
-    <p class="radar-note">Лише цілі з підтвердженими координатами (NEPTUN/MAPA). Тривоги областей — не цілі.</p>`);
-  try {
-    const big = createScope($('#scopeBig'));
-    big.setActive(true);
-    big.update((state.snapshot?.events || []).filter(e => e.lat != null && !e.areaOnly), null, { range: scopeMiniRange });
-  } catch { /* radar best effort */ }
 }
 
 // ── Data loop ─────────────────────────────────────────────────────────────
