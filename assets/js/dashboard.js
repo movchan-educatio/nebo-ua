@@ -205,7 +205,7 @@ function initMap() {
   setTimeout(() => { try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ } }, 400);
   $('#zoomIn').onclick = () => mapUI.map.zoomIn();
   $('#zoomOut').onclick = () => mapUI.map.zoomOut();
-  $('#gpsButton').onclick = locateMe;
+  $('#gpsButton').onclick = () => locateMe(false);
   const legendBtn = $('#legendBtn');
   const legendBox = $('#mapLegend');
   if (legendBtn && legendBox) {
@@ -232,14 +232,17 @@ function renderLayerPanel() {
     mapUI.toggle(i.dataset.layer, i.checked);
   });
 }
-function locateMe() {
+function locateMe(silent) {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition((pos) => {
     state.userPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
     mapUI.setUserPos({ lat: pos.coords.latitude, lon: pos.coords.longitude, acc: pos.coords.accuracy });
-    mapUI.centerOnUser();
+    if (!silent) mapUI.centerOnUser();
+    // Radar centre = the operator's own position (that is what a scope means).
+    try { scopeMini.update([], state.userPos, { range: scopeMiniRange }); } catch { /* ignore */ }
     updateMiniRadar();
-  }, () => { /* denied: stay silent */ }, { timeout: 8000 });
+  }, () => { /* denied/unavailable: keep place or Ukraine fallback */ },
+  { timeout: 8000, maximumAge: 600000 });
 }
 function onTerritory(item) {
   // item: raion fill {oblast, district, level} or oblast feature.
@@ -742,3 +745,6 @@ setupSegs();
 load();
 setInterval(load, POLL_MS);
 loadRegionsDir();
+// Radar/map centre: ask for the operator's position on boot (silently — no
+// map jump). Falls back to the selected place, then to Ukraine's centre.
+locateMe(true);
