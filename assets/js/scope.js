@@ -378,8 +378,12 @@ export function createScope(canvas, { onSelect } = {}) {
     if (!S.pts.length) {
       // Small muted line BELOW the clean center — never over the crosshair.
       ctx.fillStyle = '#5f7d8f'; ctx.font = '11px system-ui'; ctx.textAlign = 'center';
-      const anyInRange = S.events.some(e => e.lat != null && e.lon != null);
-      ctx.fillText(anyInRange ? 'СКАНУВАННЯ…' : 'ЦІЛЕЙ У РАДІУСІ НЕМАЄ', cx0, cy0 + 26);
+      const anyCoord = S.events.some(e => e.lat != null && e.lon != null);
+      ctx.fillText(
+        eligible.length ? 'СКАНУВАННЯ…'
+          : anyCoord ? 'ЦІЛЕЙ У РАДІУСІ НЕМАЄ'
+            : 'НЕМАЄ ПІДТВЕРДЖЕНИХ ЦІЛЕЙ',
+        cx0, cy0 + 26);
       ctx.textAlign = 'left';
     }
     if (S.pin) {
