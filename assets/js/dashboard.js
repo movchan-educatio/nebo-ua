@@ -168,10 +168,6 @@ function renderThreats(events) {
 
 // ── Stats + events ────────────────────────────────────────────────────────
 function renderStats(alerts, events) {
-  const s = computeAlertStats(alerts);
-  $('#stOblasts').textContent = s.oblasts;
-  $('#stRaions').textContent = s.raions;
-  $('#stComm').textContent = s.communities;
   const feed = groupThreats(events, 12);
   const officials = (alerts || []).filter(a => a.official).slice(0, 12);
   const items = [
@@ -679,7 +675,7 @@ function setupCollapsibles() {
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* ignore */ } };
 
   const targets = [
-    ...$$('.sources-col .panel'), ...$$('.right-col .panel'),
+    ...$$('.right-col .panel'),
     $$('.legend-strip')[0], $$('#mapLegend')[0],
   ].filter(Boolean);
 
@@ -707,7 +703,7 @@ function setupCollapsibles() {
     if (saved[id]) { el.classList.add('collapsed'); btn.textContent = '▸'; }
   });
 
-  // ONE toggle for the whole bottom row (Активні тривоги + Останні події).
+  // ONE toggle for the whole bottom row (Джерела даних + Останні події).
   const statsRow = document.querySelector('.stats-row');
   if (statsRow) {
     const head = statsRow.querySelector('.panel .panel-head');

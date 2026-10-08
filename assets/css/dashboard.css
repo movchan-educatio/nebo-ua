@@ -64,7 +64,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 
 /* ── Dashboard grid ── */
 .dash{padding:var(--gap);display:grid;gap:var(--gap);max-width:1720px;margin:0 auto}
-.dash-main{display:grid;grid-template-columns:258px minmax(0,1fr) 340px;gap:var(--gap);align-items:start;min-height:0}
+.dash-main{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:var(--gap);align-items:start;min-height:0}
 .panel{padding:14px}
 .panel h2{margin:0 0 10px;font-size:17px}
 .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
@@ -133,10 +133,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
    space instead of the controls. */
 .radar-mini .radar-ranges{grid-template-columns:repeat(6,1fr)!important;gap:4px!important;margin-bottom:6px}
 .radar-mini .radar-ranges button{min-height:28px!important;font-size:11px!important;padding:0!important;border-radius:8px!important}
-/* Desktop: the radar panel matches the map/sources height exactly. */
+/* Desktop/tablet: the scope is a true square capped by the panel width. The
+   old flex-stretch derived the side from the leftover height, so on tall
+   screens the circle grew past the panel and got clipped. */
 @media(min-width:761px){
-  .radar-mini{height:min(62vh,620px);display:flex;flex-direction:column}
-  .radar-mini .radar-screen{flex:1;min-height:0;width:auto;aspect-ratio:1;max-height:100%;margin:6px auto 0}
+  .radar-mini{display:flex;flex-direction:column}
+  .radar-mini .radar-screen{flex:none;width:100%;aspect-ratio:1;max-height:none;margin:6px auto 0}
 }
 .radar-screen{position:relative;width:100%;aspect-ratio:1;max-height:360px;margin:0 auto;border-radius:50%;overflow:hidden;background:radial-gradient(circle,#0a2a18 0%,#061a0f 55%,#030c07 100%);box-shadow:0 0 0 1px #b9ffdc44,0 0 26px #9dffcc2e,inset 0 0 60px #000}
 .radar-screen canvas{position:absolute;inset:0;width:100%;height:100%}
@@ -259,15 +261,13 @@ dialog .info-links a{color:var(--blue);font-size:13px}
 
 /* ── Responsive ── */
 @media(max-width:1220px){
-  .dash-main{grid-template-columns:250px minmax(0,1fr) 320px}
+  .dash-main{grid-template-columns:minmax(0,1fr) 340px}
   .mainnav button{padding:9px 8px;font-size:12px}
 }
 @media(max-width:1020px){
   .mainnav{display:none}
   .menu-btn{display:grid}
-  .dash-main{grid-template-columns:minmax(0,1fr) 320px}
-  .sources-col{display:none}
-  .sources-col.drawer-open{display:block;position:fixed;z-index:1200;left:12px;top:calc(var(--topbar-h) + 8px);width:min(320px,86vw);max-height:70dvh;overflow:auto}
+  .dash-main{grid-template-columns:minmax(0,1fr) 340px}
   .stats-row{grid-template-columns:1fr}
 }
 .menu-btn{display:none}
