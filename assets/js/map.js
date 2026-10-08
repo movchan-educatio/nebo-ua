@@ -768,7 +768,6 @@ function eventIcon(e,ac){
     className:'',
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:1" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
       ${glyphSvg(m.icon, 32)}${countBadge}
-      <span class="mk-label">${m.label}</span>
     </div>`,
     iconSize:[40,40],iconAnchor:[20,20],
   });

@@ -157,7 +157,8 @@ test('event/blip marker HTML: threat SVG + kind label, no pulse wrappers', () =>
   const glyph = src.slice(src.indexOf('function glyphSvg'), src.indexOf('function glyphSvg') + 600);
   assert.ok(glyph.includes('threat-svg'), 'glyphSvg emits the .threat-svg element');
   assert.ok(glyph.includes('viewBox'), 'glyphSvg carries the symbol viewBox (inline path fallback)');
-  assert.ok(eventHtml.includes('mk-label'), 'eventIcon: kind label (CSS zoom-gated, hidden at country zoom)');
+  assert.ok(eventHtml.includes('mk-count'), 'eventIcon: group badge (×N) is the only marker text');
+  assert.ok(!eventHtml.includes('mk-label'), 'no per-type text labels (the legend covers types)');
 });
 
 test('unknown threat is a diamond with a path-drawn question mark (no text element)', () => {
