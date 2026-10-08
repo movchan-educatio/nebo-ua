@@ -88,15 +88,15 @@
       </div>
       <div class="legend-strip glass" aria-label="Умовні позначення">
         <b>Умовні позначення:</b>
-        <span class="row"><i style="background:#ff4d5e"></i>Повітряна тривога</span>
-        <span class="row"><i style="background:#ff9f43"></i>Підвищена небезпека</span>
-        <span class="row"><i style="background:#b06bff"></i>Рух БПЛА</span>
-        <span class="row"><i style="background:#ff4d5e"></i>Ракета</span>
-        <span class="row"><i style="background:#ffd23d"></i>КАБ</span>
-        <span class="row"><i style="background:#ff9f43"></i>Балістика</span>
-        <span class="row"><i style="background:#4da3ff"></i>Авіація</span>
-        <span class="row"><i style="background:#ff9f43"></i>Артилерія</span>
-        <span class="row"><i style="background:#5f7d8f"></i>Немає тривоги</span>
+        <span class="row"><i style="background:#F04444"></i>Повітряна тривога</span>
+        <span class="row"><i style="background:#F59E0B"></i>Підвищена небезпека</span>
+        <span class="row lg"><svg style="color:#b06bff"><use href="./assets/brand/threat-icons.svg#uav"/></svg>Рух БПЛА</span>
+        <span class="row lg"><svg style="color:#ff4d5e"><use href="./assets/brand/threat-icons.svg#missile"/></svg>Ракета</span>
+        <span class="row lg"><svg style="color:#ffd23d"><use href="./assets/brand/threat-icons.svg#kab"/></svg>КАБ</span>
+        <span class="row lg"><svg style="color:#ff9f43"><use href="./assets/brand/threat-icons.svg#ballistic"/></svg>Балістика</span>
+        <span class="row lg"><svg style="color:#4da3ff"><use href="./assets/brand/threat-icons.svg#aircraft"/></svg>Авіація</span>
+        <span class="row lg"><svg style="color:#ff9f43"><use href="./assets/brand/threat-icons.svg#fpv"/></svg>Артилерія</span>
+        <span class="row"><i style="background:#3E5468"></i>Немає тривоги</span>
       </div>
       <p class="micro" style="margin:4px 2px 0">Офіційні сигнали й моніторингові повідомлення відображаються окремо. орієнтуйтеся на офіційні сигнали. НЕБО.UA не замінює офіційні системи оповіщення.</p>
     </section>
@@ -121,7 +121,9 @@
   <button class="nav-item" data-view="radar"><svg><use href="./assets/brand/icons.svg#i-radar"/></svg><span>Радар</span></button>
   <button class="nav-item" data-view="alerts"><svg><use href="./assets/brand/icons.svg#i-region"/></svg><span>Сповіщення</span></button>
   <button class="nav-item" data-view="sources"><svg><use href="./assets/brand/icons.svg#i-list"/></svg><span>Меню</span></button>
+  <button class="nav-collapse" id="navCollapse" aria-label="Сховати навігацію" aria-expanded="true">⌄</button>
 </nav>
+<button class="nav-reveal glass" id="navReveal" aria-label="Показати навігацію" hidden>⌃</button>
 <dialog id="detailSheet" class="bottom-sheet"><div class="sheet-handle"></div><button class="sheet-close" aria-label="Закрити"><svg><use href="./assets/brand/icons.svg#i-close"/></svg></button><div id="detailContent"></div></dialog>
 <dialog id="settingsDialog" class="settings-dialog"><button class="sheet-close" aria-label="Закрити"><svg><use href="./assets/brand/icons.svg#i-close"/></svg></button><span class="kicker">Небо.UA</span><h2>Налаштування</h2><div id="settingsBody"></div></dialog>
 <dialog id="reportDialog" class="prompt-dialog"><button class="sheet-close" data-report-close aria-label="Закрити"><svg><use href="./assets/brand/icons.svg#i-close"/></svg></button><span class="kicker">ЛОКАЛЬНА МІТКА</span><h2>Моя мітка</h2><form id="reportForm"><button type="button" data-report-close>Скасувати</button><button type="submit" class="primary">Зберегти</button></form></dialog>

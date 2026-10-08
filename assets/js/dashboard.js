@@ -3,7 +3,7 @@
 // overview.js (pure view-models), assets/js/map.js (GIS, untouched),
 // assets/js/scope.js (radar, untouched). No invented data anywhere.
 import { fetchAll, shouldPoll, POLL_MS } from '../../services/data.js';
-import { createStore, syncStore } from '../../services/tracks.js';
+import { createStore, syncStore, selectTrails } from '../../services/tracks.js';
 import { createSituationMap, getThreatVisual } from './map.js';
 import { createScope } from './scope.js';
 import { fetchRegions } from '../../services/regions.js';
@@ -185,11 +185,20 @@ function renderStats(alerts, events) {
 }
 
 // ── Map ───────────────────────────────────────────────────────────────────
-let mapUI = null, scopeMini = null, raionFills = [];
+let mapUI = null, scopeMini = null, scopeMiniRange = 100, raionFills = [];
 function initMap() {
   mapUI = createSituationMap($('#map'), onTerritory);
   mapUI.map.setView([48.6, 31.2], 6);
   scopeMini = createScope($('#scopeMini'));
+  scopeMini.setActive(true);
+  const rr = $('#radarRange');
+  if (rr) rr.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-range]');
+    if (!b) return;
+    scopeMiniRange = Number(b.dataset.range) || 100;
+    [...rr.querySelectorAll('button')].forEach(x => x.classList.toggle('active', x === b));
+    updateMiniRadar();
+  });
   // Container settles after first layout: re-fit so Ukraine is fully visible.
   requestAnimationFrame(() => { try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ } });
   setTimeout(() => { try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ } }, 400);
@@ -263,6 +272,13 @@ async function loadRegionsGeo() {
   } catch { /* offline: skip outlines */ }
   return state.geo;
 }
+function updateMiniRadar() {
+  const st = state.snapshot;
+  if (!scopeMini || !st) return;
+  try {
+    scopeMini.update((st.events || []).filter(e => e.lat != null && !e.areaOnly), null, { range: scopeMiniRange });
+  } catch { /* radar best effort */ }
+}
 async function refreshMap() {
   const st = state.snapshot;
   if (!st || !mapUI) return;
@@ -288,12 +304,19 @@ async function refreshMap() {
   } catch { /* shapes best effort */ }
   try {
     syncStore(state.tracks, st.events);
-    mapUI.setEvents(st.events, new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']), null, null);
+    let trails = [];
+    try { trails = selectTrails(state.tracks) || []; } catch { trails = []; }
+    // Fallback: source-provided trail arrays (MAPA) when the store has none.
+    if (!trails.length) {
+      trails = (st.events || [])
+        .filter(e => Array.isArray(e.trail) && e.trail.length >= 2)
+        .map(e => ({ trackId: e.trackId || e.id, category: e.category, points: e.trail.slice(-8) }));
+    }
+    const sel = null;
+    mapUI.setEvents(st.events, new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']), sel, trails);
   } catch { /* markers best effort */ }
-  // Mini radar: confirmed coordinates only.
-  try {
-    scopeMini.update((st.events || []).filter(e => e.lat != null && !e.areaOnly), null, { range: 100 });
-  } catch { /* radar best effort */ }
+  // Mini radar: confirmed coordinates only (animated sweep).
+  updateMiniRadar();
 }
 
 // ── Search ────────────────────────────────────────────────────────────────
@@ -439,7 +462,8 @@ function openRadarBig() {
     <p class="radar-note">Лише цілі з підтвердженими координатами (NEPTUN/MAPA). Тривоги областей — не цілі.</p>`);
   try {
     const big = createScope($('#scopeBig'));
-    big.update((state.snapshot?.events || []).filter(e => e.lat != null && !e.areaOnly), null, { range: 100 });
+    big.setActive(true);
+    big.update((state.snapshot?.events || []).filter(e => e.lat != null && !e.areaOnly), null, { range: scopeMiniRange });
   } catch { /* radar best effort */ }
 }
 
@@ -485,9 +509,29 @@ async function load() {
 function setupNavAutoHide() {
   const nav = document.querySelector('.bottom-nav');
   if (!nav) return;
+  const collapse = document.getElementById('navCollapse');
+  const reveal = document.getElementById('navReveal');
+  let userCollapsed = false;
+  try { userCollapsed = localStorage.getItem('nebo-nav-collapsed') === '1'; } catch { /* ignore */ }
+  const applyCollapsed = () => {
+    nav.classList.toggle('nav-collapsed', userCollapsed);
+    if (reveal) reveal.hidden = !userCollapsed;
+  };
+  applyCollapsed();
+  if (collapse) collapse.onclick = () => {
+    userCollapsed = true;
+    try { localStorage.setItem('nebo-nav-collapsed', '1'); } catch { /* ignore */ }
+    applyCollapsed();
+  };
+  if (reveal) reveal.onclick = () => {
+    userCollapsed = false;
+    try { localStorage.setItem('nebo-nav-collapsed', '0'); } catch { /* ignore */ }
+    applyCollapsed();
+  };
   let lastY = window.scrollY, ticking = false;
   const apply = () => {
     ticking = false;
+    if (userCollapsed) { lastY = window.scrollY; return; }
     const y = window.scrollY;
     const down = y > lastY + 6;
     const nearBottom = y + window.innerHeight >= document.documentElement.scrollHeight - 40;
