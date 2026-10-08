@@ -177,6 +177,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 
 /* Panels: minimal chevron collapse toggles, always in-flow in the header. */
 .panel-head{display:flex;align-items:center;gap:8px}
+/* Centred panel title with the chevron kept at the right edge. */
+.panel-head.center-title{justify-content:center;position:relative}
+.panel-head.center-title .collapse-btn{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
 .panel-head h2{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .panel-head .link-btn{margin-left:auto}
 .collapse-btn{flex:none;width:22px;height:22px;padding:0;margin-left:auto;border:0;background:none;color:var(--faint);
