@@ -323,10 +323,10 @@ function renderLegend() {
     ['#F59E0B', 'Підвищена небезпека'],
     ['#3E5468', 'Немає тривоги'],
   ];
-  const kinds = ['shahed', 'uav', 'missile', 'ballistic', 'kab', 'aviation', 'recon'];
+  const kinds = ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other'];
   const KIND_LABEL = {
-    shahed: 'Шахед', uav: 'БПЛА', missile: 'Ракета', ballistic: 'Балістика',
-    kab: 'КАБ', aviation: 'Авіація', recon: 'Розвідка',
+    shahed: 'Шахед', uav: 'БПЛА', fpv: 'FPV-дрон', missile: 'Ракета', ballistic: 'Балістика',
+    kab: 'КАБ', aviation: 'Авіація', recon: 'Розвідка', other: 'Невідома ціль',
   };
   body.innerHTML = ''
     + territory.map(([c, t]) => `<span class="row"><i style="background:${c}"></i>${t}</span>`).join('')
