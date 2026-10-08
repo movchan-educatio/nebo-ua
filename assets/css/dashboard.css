@@ -268,6 +268,20 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .right-col{display:grid;gap:var(--gap)}
   .threat-list{max-height:260px}
   .map-wrap{height:min(40dvh,360px);min-height:260px}
+  /* Compact bottom row; the radar sits inside the stats panel on mobile. */
+  .stats-row{grid-template-columns:minmax(0,1fr);gap:8px}
+  .stat-cards{grid-template-columns:repeat(3,1fr);gap:6px}
+  .stat-card{padding:8px 4px}
+  .stat-card b{font-size:22px}
+  .stat-card span{font-size:10px}
+  .panel-head .link-btn{display:none}
+  .event-list{max-height:150px}
+  .event-row{padding:6px 2px;font-size:11px}
+  .stats-row .radar-mini{margin-top:10px;padding:10px 0 0;background:none;border:0;box-shadow:none;border-top:1px solid #ffffff10}
+  .radar-mini .radar-ranges{grid-template-columns:repeat(6,1fr);gap:5px;margin-bottom:8px}
+  .radar-mini .radar-ranges button{min-height:30px;font-size:11px;padding:0}
+  .radar-mini .radar-screen{width:min(100%,200px);aspect-ratio:1;max-height:none;margin:0 auto}
+  .radar-mini .radar-note{font-size:10px;margin-top:6px}
   .map-toolbar{padding:8px 10px;gap:6px}
   .map-toolbar .seg button{padding:6px 10px;font-size:11px}
   .map-search{height:36px}

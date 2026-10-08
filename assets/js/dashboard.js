@@ -742,6 +742,28 @@ function setupCollapsibles() {
   addColToggle('.sources-col', '⇤ Джерела');
   addColToggle('.right-col', 'Загрози ⇥');
 }
+// Mobile: the radar lives in the bottom stats row (compact); desktop: back to
+// the right column. Pure DOM move — the scope keeps running in both places.
+function layoutRadar() {
+  const radar = document.querySelector('.radar-mini');
+  const statsPanel = document.querySelector('.stats-row .panel');
+  const rightCol = document.querySelector('.right-col');
+  if (!radar || !statsPanel || !rightCol) return;
+  const mobile = window.matchMedia('(max-width:760px)').matches;
+  if (mobile) {
+    // Inside the stats panel, right under the three cards — fills the empty
+    // space instead of stacking another tall panel.
+    if (radar.parentElement !== statsPanel) statsPanel.appendChild(radar);
+  } else if (radar.parentElement !== rightCol) {
+    rightCol.appendChild(radar);
+  }
+  try { scopeMini.setActive(true); } catch { /* ignore */ }
+  try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }
+}
+function setupRadarLayout() {
+  layoutRadar();
+  window.addEventListener('resize', () => { layoutRadar(); });
+}
 function setupMenu() {
   const b = $('#menuButton'), m = $('#topMenu');
   if (!b || !m) return;
@@ -775,6 +797,7 @@ setupTheme();
 setupViews();
 setupNavAutoHide();
 setupCollapsibles();
+setupRadarLayout();
 setupMenu();setupDialogs();
 initMap();
 setupSearch();
