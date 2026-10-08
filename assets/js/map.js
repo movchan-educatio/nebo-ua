@@ -25,18 +25,16 @@ const META={
   other:    {label:'Інше',    icon:'other',    color:'#B8C5D1'},
 };
 
-// ── Territorial danger colors ──────────────────────────────────────────────────
-// The oblast polygon is painted ONLY for oblast-level danger (official alert
-// with district==null, or missile/ballistic monitor with district==null).
-// Raion-level danger NEVER paints the oblast polygon — it is rendered as
-// separate raion polygons (see setAlertShapes + drawAlertShapes in app.js).
+// ── V2 reference styling: expressive fills (washed mosaic forbidden —
+// oblast fills stay restrained, danger reads instantly).
 const DANGER_STYLE = {
   // Oblast-level danger: official alert or missile/ballistic monitor.
-  // Restrained premium-dark fill — map stays readable, never a mosaic.
-  oblastCritical: { color:'#FF536A', weight:2.0, fillColor:'#A01426', fillOpacity:0.24 },
+  oblastCritical: { color:'#FF6B7A', weight:2.0, fillColor:'#E53246', fillOpacity:0.42 },
+  // Elevated (non-critical) oblast danger.
+  oblastElevated: { color:'#FFB35C', weight:1.75, fillColor:'#F59E0B', fillOpacity:0.30 },
   // Neutral: no oblast-level danger (even if some raion inside has danger).
-  // Calm territory stays almost clean: transparent fill, thin cold-blue edge.
-  neutral:        { color:'#173D52', weight:0.8, fillColor:'#0d2635', fillOpacity:0.05 },
+  // Calm territory keeps a readable graphite fill, thin slate edge.
+  neutral:        { color:'#52677F', weight:0.9, fillColor:'#27364D', fillOpacity:0.55 },
 };
 
 // ── Unified threat visual registry ──────────────────────────────────────────
@@ -87,10 +85,35 @@ export function createSituationMap(el,onSelect){
   // navigation are DOM above the map container.
   if(!map.getPane('threatPane')) map.createPane('threatPane');
   map.getPane('threatPane').style.zIndex=625;
-  // One marker per REAL trackId — no proximity clustering, no counts invented
-  // from closeness. Source-reported group size (count>1) renders as a small
-  // ×N badge on that track's own marker, never as a merged bubble.
-  const targets=L.layerGroup();
+  // One marker per REAL trackId — clustered for readability, never merged
+  // from closeness for counting. Source-reported group size (count>1)
+  // renders as a small ×N badge on that track's own marker. Cluster bubbles
+  // show the contained count + dominant threat color; zooming reveals tracks.
+  function clusterIcon(cluster) {
+    const kids = cluster.getAllChildMarkers();
+    const counts = {};
+    for (const m of kids) {
+      const k = m.options.threatKind || 'other';
+      counts[k] = (counts[k] || 0) + 1;
+    }
+    let top = 'other', topN = 0;
+    for (const [k, n] of Object.entries(counts)) {
+      if (n > topN) { top = k; topN = n; }
+    }
+    const color = (META[top] && META[top].color) || '#B8C5D1';
+    return L.divIcon({
+      className: '',
+      html: `<div class="threat-cluster" style="--c:${color}"><b>${kids.length}</b></div>`,
+      iconSize: [42, 42], iconAnchor: [21, 21],
+    });
+  }
+  const targets = (typeof L.markerClusterGroup === 'function')
+    ? L.markerClusterGroup({
+        showCoverageOnHover: false, zoomToBoundsOnClick: true,
+        spiderfyOnMaxZoom: true, maxClusterRadius: 56,
+        disableClusteringAtZoom: 9, iconCreateFunction: clusterIcon,
+      })
+    : L.layerGroup();
   map.addLayer(targets);
   let geo=null,fitted=false;
   // Persistent marker objects per stable trackId: the SAME L.marker instance
@@ -132,6 +155,11 @@ export function createSituationMap(el,onSelect){
         : DANGER_STYLE.neutral;
 
       layer.setStyle(style);
+
+      // Permanent oblast name: white text with dark halo (see .oblast-label).
+      try {
+        layer.bindTooltip(n, { permanent: true, direction: 'center', className: 'oblast-label', interactive: false });
+      } catch (e) { /* labels best effort */ }
 
       // Click handler: show raion details if partial (raion-only alerts)
       const a=list[0]||null;
@@ -284,12 +312,12 @@ export function createSituationMap(el,onSelect){
 
   function setWind(items){wind.clearLayers();for(const w of items||[]){if(!Number.isFinite(w.lat)||!Number.isFinite(w.lon)||!Number.isFinite(w.speedKmh)||!Number.isFinite(w.fromDeg))continue;const to=(w.fromDeg+180)%360;L.marker([w.lat,w.lon],{icon:windIcon(w,to),interactive:true}).bindTooltip(`${w.speedKmh} км/год`,{direction:'top',offset:[0,-18]}).addTo(wind)}}
 
-  // Raion fills: official 20–25%, monitoring 16–22%. Official wins overlap.
+  // Raion fills: official ~40%, monitoring ~30%. Official wins overlap.
   const RAION_FILL = {
-    alert:    { color:'#FF536A', weight:2.0, fillColor:'#A01426', fillOpacity:.22 },
-    critical: { color:'#FF3B5C', weight:2.0, fillColor:'#B3122E', fillOpacity:.24 },
-    high:     { color:'#FFAA27', weight:1.75, fillColor:'#B75C00', fillOpacity:.19 },
-    medium:   { color:'#C78A3A', weight:1.5, fillColor:'#7A4A12', fillOpacity:.16 },
+    alert:    { color:'#FF6B7A', weight:2.0, fillColor:'#E53246', fillOpacity:.40 },
+    critical: { color:'#FF3B5C', weight:2.0, fillColor:'#F04444', fillOpacity:.44 },
+    high:     { color:'#FFB35C', weight:1.75, fillColor:'#F59E0B', fillOpacity:.34 },
+    medium:   { color:'#E8A33D', weight:1.5, fillColor:'#B97A1A', fillOpacity:.28 },
   };
   function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,fillColor:s.fillColor,fillOpacity:s.fillOpacity}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
 

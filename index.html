@@ -57,13 +57,14 @@
             <button id="layerButton" class="map-btn glass" aria-label="Шари"><svg><use href="./assets/brand/icons.svg#i-layers"/></svg></button>
           </div>
           <div id="layerPanel" class="layer-panel glass" hidden></div>
-          <div class="map-legend glass" aria-label="Легенда">
+          <div class="map-legend glass" id="mapLegend" aria-label="Легенда">
             <b>ЛЕГЕНДА</b>
             <span class="row"><i style="background:#ff4d5e"></i>Повітряна тривога</span>
             <span class="row"><i style="background:#ff9f43"></i>Загроза артобстрілу</span>
             <span class="row"><i style="background:#ffd23d"></i>Підвищена небезпека</span>
             <span class="row"><i style="background:#5f7d8f"></i>Немає тривоги</span>
           </div>
+          <button id="legendBtn" class="map-btn glass" aria-label="Легенда" aria-expanded="false" style="position:absolute;z-index:500;left:12px;bottom:12px;display:none">?</button>
           <div class="scalebar" aria-hidden="true"><div class="bar"></div><span>0&nbsp;&nbsp;&nbsp;100&nbsp;&nbsp;&nbsp;200&nbsp;&nbsp;&nbsp;300 км</span></div>
           <div class="map-updated"><i></i><span id="mapUpdated">Оновлено —</span></div>
           <article class="terr-card glass" id="terrCard" aria-live="polite"></article>

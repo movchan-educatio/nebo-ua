@@ -20,12 +20,15 @@ test('palette: shahed/uav/fpv/kab/missile/ballistic/recon all differ', () => {
   assert.equal(META.explosion.color.toLowerCase(), '#ff6a00');
 });
 
-// ── No proximity clustering: one REAL trackId = one marker ──────────────────
-test('no UI clustering: markerClusterGroup and cluster icon factory are gone', () => {
-  assert.ok(!mapSrc.includes('markerClusterGroup'), 'no cluster group');
-  assert.ok(!mapSrc.includes('iconCreateFunction'), 'no cluster icon factory');
-  assert.ok(!mapSrc.includes('clusterPane'), 'no cluster pane');
-  assert.ok(mapSrc.includes('L.layerGroup()'), 'plain layer group for targets');
+// ── Declutter clustering: one REAL trackId = one marker, grouped visually ──
+// Clusters show only real contained counts + dominant kind color; zooming
+// reveals every track. No counts invented from proximity.
+test('UI clustering: cluster group with honest count bubbles, tracks persist', () => {
+  assert.ok(mapSrc.includes('markerClusterGroup'), 'cluster group present');
+  assert.ok(mapSrc.includes('iconCreateFunction'), 'cluster icon factory present');
+  assert.ok(mapSrc.includes('getAllChildMarkers'), 'bubbles count real contained markers');
+  assert.ok(mapSrc.includes('markerByTrack'), 'markers persist per stable trackId');
+  assert.ok(mapSrc.includes('disableClusteringAtZoom'), 'clusters open at large zoom');
 });
 
 test('source count badge: ×N only from explicit source count', () => {

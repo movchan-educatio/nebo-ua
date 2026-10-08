@@ -126,14 +126,16 @@ function durStr(t) {
 function renderThreats(events) {
   const rows = groupThreats(events, 30);
   $('#threatCount').textContent = rows.filter(r => !r.stale).length;
-  $('#threatList').innerHTML = rows.length ? rows.map(r => `
+  $('#threatList').innerHTML = rows.length ? rows.map(r => {
+    const isAir = /тривога|AIR/i.test(r.subtype || '') || r.kind === 'missile' || r.kind === 'ballistic';
+    return `
     <button class="threat-row" data-lat="${r.lat}" data-lon="${r.lon}" data-id="${esc(r.id)}">
       <span class="threat-ico" style="background:#ffffff0d">${threatIcon(r.kind)}</span>
       <span><b>${esc(r.region || r.district || 'Невідома територія')}</b>
-      <small>${esc(r.subtype || r.kind)} · ${esc(r.source || '')}</small>
+      <small class="${isAir ? 'threat-type-air' : 'threat-type-other'}">${esc(r.subtype || r.kind)} · ${esc(r.source || '')}</small>
       <time>${r.eventTime ? esc(clock(r.eventTime)) + ' · ' + esc(durStr(r.eventTime)) : '—'}</time></span>
       <span class="live-tag${r.stale ? ' stale' : ''}">${r.stale ? 'STALE' : 'LIVE'}</span>
-    </button>`).join('') : '<p class="micro">Активних точкових цілей немає.</p>';
+    </button>`; }).join('') : '<p class="micro">Активних точкових цілей немає.</p>';
 }
 
 // ── Stats + events ────────────────────────────────────────────────────────
@@ -163,6 +165,11 @@ function initMap() {
   $('#zoomIn').onclick = () => mapUI.map.zoomIn();
   $('#zoomOut').onclick = () => mapUI.map.zoomOut();
   $('#gpsButton').onclick = locateMe;
+  $('#legendBtn').onclick = () => {
+    const l = $('#mapLegend');
+    const open = l.classList.toggle('sheet-open');
+    $('#legendBtn').setAttribute('aria-expanded', String(open));
+  };
   $('#layerButton').onclick = () => { const p = $('#layerPanel'); p.hidden = !p.hidden; };
   renderLayerPanel();
 }
@@ -415,7 +422,15 @@ async function load() {
     const notice = $('#networkNotice');
     if (snap.health?.OFFICIAL?.status === 'offline') {
       notice.hidden = false;
-      notice.textContent = 'Офіційний статус тривог тимчасово недоступний. Моніторингові дані не замінюють офіційний статус.';
+      notice.innerHTML = '';
+      const t = document.createElement('span');
+      t.textContent = 'Офіційне джерело тимчасово недоступне. Показуємо NEPTUN/MAPA.';
+      const x = document.createElement('button');
+      x.className = 'notice-x';
+      x.setAttribute('aria-label', 'Приховати попередження');
+      x.textContent = '×';
+      x.onclick = () => { notice.hidden = true; };
+      notice.append(t, x);
     } else notice.hidden = true;
   } catch {
     const el = $('#sysStatus');

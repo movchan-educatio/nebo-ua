@@ -115,7 +115,7 @@ export function createScope(canvas, { onSelect } = {}) {
             if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
           });
           sctx.closePath();
-          sctx.strokeStyle = 'rgba(120,160,175,0.18)';
+          sctx.strokeStyle = 'rgba(61,255,158,0.20)';
           sctx.lineWidth = 0.8;
           sctx.stroke();
         }
@@ -144,32 +144,33 @@ export function createScope(canvas, { onSelect } = {}) {
     ringSet.forEach((km, i) => {
       const f = km / S.range;
       const outer = i === ringSet.length - 1;
-      sctx.globalAlpha = outer ? 1 : 0.55;
-      sctx.strokeStyle = outer ? 'rgba(130,170,185,0.42)' : 'rgba(120,160,175,0.22)';
-      sctx.lineWidth = outer ? 1.2 : 1;
+      sctx.globalAlpha = outer ? 1 : 0.7;
+      sctx.strokeStyle = outer ? 'rgba(61,255,158,0.8)' : 'rgba(61,255,158,0.42)';
+      sctx.lineWidth = outer ? 1.6 : 1.1;
       sctx.beginPath(); sctx.arc(cx, cy, R * f, 0, 7); sctx.stroke();
       sctx.globalAlpha = outer ? 0.75 : 0.5;
-      sctx.fillStyle = outer ? 'rgba(165,195,208,0.75)' : 'rgba(140,165,180,0.5)';
+      sctx.fillStyle = outer ? 'rgba(190,255,215,0.85)' : 'rgba(150,255,195,0.6)';
       sctx.fillText(outer ? km + ' км' : String(km), cx + 4, cy - R * f - 3);
     });
     sctx.globalAlpha = 0.35;
     for (let a = 0; a < 360; a += 10) {
       const major = a % 30 === 0;
       const r0 = R - (a % 90 === 0 ? 9 : major ? 6 : 3), rad = (a - 90) * Math.PI / 180;
-      sctx.globalAlpha = 0.35; sctx.lineWidth = 1;
-      sctx.strokeStyle = 'rgba(120,160,175,0.5)';
+      sctx.globalAlpha = 0.55; sctx.lineWidth = 1;
+      sctx.strokeStyle = 'rgba(61,255,158,0.7)';
       sctx.beginPath();
       sctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
       sctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R);
       sctx.stroke();
     }
-    sctx.globalAlpha = 0.15;
-    sctx.strokeStyle = 'rgba(120,160,175,0.6)';
+    sctx.globalAlpha = 0.5;
+    sctx.strokeStyle = 'rgba(61,255,158,0.55)';
     sctx.beginPath(); sctx.moveTo(cx - R, cy); sctx.lineTo(cx + R, cy);
     sctx.moveTo(cx, cy - R); sctx.lineTo(cx, cy + R); sctx.stroke();
-    sctx.globalAlpha = 0.6; sctx.fillStyle = 'rgba(150,180,195,0.6)'; sctx.font = 'bold 11px system-ui';
-    sctx.fillText('N', cx - 4, cy - R + 14); sctx.fillText('S', cx - 4, cy + R - 6);
-    sctx.fillText('E', cx + R - 14, cy + 4); sctx.fillText('W', cx - R + 5, cy + 4);
+    sctx.globalAlpha = 0.9; sctx.fillStyle = 'rgba(200,255,220,0.9)'; sctx.font = 'bold 11px system-ui';
+    sctx.beginPath(); sctx.arc(cx, cy, 3, 0, 7); sctx.fill();
+    sctx.fillText('Пн', cx - 4, cy - R + 14); sctx.fillText('Пд', cx - 4, cy + R - 6);
+    sctx.fillText('Сх', cx + R - 14, cy + 4); sctx.fillText('Зх', cx - R + 5, cy + 4);
     sctx.globalAlpha = 1;
   }
   function drawSweep() {
@@ -180,17 +181,17 @@ export function createScope(canvas, { onSelect } = {}) {
     let g;
     if (typeof ctx.createConicGradient === 'function') {
       g = ctx.createConicGradient(-0.5, 0, 0);
-      g.addColorStop(0, 'rgba(102,199,255,0)');
-      g.addColorStop(0.85, 'rgba(102,199,255,0.05)');
-      g.addColorStop(1, 'rgba(120,200,225,0.30)');
+      g.addColorStop(0, 'rgba(61,255,158,0)');
+      g.addColorStop(0.85, 'rgba(61,255,158,0.10)');
+      g.addColorStop(1, 'rgba(120,255,180,0.42)');
       ctx.fillStyle = g;
     } else {
-      ctx.fillStyle = 'rgba(102,199,255,0.05)';
+      ctx.fillStyle = 'rgba(61,255,158,0.08)';
     }
     // Sector beam ≈20°: bright leading edge, gradual fade behind.
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.35, 0); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(140,200,225,0.55)'; ctx.lineWidth = 1.25;
-    ctx.shadowColor = 'rgba(140,200,225,0.5)'; ctx.shadowBlur = 4;
+    ctx.strokeStyle = 'rgba(150,255,195,0.75)'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(61,255,158,0.7)'; ctx.shadowBlur = 6;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R, 0); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.restore();
