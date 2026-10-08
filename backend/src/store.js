@@ -7,11 +7,15 @@ const PREV_KEY = 'v1:prev-actives';
 // BEFORE: saveState() did 2 unconditional PUTs every 1-min cron = 2880/day.
 // AFTER: one coalesced bundle key, fingerprint-gated writes, throttled
 // threat persistence, immediate alert writes, rare heartbeat.
-// Worst case ~= 480/day, calm day ~= 29/day.
+// Calm day ~= 72/day (20-min heartbeat), worst case ~= 480/day (throttle-
+// dominated churn), both far below the free quota. Consumer freshness does
+// NOT depend on the heartbeat: GET /v1/state derives pipelineCheckedAt
+// from the D1 checks table on the read path (0 KV writes), so a calm
+// snapshot never looks OFFLINE just because its content did not change.
 export const BUNDLE_KEY = LATEST_KEY;
-export const LATEST_TTL_S = 3600; // 1h: bounds dead-worker staleness; clients detect age via serverTime/health
+export const LATEST_TTL_S = 3600; // 1h: bounds dead-worker staleness; clients detect age via pipelineCheckedAt/health
 export const WRITE_THROTTLE_MS = 180000; // positional/track churn persists at most every 3 min
-export const HEARTBEAT_MS = 50 * 60_000; // keeps the key alive during calm (~29/day); sources stay shielded
+export const HEARTBEAT_MS = 20 * 60_000; // keeps the key alive during calm (~72/day); liveness itself is served from D1
 
 // stableStringify: deterministic JSON with recursively sorted object keys.
 // Arrays keep their order (callers pre-sort by id where order is unstable).

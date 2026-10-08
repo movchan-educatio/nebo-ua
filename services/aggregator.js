@@ -50,7 +50,12 @@ export async function fetchAggregated(signal) {
   if (!data || data.v !== 1 || !Array.isArray(data.alerts) || !Array.isArray(data.events)) {
     throw new Error('Некоректний зріз агрегатора');
   }
-  const receivedAt = toDate(data.receivedAt || data.serverTime) || new Date();
+  // Freshness = pipeline liveness, not content churn. pipelineCheckedAt moves
+  // every successful upstream verification (D1 read path, 0 KV writes), while
+  // dataUpdatedAt stays put when nothing really changed — calm data + live
+  // pipeline must read as LIVE, never OFFLINE. Legacy snapshots without the
+  // new fields fall back to receivedAt/serverTime exactly as before.
+  const receivedAt = toDate(data.pipelineCheckedAt || data.receivedAt || data.serverTime) || new Date();
   return {
     alerts: data.alerts.map(adaptAlert).filter(a => a.timestamp || a.official),
     events: data.events.map(adaptEvent),
@@ -59,5 +64,7 @@ export async function fetchAggregated(signal) {
     disagreement: data.disagreement || { active: false, reason: '' },
     receivedAt,
     serverTime: toDate(data.serverTime),
+    dataUpdatedAt: toDate(data.dataUpdatedAt),
+    pipelineCheckedAt: toDate(data.pipelineCheckedAt),
   };
 }

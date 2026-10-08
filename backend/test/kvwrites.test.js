@@ -83,14 +83,16 @@ test('same state 100 times => 0 additional PUT', () => {
     assert.equal(d.write, false, `cycle ${i} must not write`);
   }
   // Heartbeat over a long calm stretch: simulate properly (each heartbeat
-  // write refreshes writtenAt, resetting the timer) — expect ~2 in 2 hours.
+  // write refreshes writtenAt, resetting the timer) — expect ~6 in 2 hours
+  // at the 20-min heartbeat interval (TTL keepalive only; consumer liveness
+  // is served from D1 with 0 KV writes, see liveness.test.js).
   let heartbeats = 0;
   let lastWrite = T0;
   for (let m = 1; m <= 120; m++) {
     const d = shouldWrite({ stored: storedBundle([], [], lastWrite), ...fpsOf([], []), nowMs: T0 + m * 60000 });
     if (d.write) { heartbeats++; assert.equal(d.reason, 'heartbeat'); lastWrite = T0 + m * 60000; }
   }
-  assert.ok(heartbeats >= 1 && heartbeats <= 3, `rare heartbeat keeps key alive (got ${heartbeats}/2h)`);
+  assert.ok(heartbeats >= 4 && heartbeats <= 8, `rare heartbeat keeps key alive (got ${heartbeats}/2h)`);
 });
 
 test('real alert activation => 1 PUT (immediate, bypasses throttle)', async () => {
