@@ -223,7 +223,7 @@ function renderLayerPanel() {
   const p = $('#layerPanel');
   const rows = [
     ['satellite', 'Супутник'], ['relief', 'Рельєф'], ['monitoring', 'Моніторинг'], ['alerts', 'Тривоги'],
-    ['raions', 'Райони'], ['shapes', 'Межі'], ['wind', 'Вітер'],
+    ['shapes', 'Межі'], ['wind', 'Вітер'],
   ];
   p.innerHTML = rows.map(([k, n]) => {
     const on = k === 'satellite' ? state.base === 'sat' : k === 'relief' ? state.base === 'relief' : true;
