@@ -3,6 +3,7 @@ import { normalizeNeptunThreat, normalizeMapa, normalizeAlert, isFreshEvent } fr
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
+import { fetchOfficialUkraineAlarm, fetchRegionHistory } from './ukrainealarm.js';
 import { loadPrev, saveState, loadLatest, loadBundle, saveBundle, meaningfulFp, shouldWrite, isAlreadyPersisted, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
@@ -50,7 +51,9 @@ async function runPipeline(env) {
   const nowMs = now.getTime();
   const nowIso = now.toISOString();
   const [official, alertsRes, threatsRes, mapaRes] = await Promise.all([
-    fetchOfficial(env),
+    // UkraineAlarm v3 (official) when its secret is configured; otherwise the
+    // legacy generic endpoint. Absent key => disabled source (never an error).
+    env.UKRAINEALARM_API_KEY ? fetchOfficialUkraineAlarm(env) : fetchOfficial(env),
     fetchNeptunAlerts(env),
     fetchNeptunThreats(env),
     fetchMapa(env),
@@ -84,9 +87,19 @@ async function runPipeline(env) {
     freshAlerts = alertsRes.items.map(x => normalizeAlert(x, now, 'NEPTUN')).filter(Boolean);
   }
   if (officialOk) {
-    for (const x of official.items) {
-      const a = normalizeAlert(x, now, 'OFFICIAL');
-      if (a) freshAlerts.push(a);
+    if (official.carried) {
+      // Version gate proved the upstream set is byte-identical to the last
+      // full fetch: re-affirm previous OFFICIAL records as-is. stale:false is
+      // honest here (confirmed present); event timestamps are preserved, and
+      // misses reset via protectAlerts like any re-seen record.
+      for (const a of prev?.alerts || []) {
+        if (a?.source === 'OFFICIAL') freshAlerts.push({ ...a, stale: false });
+      }
+    } else {
+      for (const x of official.items) {
+        const a = normalizeAlert(x, now, 'OFFICIAL');
+        if (a) freshAlerts.push(a);
+      }
     }
   }
   let freshThreats = [];
@@ -132,6 +145,14 @@ async function runPipeline(env) {
   const newPrev = { alerts: protAlerts.active, threats: protThreats.active };
   const { fpAlerts, fpThreats, fpHealth } = meaningfulFp(newPrev.alerts, newPrev.threats, health);
   const decision = shouldWrite({ stored: bundle, fpAlerts, fpThreats, fpHealth, nowMs });
+  // dataUpdatedAt = when the VISIBLE content last changed. Heartbeat-only
+  // writes must NOT move it: calm data + a live pipeline is LIVE, not stale.
+  // Consumers tell the two apart via pipelineCheckedAt (served from D1).
+  const prevDataUpdatedAt = bundle?.dataUpdatedAt || bundle?.snapshot?.dataUpdatedAt || bundle?.snapshot?.serverTime || null;
+  const dataUpdatedAt = (decision.write && decision.reason !== 'heartbeat')
+    ? nowIso
+    : (prevDataUpdatedAt || nowIso);
+  snapshot.dataUpdatedAt = dataUpdatedAt;
   kvStats.cycles++;
   if (!decision.write) {
     if (decision.reason === 'threats-throttled') kvStats.skippedThrottled++;
@@ -147,9 +168,9 @@ async function runPipeline(env) {
       kvStats.skippedRace++;
     } else {
       try {
-        await saveBundle(env.NEBO_STATE, { snapshot, prev: newPrev, fpAlerts, fpThreats, fpHealth, writtenAt: nowMs });
+        await saveBundle(env.NEBO_STATE, { snapshot, prev: newPrev, fpAlerts, fpThreats, fpHealth, writtenAt: nowMs, dataUpdatedAt });
         kvStats.wrote++;
-        bundle = { snapshot, prev: newPrev, fpAlerts, fpThreats, fpHealth, writtenAt: nowMs };
+        bundle = { snapshot, prev: newPrev, fpAlerts, fpThreats, fpHealth, writtenAt: nowMs, dataUpdatedAt };
         try {
           console.log(JSON.stringify({
             kv: 'put', reason: decision.reason,
@@ -167,6 +188,123 @@ async function runPipeline(env) {
     await dispatchPush(env, { snapshot, prevIds, endedAlerts: protAlerts.ended });
   } catch (e) { console.error('push dispatch failed', e); }
   return snapshot;
+}
+
+// ── Pipeline liveness (STATE TIME ≠ PIPELINE HEALTH) ─────────────────────
+// KV holds the snapshot CONTENT (write-gated: unchanged data => 0 PUT).
+// D1 `checks` already records every cron cycle (3 rows/min, well within the
+// D1 free tier). GET /v1/state derives pipelineCheckedAt from those rows on
+// the READ path: zero extra KV writes, per-minute liveness precision.
+//   dataUpdatedAt     = when visible content last changed (KV bundle).
+//   pipelineCheckedAt = last SUCCESSFUL upstream verification (D1 checks).
+//   serverTime/receivedAt mirror pipelineCheckedAt when known, so legacy
+//     consumers (30-min offline threshold) stay LIVE during calm stretches.
+// Heartbeat timestamps advance ONLY from real successful check rows —
+// never hardcoded, never on failed fetches.
+export const LIVE_MS = 5 * 60_000;
+export const OFFLINE_MS = 30 * 60_000;
+
+// Newest check row per source + newest SUCCESSFUL monitoring verification.
+// Monitoring = NEPTUN or MAPA. OFFICIAL is token-gated (often disabled) and
+// never counts as pipeline liveness.
+// checkedAt scans back through recent rows for the newest SUCCESS: a single
+// failed cycle must NOT zero the heartbeat (it just stops advancing it —
+// the age then grows honestly until DELAYED/OFFLINE thresholds hit).
+// Health display (bySource) always reflects the NEWEST row per source.
+export async function latestPipelineCheck(db) {
+  const empty = { bySource: {}, checkedAt: null };
+  try {
+    if (!db || typeof db.prepare !== 'function') return empty;
+    const res = await db.prepare(
+      `SELECT source, ts, ok, error FROM checks ORDER BY rowid DESC LIMIT 60`
+    ).all();
+    const rows = res?.results || [];
+    const bySource = {};
+    let checkedAt = null;
+    for (const r of rows) {
+      if (!r || typeof r.source !== 'string') continue;
+      if (!bySource[r.source] && typeof r.ts === 'string') {
+        bySource[r.source] = {
+          ts: r.ts,
+          ok: r.ok === 1 || r.ok === true,
+          error: r.error || null,
+        };
+      }
+      if ((r.source === 'NEPTUN' || r.source === 'MAPA') && (r.ok === 1 || r.ok === true)
+        && typeof r.ts === 'string' && Number.isFinite(new Date(r.ts).getTime())) {
+        if (!checkedAt || r.ts > checkedAt) checkedAt = r.ts;
+      }
+    }
+    return { bySource, checkedAt };
+  } catch {
+    return empty;
+  }
+}
+
+// Refresh per-source health from D1 without touching KV. OFFICIAL keeps its
+// stored `disabled` state (D1 rows for a disabled source are ok=0 by design
+// and must not flip it to `offline`). The backend `delayed` (stale-stream)
+// flag is preserved while the source reports ok.
+export function mergeHealth(storedHealth = {}, bySource = {}) {
+  const out = { ...(storedHealth || {}) };
+  for (const key of ['NEPTUN', 'MAPA']) {
+    const row = bySource[key];
+    if (!row || !row.ts) continue;
+    const prev = storedHealth?.[key] || {};
+    out[key] = {
+      status: row.ok ? 'online' : 'offline',
+      updatedAt: row.ts,
+      error: row.ok ? null : (row.error || prev.error || 'Джерело недоступне'),
+      ...(row.ok && (prev.delayed || prev.status === 'delayed') ? { delayed: true } : {}),
+    };
+  }
+  const offStored = storedHealth?.OFFICIAL;
+  if (offStored?.status === 'disabled') {
+    out.OFFICIAL = offStored;
+  } else if (bySource.OFFICIAL?.ts) {
+    const row = bySource.OFFICIAL;
+    out.OFFICIAL = {
+      status: row.ok ? 'online' : 'offline',
+      updatedAt: row.ts,
+      error: row.ok ? null : (row.error || 'Джерело недоступне'),
+    };
+  }
+  return out;
+}
+
+// Build the public /v1/state body: stored content + live health overlay.
+// Pure (no I/O): fully unit-testable. Reads never PUT.
+export function buildStateResponse(bundle, d1, nowMs) {
+  const stored = bundle?.snapshot || null;
+  if (!stored) return null;
+  const storedTime = stored.serverTime || stored.receivedAt || null;
+  const dataUpdatedAt = bundle?.dataUpdatedAt || stored.dataUpdatedAt || storedTime;
+  const checkedAt = d1?.checkedAt || null;
+  return {
+    ...stored,
+    serverTime: checkedAt || storedTime,
+    receivedAt: checkedAt || stored.receivedAt || storedTime,
+    dataUpdatedAt,
+    pipelineCheckedAt: checkedAt,
+    health: mergeHealth(stored.health, d1?.bySource),
+  };
+}
+
+// Consumer-side freshness over the merged response. Mirrors the frontend /
+// WAR LIVE contract: LIVE ≤5 min, DELAYED ≤30 min, OFFLINE beyond that or
+// when every monitoring source is down. dataUpdatedAt age NEVER forces
+// OFFLINE on its own — calm data + live pipeline is LIVE.
+export function livenessLevel(resp, nowMs) {
+  const mon = ['NEPTUN', 'MAPA']
+    .map(k => resp?.health?.[k])
+    .filter(h => h && h.status !== 'disabled');
+  if (mon.length && mon.every(h => h.status === 'offline')) return 'OFFLINE';
+  const t = resp?.pipelineCheckedAt ? Date.parse(resp.pipelineCheckedAt) : NaN;
+  if (!Number.isFinite(t)) return 'OFFLINE';
+  const age = Math.max(0, nowMs - t);
+  if (age > OFFLINE_MS) return 'OFFLINE';
+  if (age > LIVE_MS) return 'DELAYED';
+  return 'LIVE';
 }
 
 function json(data, status = 200, cacheSeconds = 10) {
@@ -195,9 +333,24 @@ export default {
     }
     if (url.pathname === '/v1/state') {
       if (!env.NEBO_STATE) return json({ error: 'Storage binding NEBO_STATE is not configured' }, 503, 5);
-      const snap = await loadLatest(env.NEBO_STATE);
-      if (!snap) return json({ error: 'Snapshot not ready yet, cron warming up' }, 503, 5);
-      return json(snap);
+      const bundle = await loadBundle(env.NEBO_STATE);
+      if (!bundle?.snapshot) return json({ error: 'Snapshot not ready yet, cron warming up' }, 503, 5);
+      // Liveness overlay from D1 (best effort, 0 KV writes). On D1 failure
+      // the stored snapshot is served as-is: honestly stale, never faked.
+      const d1 = await latestPipelineCheck(env.nebo_journal);
+      return json(buildStateResponse(bundle, d1, Date.now()));
+    }
+    if (url.pathname === '/v1/official/history' && request.method === 'GET') {
+      // Validated read-through to UkraineAlarm regionHistory (last 25).
+      // No KV writes, no persistence. Requires the server secret.
+      if (!env.UKRAINEALARM_API_KEY) return json({ error: 'Official source not configured' }, 503, 5);
+      let items = null;
+      try {
+        items = await fetchRegionHistory(env, url.searchParams.get('regionId'));
+      } catch (e) {
+        return json({ error: 'Official source unavailable' }, 502, 5);
+      }
+      return json({ v: 1, serverTime: new Date().toISOString(), regionId: url.searchParams.get('regionId'), history: items }, 200, 60);
     }
     if (url.pathname === '/v1/metrics') {
       const metrics = await sourceMetrics(env.nebo_journal, SOURCES).catch(() => ({}));
@@ -205,7 +358,14 @@ export default {
     }
     if (url.pathname === '/v1/refresh' && request.method === 'POST') {
       const snap = await runPipeline(env);
-      return json({ ok: true, serverTime: snap.serverTime, alerts: snap.alerts.length, events: snap.events.length });
+      let extra = {};
+      try {
+        const b = await loadBundle(env.NEBO_STATE);
+        const d1 = await latestPipelineCheck(env.nebo_journal);
+        const merged = b ? buildStateResponse(b, d1, Date.now()) : null;
+        if (merged) extra = { pipelineCheckedAt: merged.pipelineCheckedAt, dataUpdatedAt: merged.dataUpdatedAt };
+      } catch { /* diagnostic fields are best effort */ }
+      return json({ ok: true, serverTime: snap.serverTime, alerts: snap.alerts.length, events: snap.events.length, ...extra });
     }
     if (url.pathname === '/v1/push/vapid-public-key') {
       return json({ publicKey: env.VAPID_PUBLIC_KEY || null, hasPrivateKey: !!env.VAPID_PRIVATE_KEY });
