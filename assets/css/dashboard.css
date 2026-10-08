@@ -162,11 +162,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .event-row{display:flex;gap:10px;align-items:center;padding:8px 4px;border-bottom:1px solid #ffffff0c;font-size:12px}
 .event-row time{color:var(--muted);font-variant-numeric:tabular-nums;flex:none}
 .event-row svg{width:18px;height:18px;flex:none;fill:currentColor;stroke:currentColor;stroke-width:1.4}
-.legend-strip{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:var(--gap);padding:10px 14px;font-size:11px;color:var(--muted);align-items:center}
-.legend-strip b{color:var(--faint);font-size:10px;letter-spacing:.08em}
-.legend-strip .row{display:flex;align-items:center;gap:7px}
-.legend-strip i{width:12px;height:12px;border-radius:3px}
-.legend-strip .row.lg svg{width:20px;height:20px;fill:currentColor;stroke:currentColor;stroke-width:1.4;flex:none}
+.legend-strip{display:flex;flex-wrap:wrap;gap:10px 18px;margin-top:var(--gap);padding:12px 16px;font-size:13px;color:var(--muted);align-items:center;width:100%}
+.legend-strip b{color:var(--faint);font-size:12px;letter-spacing:.08em}
+.legend-strip .row{display:flex;align-items:center;gap:9px}
+.legend-strip i{width:15px;height:15px;border-radius:4px}
+.legend-strip .row.lg svg{width:24px;height:24px;fill:currentColor;stroke:currentColor;stroke-width:1.4;flex:none}
 
 /* ── Leaflet markers: kind colors, outlined glyphs, labels ── */
 .threat-marker{color:var(--c,#B8C5D1);width:44px;height:44px}
@@ -206,12 +206,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .panel.collapsed{padding-top:10px;padding-bottom:10px}
 .panel.collapsed>*:not(.panel-head){display:none}
 .panel.collapsed .panel-head{margin-bottom:0}
-.legend-strip{position:relative;padding-right:34px;align-items:center}
-.legend-strip .legend-title{color:var(--faint);font-size:11px;letter-spacing:.06em;flex:none}
+.legend-strip{position:relative;padding-right:44px;align-items:center}
+.legend-strip .legend-title{color:var(--faint);font-size:12px;letter-spacing:.06em;flex:1 0 100%}
 .legend-strip.collapsed{display:flex;gap:8px}
-.legend-strip .legend-body{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+.legend-strip .legend-body{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;flex:1;justify-content:space-between}
 .legend-strip.collapsed .legend-body{display:none}
-.collapse-btn.float{position:absolute;top:50%;right:8px;transform:translateY(-50%);margin:0}
+.collapse-btn.float{position:absolute;top:12px;right:8px;margin:0}
 .map-legend.collapsed>*:not(b){display:none}
 .map-legend .collapse-btn{position:absolute;top:4px;right:4px;width:20px;height:20px;font-size:11px;margin:0}
 .map-legend{padding-right:28px}
