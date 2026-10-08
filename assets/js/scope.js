@@ -232,7 +232,7 @@ export function createScope(canvas, { onSelect } = {}) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ectx.globalCompositeOperation = 'destination-out';
-    ectx.fillStyle = 'rgba(0,0,0,0.07)';
+    ectx.fillStyle = 'rgba(0,0,0,0.22)';
     ectx.fillRect(0, 0, W, H);
     ectx.globalCompositeOperation = 'source-over';
     const size = Math.min(W, H);
@@ -248,7 +248,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const ka = (() => { try { return getThreatVisual(a).kind; } catch (e) { return 'other'; } })();
       const kb = (() => { try { return getThreatVisual(b).kind; } catch (e) { return 'other'; } })();
       return (PR[ka] || 9) - (PR[kb] || 9);
-    }).slice(0, 45);
+    }).slice(0, 25);
     for (const e of ordered) {
       if (e.lat == null || e.lon == null) continue;
       const p = project(e.lat, e.lon, S.center, S.range, size);
@@ -270,7 +270,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const diff = ((sweep - p.bearing) % 360 + 360) % 360;
       if (diff < 3) litAt.set(key, t);
       const seen = litAt.get(key);
-      const decayMs = 5000;
+      const decayMs = 3000;
       let intensity = reduced
         ? 0.85
         : (seen == null ? 0 : Math.max(0, 1 - (t - seen) / decayMs));

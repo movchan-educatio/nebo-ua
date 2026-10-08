@@ -275,6 +275,28 @@ async function loadRegionsGeo() {
   } catch { /* offline: skip outlines */ }
   return state.geo;
 }
+// Legend is generated from the SAME registry the map uses (META via
+// getThreatVisual) — it can never drift from what is drawn on the map.
+function renderLegend() {
+  const el = $('#legendStrip');
+  if (!el) return;
+  const territory = [
+    ['#F04444', 'Повітряна тривога'],
+    ['#F59E0B', 'Підвищена небезпека'],
+    ['#3E5468', 'Немає тривоги'],
+  ];
+  const kinds = ['shahed', 'uav', 'missile', 'ballistic', 'kab', 'aviation', 'recon'];
+  const KIND_LABEL = {
+    shahed: 'Шахед', uav: 'БПЛА', missile: 'Ракета', ballistic: 'Балістика',
+    kab: 'КАБ', aviation: 'Авіація', recon: 'Розвідка',
+  };
+  el.innerHTML = '<b>Умовні позначення:</b>'
+    + territory.map(([c, t]) => `<span class="row"><i style="background:${c}"></i>${t}</span>`).join('')
+    + kinds.map(k => {
+      const v = getThreatVisual(k);
+      return `<span class="row lg"><svg style="color:${v.color};fill:${v.color};stroke:${v.color}"><use href="./assets/brand/threat-icons.svg#${v.icon}"/></svg>${KIND_LABEL[k]}</span>`;
+    }).join('');
+}
 function updateMiniRadar() {
   const st = state.snapshot;
   if (!scopeMini || !st) return;
@@ -483,6 +505,7 @@ async function load() {
     renderSources(snap.health);
     renderThreats(snap.events);
     renderStats(snap.alerts, snap.events);
+    renderLegend();
     refreshMap();
     try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ }
     updateNavDot(snap);
