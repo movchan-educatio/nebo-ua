@@ -605,8 +605,8 @@ test('pipeline with UA key: OFFICIAL online, ua alerts normalized, source preser
   });
   try {
     const store = keyKv();
-    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
-    const r = await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST' }), env);
+    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K', REFRESH_TOKEN: 't' });
+    const r = await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer t' } }), env);
     assert.equal(r.status, 200);
     const st = await worker.fetch(new Request('https://worker.test/v1/state'), env);
     const body = await st.json();
@@ -625,8 +625,8 @@ test('pipeline without UA key: OFFICIAL stays disabled (zero behavior change)', 
   const { restore } = stubUa({ ...directEmpty });
   try {
     const store = keyKv();
-    const env = envBase(store.kv, fakeD1ua());
-    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST' }), env);
+    const env = envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 't' });
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer t' } }), env);
     const st = await worker.fetch(new Request('https://worker.test/v1/state'), env);
     const body = await st.json();
     assert.equal(body.health.OFFICIAL.status, 'disabled');
@@ -655,26 +655,30 @@ test('history route: 503 without key, 400 on bad input, CORS present', async () 
   assert.equal(bad.headers.get('Access-Control-Allow-Origin'), '*');
 });
 
-test('refresh route: open without REFRESH_TOKEN (backward compatible), gated with it', async () => {
+test('refresh route: fail-closed without REFRESH_TOKEN, Bearer gate with it', async () => {
   const { restore } = stubUa({ ...directEmpty });
   try {
     const store = keyKv();
-    const open = await worker.fetch(
+    const closed = await worker.fetch(
       new Request('https://worker.test/v1/refresh', { method: 'POST' }),
       envBase(store.kv, fakeD1ua()));
-    assert.equal(open.status, 200);
-    const gated401 = await worker.fetch(
+    assert.equal(closed.status, 503, 'no token configured => closed, never open');
+    const gated403 = await worker.fetch(
       new Request('https://worker.test/v1/refresh', { method: 'POST' }),
       envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
-    assert.equal(gated401.status, 403);
+    assert.equal(gated403.status, 403, 'missing token => forbidden');
     const gated200 = await worker.fetch(
       new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer s3cret' } }),
       envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
-    assert.equal(gated200.status, 200);
+    assert.equal(gated200.status, 200, 'correct Bearer token => allowed');
     const gatedWrong = await worker.fetch(
       new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer wrong' } }),
       envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
-    assert.equal(gatedWrong.status, 403);
+    assert.equal(gatedWrong.status, 403, 'wrong token => forbidden');
+    const viaQuery = await worker.fetch(
+      new Request('https://worker.test/v1/refresh?token=s3cret', { method: 'POST' }),
+      envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
+    assert.equal(viaQuery.status, 403, 'token in URL never accepted (no URL leak vector)');
   } finally {
     restore();
   }
@@ -689,8 +693,8 @@ test('healthItem emits single contract: online + delayed flag (no separate statu
   });
   try {
     const store = keyKv();
-    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
-    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST' }), env);
+    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K', REFRESH_TOKEN: 't' });
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer t' } }), env);
     const body = await (await worker.fetch(new Request('https://worker.test/v1/state'), env)).json();
     assert.ok(['online', 'offline', 'disabled'].includes(body.health.OFFICIAL.status), 'no bare delayed status');
   } finally {
@@ -710,8 +714,8 @@ test('public responses never carry key material (WAR LIVE separation: key stays 
   });
   try {
     const store = keyKv();
-    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
-    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST' }), env);
+    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K', REFRESH_TOKEN: 't' });
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer t' } }), env);
     for (const path of ['/v1/state', '/v1/metrics', '/v1/official/history?regionId=s1']) {
       const res = await worker.fetch(new Request('https://worker.test' + path), env);
       const text = await res.text();
@@ -719,6 +723,45 @@ test('public responses never carry key material (WAR LIVE separation: key stays 
       assert.ok(!/Authorization/i.test(text), path + ': no auth header material in body');
       assert.ok(!/Bearer\s+\S+/.test(text), path + ': no bearer token in body');
     }
+  } finally {
+    restore();
+  }
+});
+
+test('UA 401 never fabricates an all-clear: prev OFFICIAL survives with grace misses', async () => {
+  const { restore } = stubUa({
+    ...directEmpty,
+    '/api/v3/alerts/status': { lastActionIndex: 900 },
+    '/api/v3/alerts': [{
+      regionId: 's1', regionType: 'State', regionName: 'Область',
+      activeAlerts: [{ type: 'AIR', lastUpdate: '2026-10-08T12:00:00Z' }],
+    }],
+    '/api/v3/regions': { states: [] },
+  });
+  try {
+    const store = keyKv();
+    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K', REFRESH_TOKEN: 't' });
+    const hdr = { Authorization: 'Bearer t' };
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST', headers: hdr }), env);
+    let body = await (await worker.fetch(new Request('https://worker.test/v1/state'), env)).json();
+    assert.equal(body.alerts.filter(a => a.source === 'OFFICIAL').length, 1);
+    // Now the upstream rejects every call: must degrade, never all-clear.
+    globalThis.fetch = async (url, opts = {}) => {
+      const u = String(url);
+      if (u.includes('api.ukrainealarm.com')) {
+        return { ok: false, status: 401, headers: { get: () => 'application/json' }, text: async () => '{"error":"unauthorized"}' };
+      }
+      const k = u.split('?')[0];
+      const b = directEmpty[k];
+      if (!b) throw new Error('unexpected fetch ' + u);
+      return { ok: true, status: 200, headers: { get: () => null }, text: async () => JSON.stringify(b) };
+    };
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST', headers: hdr }), env);
+    body = await (await worker.fetch(new Request('https://worker.test/v1/state'), env)).json();
+    const ua = body.alerts.filter(a => a.source === 'OFFICIAL');
+    assert.equal(ua.length, 1, '401 cycle keeps the alarm (misses grace), no false all-clear');
+    assert.equal(ua[0].stale, true, 'kept record marked stale honestly');
+    assert.equal(body.health.OFFICIAL.status, 'offline');
   } finally {
     restore();
   }

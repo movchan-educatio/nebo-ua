@@ -374,16 +374,18 @@ export default {
       return json({ serverTime: new Date().toISOString(), sources: metrics });
     }
     if (url.pathname === '/v1/refresh' && request.method === 'POST') {
-      // Admin pipeline trigger. Anyone could otherwise force upstream
-      // fetches, D1/KV writes and push dispatch at will (upstream 429,
-      // quota churn, push flapping). Gate with a shared secret when the
-      // owner configures REFRESH_TOKEN (wrangler secret put REFRESH_TOKEN);
-      // unset => open (backward compatible, documented in README).
-      if (env.REFRESH_TOKEN) {
-        const got = request.headers.get('Authorization') || '';
-        if (!timingSafeEqual(got, `Bearer ${env.REFRESH_TOKEN}`)) {
-          return json({ error: 'Forbidden' }, 403, 5);
-        }
+      // Admin pipeline trigger — FAIL-CLOSED. An open trigger lets anyone
+      // force upstream fetches, D1/KV writes and push dispatch at will.
+      // The frontend never calls this route (cron only), so closing it
+      // changes nothing for the site. Requires REFRESH_TOKEN:
+      //   wrangler secret put REFRESH_TOKEN
+      // then call with `Authorization: Bearer <token>`.
+      if (!env.REFRESH_TOKEN) {
+        return json({ error: 'Refresh endpoint is disabled (REFRESH_TOKEN not configured)' }, 503, 5);
+      }
+      const got = request.headers.get('Authorization') || '';
+      if (!timingSafeEqual(got, `Bearer ${env.REFRESH_TOKEN}`)) {
+        return json({ error: 'Forbidden' }, 403, 5);
       }
       const snap = await runPipeline(env);
       let extra = {};

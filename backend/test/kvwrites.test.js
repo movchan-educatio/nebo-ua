@@ -194,6 +194,7 @@ const baseEnv = (kv, db) => ({
   NEPTUN_THREATS_URL: 'https://src.test/threats',
   MAPA_URL: 'https://src.test/mapa',
   OFFICIAL_API_URL: '', OFFICIAL_API_TOKEN: '',
+  REFRESH_TOKEN: 'test-refresh',
 });
 const emptySources = {
   'https://src.test/alerts': { oblasts: [], raions: [] },
@@ -206,7 +207,7 @@ test('POST /v1/refresh without changes => 0 PUT', async () => {
   try {
     const c = countingKv();
     const env = baseEnv(c.kv, fakeDb());
-    const req = () => new Request('https://worker.test/v1/refresh', { method: 'POST' });
+    const req = () => new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer test-refresh' } });
     const r1 = await worker.fetch(req(), env);
     assert.equal(r1.status, 200, 'first refresh warms the state');
     assert.equal(c.puts(), 1, 'cold start writes once');

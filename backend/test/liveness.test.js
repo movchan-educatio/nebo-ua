@@ -103,13 +103,14 @@ const baseEnv = (kv, db) => ({
   NEPTUN_THREATS_URL: 'https://src.test/threats',
   MAPA_URL: 'https://src.test/mapa',
   OFFICIAL_API_URL: '', OFFICIAL_API_TOKEN: '',
+  REFRESH_TOKEN: 'test-refresh',
 });
 const emptySources = {
   'https://src.test/alerts': { oblasts: [], raions: [] },
   'https://src.test/threats': { threats: [] },
   'https://src.test/mapa': { objects: [] },
 };
-const postRefresh = () => new Request('https://worker.test/v1/refresh', { method: 'POST' });
+const postRefresh = () => new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer test-refresh' } });
 const getState = () => new Request('https://worker.test/v1/state');
 
 async function refresh(env) {
