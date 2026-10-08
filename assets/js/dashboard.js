@@ -396,7 +396,11 @@ async function refreshMap() {
     }
   } catch { /* shapes best effort */ }
   try {
-    syncStore(state.tracks, st.events);
+    // NOTE: sync ONLY current (fresh) targets — a destroyed/removed threat
+    // leaves the store immediately, so its dashed trail disappears at once
+    // instead of lingering as a stale direction line.
+    const freshEvents = (st.events || []).filter(e => !e.stale);
+    syncStore(state.tracks, freshEvents);
     let trails = [];
     try {
       const visibleSet = new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']);
@@ -435,7 +439,6 @@ async function refreshMap() {
     const sel = null;
     // Markers: only current (non-stale) confirmed targets — stale records
     // stay in the panels but are not drawn as live positions.
-    const freshEvents = (st.events || []).filter(e => !e.stale);
     mapUI.setEvents(freshEvents, new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']), sel, trails);
   } catch { /* markers best effort */ }
   // Mini radar: confirmed coordinates only (animated sweep).
