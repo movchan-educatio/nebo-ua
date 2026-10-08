@@ -49,7 +49,7 @@ export function createScope(canvas, { onSelect } = {}) {
   const sctx = staticC.getContext('2d');
   const ectx = echoC.getContext('2d');
   const S = { events: [], center: [49, 31], range: 200, guardKm: null, pin: null, pts: [] };
-  let sweep = 0, last = 0, raf = 0, active = false, W = 0, H = 0, staticKey = '';
+  let sweep = 0, prevSweep = 0, last = 0, raf = 0, active = false, W = 0, H = 0, staticKey = '';
   // Per-contact illumination time: a target stays dark until the beam
   // sweeps past its bearing, then fades — a real PPI-style detection.
   const litAt = new Map();
@@ -239,44 +239,46 @@ export function createScope(canvas, { onSelect } = {}) {
     S.pts = [];
     const reds = [];
     const edge = [];
-    let nearest = null;
     ensureSprites();
     // Priority order + cap: missiles/ballistic first so the scope never turns
-    // into an unreadable cloud of drone dots.
+    // into an unreadable cloud of drone dots. In-radius eligible contacts are
+    // selected BEFORE the cap, so an out-of-range or non-radar record can
+    // never take a slot from a real, plottable target.
     const PR = { ballistic: 1, missile: 2, shahed: 3, kab: 4, aviation: 5, fpv: 6, uav: 7, recon: 8, explosion: 99, other: 9 };
-    const ordered = [...S.events].sort((a, b) => {
-      const ka = (() => { try { return getThreatVisual(a).kind; } catch (e) { return 'other'; } })();
-      const kb = (() => { try { return getThreatVisual(b).kind; } catch (e) { return 'other'; } })();
-      return (PR[ka] || 9) - (PR[kb] || 9);
-    }).slice(0, 25);
-    for (const e of ordered) {
+    const eligible = [];
+    for (const e of S.events) {
       if (e.lat == null || e.lon == null) continue;
       const p = project(e.lat, e.lon, S.center, S.range, size);
-      if (p.distKm < (nearest == null ? Infinity : nearest)) nearest = p.distKm;
-      if (!p.inside) {
-        // Out-of-range contacts are NOT plotted: the operator selected a
-        // radius and the scope shows exactly that radius. Only the distance
-        // of the nearest outside contact is reported below (no icon).
-        continue;
-      }
-      const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
+      // Out-of-range contacts are NOT plotted: the operator selected a radius
+      // and the scope shows exactly that radius.
+      if (!p.inside) continue;
       const v = getThreatVisual(e);
       // Event reports (e.g. media explosions) are never radar targets.
       if (v.radarEligible === false) continue;
+      eligible.push({ e, p, v, prio: PR[v.kind] || 9 });
+    }
+    eligible.sort((a, b) => a.prio - b.prio);
+    const ordered = eligible.slice(0, 25);
+    // Beam arc covered since the previous frame. A contact is detected when
+    // the beam CROSSES its bearing — checking only the current angle could
+    // skip contacts forever on slow frames (a 3° window < one 5° step).
+    const stepArc = reduced ? 0 : ((sweep - prevSweep) % 360 + 360) % 360;
+    for (const { e, p, v } of ordered) {
+      const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
       // ── True radar detection ─────────────────────────────────────────────
-      // A contact is INVISIBLE until the sweeping beam passes its bearing,
-      // then it lights up and fades over a few seconds — exactly how a PPI
-      // scope behaves. New contacts arriving later are picked up on the next
-      // sweep revolution. Nothing is shown before first illumination.
+      // A contact is invisible until the sweeping beam passes its bearing.
+      // After the first pass it keeps a phosphor afterglow that dims but
+      // stays readable until the next revolution re-illuminates it.
       const key = e.trackId || e.id || (p.bearing + ':' + p.distKm);
       const diff = ((sweep - p.bearing) % 360 + 360) % 360;
-      if (diff < 3) litAt.set(key, t);
+      const fromPrev = ((p.bearing - prevSweep) % 360 + 360) % 360;
+      if (diff < 3 || fromPrev <= stepArc) litAt.set(key, t);
       const seen = litAt.get(key);
-      const decayMs = 3000;
-      let intensity = reduced
+      const decayMs = 6500;
+      const intensity = reduced
         ? 0.85
-        : (seen == null ? 0 : Math.max(0, 1 - (t - seen) / decayMs));
-      if (intensity <= 0.04) continue; // not yet detected / fully faded
+        : (seen == null ? 0 : Math.max(0.4, 1 - (t - seen) / decayMs));
+      if (intensity <= 0.04) continue; // not yet detected
       const boost = sweepBoost(sweep, p.bearing);
       S.pts.push({ e, x: ox, y: oy, label: v.label, distKm: p.distKm, a: intensity });
       const glow = (0.55 + 0.45 * boost) * intensity;
@@ -310,6 +312,7 @@ export function createScope(canvas, { onSelect } = {}) {
       }
       if (e._lvl === 'red') reds.push([ox, oy]);
     }
+    prevSweep = sweep;
     ectx.globalAlpha = 1;
     ctx.clearRect(0, 0, W, H);
     ctx.drawImage(staticC, 0, 0, W, H);
@@ -392,7 +395,13 @@ export function createScope(canvas, { onSelect } = {}) {
   return {
     update(events, center, opts = {}) {
       S.events = (events || []).slice(0, 300);
-      if (center) S.center = center;
+      // Center is stored as [lat, lon] (project() reads center[0]/center[1]).
+      // Callers may pass either an array or a {lat, lon} object — normalize,
+      // otherwise every projection becomes NaN and nothing gets plotted.
+      if (center) {
+        const pair = Array.isArray(center) ? center : [Number(center.lat), Number(center.lon)];
+        if (Number.isFinite(pair[0]) && Number.isFinite(pair[1])) S.center = pair;
+      }
       if (opts.range) S.range = opts.range;
       S.guardKm = opts.guardKm ?? null;
       S.pin = opts.pin || null;

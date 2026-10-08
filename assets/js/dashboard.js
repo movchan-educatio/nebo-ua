@@ -302,14 +302,24 @@ function updateMiniRadar() {
   try {
     scopeMini.update(fresh, center, { range: scopeMiniRange });
   } catch { /* radar best effort */ }
-  // Count ONLY what is inside the selected radius (matches the screen).
+  // Count ONLY what the scope actually plots: fresh confirmed coordinates,
+  // inside the selected radius, and radar-eligible kinds (media/explosion
+  // reports are never radar contacts). The note can never promise a blip
+  // the screen will not draw.
   const inside = fresh.filter(e => {
-    try { return haversineKm(center.lat, center.lon, e.lat, e.lon) <= scopeMiniRange; } catch { return false; }
+    try {
+      if (getThreatVisual(e).radarEligible === false) return false;
+      return haversineKm(center.lat, center.lon, e.lat, e.lon) <= scopeMiniRange;
+    } catch { return false; }
   });
   const cnt = $('#radarCount');
   if (cnt) {
     const c = state.userPos ? 'від вас' : 'від центру України';
-    cnt.textContent = `${inside.length} ${inside.length === 1 ? 'ціль' : inside.length < 5 ? 'цілі' : 'цілей'} у радіусі ${scopeMiniRange} км ${c}`;
+    const n = inside.length;
+    const mod10 = n % 10, mod100 = n % 100;
+    const word = mod10 === 1 && mod100 !== 11 ? 'ціль'
+      : (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) ? 'цілі' : 'цілей';
+    cnt.textContent = `${n} ${word} у радіусі ${scopeMiniRange} км ${c}`;
   }
 }
 async function refreshMap() {
