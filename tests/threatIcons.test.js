@@ -152,8 +152,11 @@ test('event/blip marker HTML: threat SVG + kind label, no pulse wrappers', () =>
   const blipHtml = src.slice(src.indexOf('function blipIcon'), src.indexOf('function userIcon'));
   for (const [name, html] of [['eventIcon', eventHtml], ['blipIcon', blipHtml]]) {
     assert.ok(!html.includes('pulse'), `${name}: no pulse ring wrapper`);
-    assert.ok(html.includes('class="threat-svg"'), `${name}: renders the threat SVG`);
+    assert.ok(/glyphSvg\(|class="threat-svg"/.test(html), `${name}: renders the threat SVG`);
   }
+  const glyph = src.slice(src.indexOf('function glyphSvg'), src.indexOf('function glyphSvg') + 600);
+  assert.ok(glyph.includes('threat-svg'), 'glyphSvg emits the .threat-svg element');
+  assert.ok(glyph.includes('viewBox'), 'glyphSvg carries the symbol viewBox (inline path fallback)');
   assert.ok(eventHtml.includes('mk-label'), 'eventIcon: kind label (CSS zoom-gated, hidden at country zoom)');
 });
 
