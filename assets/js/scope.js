@@ -152,6 +152,12 @@ export function createScope(canvas, { onSelect } = {}) {
       sctx.fillStyle = outer ? 'rgba(190,255,215,0.85)' : 'rgba(150,255,195,0.6)';
       sctx.fillText(outer ? km + ' км' : String(km), cx + 4, cy - R * f - 3);
     });
+    // Diagonal guides (45°): reference CRT grid.
+    sctx.globalAlpha = 0.3; sctx.lineWidth = 1; sctx.strokeStyle = 'rgba(61,255,158,0.6)';
+    const DG = Math.SQRT1_2;
+    for (const [dx, dy] of [[DG, DG], [DG, -DG], [-DG, DG], [-DG, -DG]]) {
+      sctx.beginPath(); sctx.moveTo(cx, cy); sctx.lineTo(cx + R * dx, cy + R * dy); sctx.stroke();
+    }
     sctx.globalAlpha = 0.35;
     for (let a = 0; a < 360; a += 10) {
       const major = a % 30 === 0;
@@ -295,7 +301,12 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.fillStyle = '#eaf6ff';
     ctx.font = '10px system-ui';
-    // No per-target text on the scope: SVG + tap/hover detail card only.
+    // Kind labels next to inside blips (real kind names from the source).
+    for (const pt of S.pts.slice(0, 24)) {
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = '#cfe8d8';
+      ctx.fillText(pt.label || '', pt.x + 13, pt.y + 4);
+    }
     ctx.globalAlpha = 1;
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
     // Out-of-range contacts: threat silhouette + distance on the outer edge

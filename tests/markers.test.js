@@ -20,15 +20,14 @@ test('palette: shahed/uav/fpv/kab/missile/ballistic/recon all differ', () => {
   assert.equal(META.explosion.color.toLowerCase(), '#ff6a00');
 });
 
-// ── Declutter clustering: one REAL trackId = one marker, grouped visually ──
-// Clusters show only real contained counts + dominant kind color; zooming
-// reveals every track. No counts invented from proximity.
-test('UI clustering: cluster group with honest count bubbles, tracks persist', () => {
-  assert.ok(mapSrc.includes('markerClusterGroup'), 'cluster group present');
-  assert.ok(mapSrc.includes('iconCreateFunction'), 'cluster icon factory present');
-  assert.ok(mapSrc.includes('getAllChildMarkers'), 'bubbles count real contained markers');
+// ── Reference look: real icons, no number bubbles, priority declutter ───────
+test('UI markers: real icons with priority declutter, no cluster bubbles', () => {
+  assert.ok(!mapSrc.includes('markerClusterGroup'), 'no number-bubble clusters');
+  assert.ok(!mapSrc.includes('clusterIcon'), 'no cluster factory');
+  assert.ok(mapSrc.includes('declutterTargets'), 'priority declutter present');
+  assert.ok(mapSrc.includes('target-hidden'), 'overlap hiding class present');
   assert.ok(mapSrc.includes('markerByTrack'), 'markers persist per stable trackId');
-  assert.ok(mapSrc.includes('disableClusteringAtZoom'), 'clusters open at large zoom');
+  assert.ok(mapSrc.includes('PRIORITY'), 'missiles/ballistic outrank drones');
 });
 
 test('source count badge: ×N only from explicit source count', () => {

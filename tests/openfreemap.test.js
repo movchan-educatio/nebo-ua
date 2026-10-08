@@ -135,11 +135,11 @@ test('unknown district without polygon data: no oblast fallback invented', () =>
   assert.deepEqual(oblasts, []);
 });
 
-// ── Declutter clustering: every track keeps its marker, bubbles group them ─
-test('UI clustering: every track renders, bubbles only group', async () => {
+// ── Reference look: every track keeps its icon, overlaps decluttered ────────
+test('UI markers: real icons, priority declutter instead of bubbles', async () => {
   const src = await readFile('assets/js/map.js', 'utf8');
-  assert.ok(src.includes('markerClusterGroup'), 'cluster group factory present');
-  assert.ok(src.includes('iconCreateFunction'), 'cluster icon factory present');
+  assert.ok(!src.includes('markerClusterGroup'), 'no cluster bubble factory');
+  assert.ok(src.includes('declutterTargets'), 'priority declutter present');
   assert.ok(src.includes('markerByTrack'), 'markers persist per stable trackId');
 });
 

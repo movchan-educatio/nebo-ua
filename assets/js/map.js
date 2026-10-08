@@ -64,6 +64,11 @@ function iconFor(e){
   return { label: v.label, icon: v.icon, color: v.color, kind: v.kind };
 }
 
+// Explicit Ukraine bounds: never rely on data-derived bounds that may be
+// inflated (stray points / projection rounding) and pull neighbouring
+// countries into frame. Covers Zakarpattia (W) to Luhansk (E), Crimea (S).
+export const UKRAINE_BOUNDS = [[44.2, 22.0], [52.5, 40.4]];
+
 // ── Situation map (main map tab) ──────────────────────────────────────────────
 export function createSituationMap(el,onSelect){
   const map=baseMap(el,[48.6,31.2],6,{zoomControl:false});
@@ -85,37 +90,74 @@ export function createSituationMap(el,onSelect){
   // navigation are DOM above the map container.
   if(!map.getPane('threatPane')) map.createPane('threatPane');
   map.getPane('threatPane').style.zIndex=625;
-  // One marker per REAL trackId — clustered for readability, never merged
-  // from closeness for counting. Source-reported group size (count>1)
-  // renders as a small ×N badge on that track's own marker. Cluster bubbles
-  // show the contained count + dominant threat color; zooming reveals tracks.
-  function clusterIcon(cluster) {
-    const kids = cluster.getAllChildMarkers();
-    const counts = {};
-    for (const m of kids) {
-      const k = m.options.threatKind || 'other';
-      counts[k] = (counts[k] || 0) + 1;
-    }
-    let top = 'other', topN = 0;
-    for (const [k, n] of Object.entries(counts)) {
-      if (n > topN) { top = k; topN = n; }
-    }
-    const color = (META[top] && META[top].color) || '#B8C5D1';
-    return L.divIcon({
-      className: '',
-      html: `<div class="threat-cluster" style="--c:${color}"><b>${kids.length}</b></div>`,
-      iconSize: [42, 42], iconAnchor: [21, 21],
-    });
+  // Oblast name pane: above polygon fills, below target markers.
+  if(!map.getPane('labelPane')) map.createPane('labelPane');
+  map.getPane('labelPane').style.zIndex=610;
+  map.getPane('labelPane').style.pointerEvents='none';
+  const labels=L.layerGroup().addTo(map);
+  const labelEntries=[];
+  // Greedy declutter: sort by oblast area (largest first), place a label only
+  // if its screen rect does not collide with an already placed one. Collided
+  // labels are hidden (not removed) and reappear when zoom gives them room.
+  function declutterLabels(){
+    if(!labelEntries.length) return;
+    try{
+      const placed=[];
+      const nameH=16;
+      for(const e of [...labelEntries].sort((a,b)=>b.area-a.area)){
+        const el=e.marker.getElement();
+        if(!el) continue;
+        const nameEl=el.querySelector('.oblast-name')||el;
+        const w=(e.name.length*6.6)+10, h=nameH;
+        const pt=map.latLngToContainerPoint(e.marker.getLatLng());
+        const rect={x1:pt.x-w/2,y1:pt.y-h/2,x2:pt.x+w/2,y2:pt.y+h/2};
+        const hit=placed.some(p=>!(rect.x2<p.x1||rect.x1>p.x2||rect.y2<p.y1||rect.y1>p.y2));
+        if(hit){ nameEl.classList.add('label-hidden'); }
+        else { nameEl.classList.remove('label-hidden'); placed.push(rect); }
+      }
+    }catch(err){}
   }
-  const targets = (typeof L.markerClusterGroup === 'function')
-    ? L.markerClusterGroup({
-        showCoverageOnHover: false, zoomToBoundsOnClick: true,
-        spiderfyOnMaxZoom: true, maxClusterRadius: 56,
-        disableClusteringAtZoom: 9, iconCreateFunction: clusterIcon,
-      })
-    : L.layerGroup();
+  // One marker per REAL trackId. Reference look: NO number bubbles — real
+  // threat icons only, decluttered by priority (ballistic > missile > shahed
+  // > kab > aviation > uav > recon). Overlap is resolved by screen distance;
+  // hidden icons reappear on zoom. Counts stay truthful in the side panel.
+  const targets=L.layerGroup();
+  const PRIORITY={ballistic:1,missile:2,shahed:3,kab:4,aviation:5,uav:6,recon:7,fpv:8,explosion:9,other:10};
+  function targetCap(){ const z=map.getZoom(); return z<=5?16:z===6?24:z<=8?40:Infinity; }
+  function targetMinDist(){ const z=map.getZoom(); return z<=6?26:z<=8?20:14; }
+  function declutterTargets(){
+    try{
+      const cap=targetCap(), minD=targetMinDist();
+      const items=[];
+      for(const [tid,m] of markerByTrack){
+        const el=glyphEl(m); if(!el) continue;
+        const e=currentByTrack.get(tid)||{};
+        const k=m.options.threatKind||'other';
+        items.push({el, tid, pr:PRIORITY[k]||10, pt:map.latLngToContainerPoint(m.getLatLng())});
+      }
+      items.sort((a,b)=>a.pr-b.pr);
+      const placed=[];
+      for(const it of items){
+        const el=it.el.closest('.threat-marker')||it.el;
+        const tooClose=placed.some(p=>Math.hypot(p.x-it.pt.x,p.y-it.pt.y)<minD);
+        if(placed.length>=cap||tooClose){ el.classList.add('target-hidden'); }
+        else { el.classList.remove('target-hidden'); placed.push({x:it.pt.x,y:it.pt.y}); }
+      }
+    }catch(err){}
+  }
   map.addLayer(targets);
   let geo=null,fitted=false;
+  function fitUkraine(){
+    try{
+      map.invalidateSize(false);
+      map.fitBounds(UKRAINE_BOUNDS,ukraineFitOptions());
+      fitted=true;
+      setTimeout(()=>{ try{ declutterLabels(); }catch(e){} }, 60);
+    }catch(e){}
+  }
+  function refitOnResize(){
+    try{ map.invalidateSize(false); fitUkraine(); }catch(e){}
+  }
   // Persistent marker objects per stable trackId: the SAME L.marker instance
   // survives snapshots; only its position/icon refresh. setLatLng + the CSS
   // transform transition gives the short UI glide between two CONFIRMED
@@ -134,6 +176,10 @@ export function createSituationMap(el,onSelect){
   map.on('viewreset',applyZoomClass);
   map.on('load',applyZoomClass);
   setTimeout(applyZoomClass,0);
+  map.on('zoomend',()=>{ try{ declutterLabels(); declutterTargets(); }catch(e){} });
+  map.on('moveend',()=>{ try{ declutterLabels(); declutterTargets(); }catch(e){} });
+  // Keep Ukraine fully visible when the container or window resizes.
+  window.addEventListener('resize',()=>{ try{ refitOnResize(); }catch(e){} });
 
   function setRegions(g,alerts,events){
     geo=g;
@@ -156,10 +202,7 @@ export function createSituationMap(el,onSelect){
 
       layer.setStyle(style);
 
-      // Permanent oblast name: white text with dark halo (see .oblast-label).
-      try {
-        layer.bindTooltip(n, { permanent: true, direction: 'center', className: 'oblast-label', interactive: false });
-      } catch (e) { /* labels best effort */ }
+      // Oblast names render via the dedicated label layer (see fitUkraine).
 
       // Click handler: show raion details if partial (raion-only alerts)
       const a=list[0]||null;
@@ -167,7 +210,28 @@ export function createSituationMap(el,onSelect){
       const partial = !list.some(x=>!x.district) && raionList.length > 0;
       layer.on('click',()=>onSelect(a?{...a,raions:raionList,partial}:{official:true,category:'alert',region:n,status:'inactive',source:'Поточні офіційні дані'}));
     });
-    if(!fitted&&regions.getBounds().isValid()){fitted=true;map.fitBounds(regions.getBounds(),ukraineFitOptions())}
+    if(!fitted) fitUkraine();
+    // Oblast name labels: dedicated div-marker layer (guaranteed visible,
+    // above fills, below target markers via pane order + CSS z-index).
+    try{
+      labels.clearLayers();
+      labelEntries.length = 0;
+      regions.eachLayer(layer=>{
+        const n=regionName(layer.feature);
+        if(!n) return;
+        const b=layer.getBounds && layer.getBounds();
+        if(!b || !b.isValid()) return;
+        const c=b.getCenter();
+        const mk=L.marker([c.lat,c.lng],{
+          icon:L.divIcon({className:'',html:`<span class="oblast-name">${n}</span>`,iconSize:[0,0],iconAnchor:[0,0]}),
+          interactive:false, keyboard:false, pane:'labelPane',
+        }).addTo(labels);
+        // Area proxy for priority (larger oblasts win the declutter).
+        let w=0,h=0; try{ const s=b.getNorthEast(), t=b.getSouthWest(); w=Math.abs(s.lng-t.lng); h=Math.abs(s.lat-t.lat); }catch(e){}
+        labelEntries.push({ marker:mk, name:n, area:w*h });
+      });
+      declutterLabels();
+    }catch(e){}
   }
 
   // Single-track marker upsert shared by full sync and live updates:
@@ -272,6 +336,7 @@ export function createSituationMap(el,onSelect){
     for(const [tid,m] of markerByTrack){
       if(!seenTracks.has(tid)){try{targets.removeLayer(m);}catch(e){}markerByTrack.delete(tid);currentByTrack.delete(tid);}
     }
+    declutterTargets();
     // Background trails for every fresh track with ≥2 confirmed positions
     // (MAPA source trail or session history). Thin, muted, behind markers.
     // Selected track keeps its stronger emphasis below.
@@ -379,7 +444,7 @@ export function createSituationMap(el,onSelect){
       if(g)g.classList.toggle('selected',id===selectedTrack);
     }
   }
-  return{map,setRegions,setEvents,updateTrack,removeTrack,setWind,setReports,setRaionDots,setRaionShapes,setAlertShapes,setUserPos,centerOnUser,showHome,setSelectedTrack,toggle,meta:META};
+  return{map,setRegions,setEvents,updateTrack,removeTrack,setWind,setReports,setRaionDots,setRaionShapes,setAlertShapes,setUserPos,centerOnUser,showHome,setSelectedTrack,toggle,meta:META,fitUkraine,refitOnResize};
 }
 
 // ── Radar range rings ────────────────────────────────────────────────────────
@@ -485,12 +550,11 @@ function baseMap(el,center,zoom,opts={}){
 // Donbas cut-off (TZ §23).
 export function ukraineFitOptions(){
   try{
-    const wide = window.innerWidth >= 1100;
-    const mobile = window.innerWidth < 720;
-    if(wide) return { paddingTopLeft:[16,16], paddingBottomRight:[24,24] };
-    if(mobile) return { paddingTopLeft:[12,86], paddingBottomRight:[12,120] };
-    return { paddingTopLeft:[16,80], paddingBottomRight:[120,40] };
-  }catch(e){ return { padding:[12,12] }; }
+    const w = window.innerWidth;
+    if(w >= 1100) return { paddingTopLeft:[18,18], paddingBottomRight:[26,26] };
+    if(w >= 720) return { paddingTopLeft:[20,90], paddingBottomRight:[30,60] };
+    return { paddingTopLeft:[12,70], paddingBottomRight:[12,110] };
+  }catch(e){ return { padding:[16,16] }; }
 }
 
 // ── Icon factories ─────────────────────────────────────────────────────────────
@@ -514,6 +578,7 @@ function eventIcon(e,ac){
     className:'',
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:1" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
       <svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg>${countBadge}
+      <span class="mk-label">${m.label}</span>
     </div>`,
     iconSize:[40,40],iconAnchor:[20,20],
   });

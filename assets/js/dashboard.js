@@ -71,6 +71,20 @@ function openSheet(html) {
   $('#detailContent').innerHTML = html;
   if (typeof d.showModal === 'function' && !d.open) d.showModal();
 }
+// Red dot on Сповіщення when events are newer than the last view.
+// Real delta only: compares max source eventTime with stored marker.
+function updateNavDot(snap) {
+  try {
+    let max = 0;
+    for (const e of snap.events || []) {
+      const t = new Date(e.eventTime || e.timestamp || 0).getTime();
+      if (Number.isFinite(t) && t > max) max = t;
+    }
+    const seen = Number(localStorage.getItem('nebo-seen-max') || 0);
+    const dot = $('#navDot');
+    if (dot) dot.hidden = !(max > seen && max > 0);
+  } catch { /* badge best effort */ }
+}
 function setupViews() {
   const handlers = { map: scrollMap, radar: scrollRadar, stats: showStats, history: showHistory, alerts: showAlerts, sources: showSources, about: () => location.assign('./about/') };
   const onNav = (v) => {
@@ -79,7 +93,21 @@ function setupViews() {
   };
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-view]');
-    if (b) onNav(b.dataset.view);
+    if (b) {
+      if (b.dataset.view === 'alerts') {
+        try {
+          let max = 0;
+          for (const ev of state.snapshot?.events || []) {
+            const t = new Date(ev.eventTime || ev.timestamp || 0).getTime();
+            if (Number.isFinite(t) && t > max) max = t;
+          }
+          if (max) localStorage.setItem('nebo-seen-max', String(max));
+          const dot = $('#navDot');
+          if (dot) dot.hidden = true;
+        } catch { /* ignore */ }
+      }
+      onNav(b.dataset.view);
+    }
   });
   $$('[data-view]').forEach(b => b.addEventListener('click', () => onNav(b.dataset.view)));
 }
@@ -162,6 +190,9 @@ function initMap() {
   mapUI = createSituationMap($('#map'), onTerritory);
   mapUI.map.setView([48.6, 31.2], 6);
   scopeMini = createScope($('#scopeMini'));
+  // Container settles after first layout: re-fit so Ukraine is fully visible.
+  requestAnimationFrame(() => { try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ } });
+  setTimeout(() => { try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ } }, 400);
   $('#zoomIn').onclick = () => mapUI.map.zoomIn();
   $('#zoomOut').onclick = () => mapUI.map.zoomOut();
   $('#gpsButton').onclick = locateMe;
@@ -224,9 +255,18 @@ function onTerritory(item) {
   $('#terrClose').onclick = () => card.classList.remove('open');
   $('#terrHistory').onclick = () => showHistory(oblast, district);
 }
+async function loadRegionsGeo() {
+  if (state.geo) return state.geo;
+  try {
+    const g = await fetchRegions();
+    if (g?.features?.length) state.geo = g;
+  } catch { /* offline: skip outlines */ }
+  return state.geo;
+}
 async function refreshMap() {
   const st = state.snapshot;
   if (!st || !mapUI) return;
+  await loadRegionsGeo();
   if (state.geo) {
     try { mapUI.setRegions(state.geo, st.alerts, st.events); } catch { /* keep old frame */ }
   }
@@ -247,8 +287,6 @@ async function refreshMap() {
     mapUI.setAlertShapes(vis, onTerritory);
   } catch { /* shapes best effort */ }
   try {
-    const { syncStore: sync } = await import('../../services/tracks.js').catch(() => ({}));
-    void sync;
     syncStore(state.tracks, st.events);
     mapUI.setEvents(st.events, new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']), null, null);
   } catch { /* markers best effort */ }
@@ -419,6 +457,8 @@ async function load() {
     renderThreats(snap.events);
     renderStats(snap.alerts, snap.events);
     refreshMap();
+    try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ }
+    updateNavDot(snap);
     const notice = $('#networkNotice');
     if (snap.health?.OFFICIAL?.status === 'offline') {
       notice.hidden = false;
@@ -440,6 +480,25 @@ async function load() {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
+// Bottom nav: auto-hide while scrolling down, reappear on scroll up or at
+// the top — never permanently covering the last cards.
+function setupNavAutoHide() {
+  const nav = document.querySelector('.bottom-nav');
+  if (!nav) return;
+  let lastY = window.scrollY, ticking = false;
+  const apply = () => {
+    ticking = false;
+    const y = window.scrollY;
+    const down = y > lastY + 6;
+    const nearBottom = y + window.innerHeight >= document.documentElement.scrollHeight - 40;
+    if ((down && y > 80) && !nearBottom) nav.classList.add('nav-hidden');
+    else nav.classList.remove('nav-hidden');
+    lastY = y;
+  };
+  window.addEventListener('scroll', () => {
+    if (!ticking) { ticking = true; requestAnimationFrame(apply); }
+  }, { passive: true });
+}
 function setupMenu() {
   const b = $('#menuButton'), m = $('#topMenu');
   if (!b || !m) return;
@@ -471,6 +530,7 @@ tickClock();
 setInterval(tickClock, 20000);
 setupTheme();
 setupViews();
+setupNavAutoHide();
 setupMenu();
 setupDialogs();
 initMap();

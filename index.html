@@ -7,7 +7,7 @@
     <button data-view="radar"><svg><use href="./assets/brand/icons.svg#i-radar"/></svg>Радар</button>
     <button data-view="stats"><svg><use href="./assets/brand/icons.svg#i-list"/></svg>Статистика</button>
     <button data-view="history"><svg><use href="./assets/brand/icons.svg#i-refresh"/></svg>Історія</button>
-    <button data-view="alerts"><svg><use href="./assets/brand/icons.svg#i-region"/></svg>Сповіщення</button>
+    <button data-view="alerts"><svg><use href="./assets/brand/icons.svg#i-region"/></svg>Сповіщення<span class="nav-dot" id="navDot" hidden></span></button>
     <button data-view="sources"><svg><use href="./assets/brand/icons.svg#i-layers"/></svg>Джерела</button>
     <button data-view="about"><svg><use href="./assets/brand/icons.svg#i-region"/></svg>Про проєкт</button>
   </nav>
@@ -63,6 +63,8 @@
             <span class="row"><i style="background:#ff9f43"></i>Загроза артобстрілу</span>
             <span class="row"><i style="background:#ffd23d"></i>Підвищена небезпека</span>
             <span class="row"><i style="background:#5f7d8f"></i>Немає тривоги</span>
+            <span class="row"><i style="background:transparent;border:1px dashed #4da3ff"></i>Рух цілей (NEPTUN)</span>
+            <span class="row"><i style="background:transparent;border:1px dashed #b06bff"></i>БПЛА (MAPA)</span>
           </div>
           <button id="legendBtn" class="map-btn glass" aria-label="Легенда" aria-expanded="false" style="position:absolute;z-index:500;left:12px;bottom:12px;display:none">?</button>
           <div class="scalebar" aria-hidden="true"><div class="bar"></div><span>0&nbsp;&nbsp;&nbsp;100&nbsp;&nbsp;&nbsp;200&nbsp;&nbsp;&nbsp;300 км</span></div>

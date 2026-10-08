@@ -145,16 +145,16 @@ test('mapping: recon/missile/ballistic/kab/aviation/unknown -> own icon', () => 
   }
 });
 
-// ── No geometric wrappers around single markers ──────────────────────────────
-test('event/blip marker HTML is a bare SVG (no circle/triangle/diamond/label wrappers)', () => {
+// ── Kind labels on markers (zoom-gated in CSS), no pulse rings ─────────────
+test('event/blip marker HTML: threat SVG + kind label, no pulse wrappers', () => {
   const src = fs.readFileSync(path.join(root, 'assets/js/map.js'), 'utf8');
   const eventHtml = src.slice(src.indexOf('function eventIcon'), src.indexOf('function blipIcon'));
   const blipHtml = src.slice(src.indexOf('function blipIcon'), src.indexOf('function userIcon'));
   for (const [name, html] of [['eventIcon', eventHtml], ['blipIcon', blipHtml]]) {
-    assert.ok(!html.includes('mk-label'), `${name}: no text label wrapper`);
     assert.ok(!html.includes('pulse'), `${name}: no pulse ring wrapper`);
     assert.ok(html.includes('class="threat-svg"'), `${name}: renders the threat SVG`);
   }
+  assert.ok(eventHtml.includes('mk-label'), 'eventIcon: kind label (CSS zoom-gated, hidden at country zoom)');
 });
 
 test('unknown threat is a diamond with a path-drawn question mark (no text element)', () => {
