@@ -401,6 +401,30 @@ async function refreshMap() {
     try {
       const visibleSet = new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']);
       trails = selectTrails(state.tracks.getAll(), visibleSet) || [];
+      // Sanitize: never let one dashed line stitch an old position to a new
+      // one. Drop points older than 15 min (when timed) and any segment longer
+      // than a plausible single step (~80 km). Keeps every trail a real,
+      // continuous observed path — no stale leftovers.
+      const MAX_JUMP_KM = 80, MAX_AGE_MIN = 15;
+      const kmBetween = (a, b) => {
+        const R = 6371, dLat = (b.lat - a.lat) * Math.PI / 180, dLon = (b.lon - a.lon) * Math.PI / 180;
+        const s = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * Math.PI / 180) * Math.cos(b.lat * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+        return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+      };
+      const now = Date.now();
+      trails = trails.map(t => {
+        const pts = [];
+        for (const p of t.points || []) {
+          if (!Number.isFinite(p?.lat) || !Number.isFinite(p?.lon)) continue;
+          if (p.t) {
+            const ts = p.t instanceof Date ? p.t.getTime() : new Date(p.t).getTime();
+            if (Number.isFinite(ts) && now - ts > MAX_AGE_MIN * 60000) continue;
+          }
+          if (pts.length && kmBetween(pts[pts.length - 1], p) > MAX_JUMP_KM) pts.length = 0; // break: start a new, real segment
+          pts.push(p);
+        }
+        return { ...t, points: pts };
+      }).filter(t => t.points.length >= 2);
     } catch { trails = []; }
     // Fallback: source-provided trail arrays (MAPA) when the store has none.
     if (!trails.length) {
