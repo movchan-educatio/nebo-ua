@@ -282,6 +282,14 @@ async function loadRegionsGeo() {
 function renderLegend() {
   const el = $('#legendStrip');
   if (!el) return;
+  // Write into a dedicated body node so the collapse button (appended by
+  // setupCollapsibles) is never wiped by a re-render.
+  let body = el.querySelector('.legend-body');
+  if (!body) {
+    body = document.createElement('div');
+    body.className = 'legend-body';
+    el.appendChild(body);
+  }
   const territory = [
     ['#F04444', 'Повітряна тривога'],
     ['#F59E0B', 'Підвищена небезпека'],
@@ -292,7 +300,7 @@ function renderLegend() {
     shahed: 'Шахед', uav: 'БПЛА', missile: 'Ракета', ballistic: 'Балістика',
     kab: 'КАБ', aviation: 'Авіація', recon: 'Розвідка',
   };
-  el.innerHTML = '<b>Умовні позначення:</b>'
+  body.innerHTML = '<b>Умовні позначення:</b>'
     + territory.map(([c, t]) => `<span class="row"><i style="background:${c}"></i>${t}</span>`).join('')
     + kinds.map(k => {
       const v = getThreatVisual(k);
@@ -670,8 +678,7 @@ setupTheme();
 setupViews();
 setupNavAutoHide();
 setupCollapsibles();
-setupMenu();
-setupDialogs();
+setupMenu();setupDialogs();
 initMap();
 setupSearch();
 setupSegs();

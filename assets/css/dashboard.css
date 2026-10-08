@@ -183,8 +183,10 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .panel.collapsed{padding-top:10px;padding-bottom:10px}
 .panel.collapsed>*:not(.panel-head){display:none}
 .panel.collapsed .panel-head{margin-bottom:0}
-.legend-strip{position:relative}
-.legend-strip.collapsed>*:not(b){display:none}
+.legend-strip{position:relative;padding-right:30px}
+.legend-strip .legend-body{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;width:100%}
+.legend-strip.collapsed .legend-body{display:none}
+.collapse-btn.float{position:absolute;top:6px;right:8px;margin:0}
 .map-legend.collapsed>*:not(b){display:none}
 .map-legend .collapse-btn{position:absolute;top:4px;right:4px;width:20px;height:20px;font-size:11px;margin:0}
 .map-legend{padding-right:28px}
