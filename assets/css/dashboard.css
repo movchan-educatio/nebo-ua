@@ -281,6 +281,9 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .dash{padding:8px}
   .dash-main{grid-template-columns:minmax(0,1fr)}
   .right-col{display:grid;gap:var(--gap)}
+  /* Mobile: no threats list — the map markers, radar and «Останні події»
+     already carry the same information. Desktop/tablet keep the column. */
+  .right-col [aria-label="Поточні загрози"]{display:none}
   .threat-list{max-height:none}
   .map-wrap{height:min(34dvh,320px);min-height:240px}
   /* Radar is its own compact panel straight under the map. */
