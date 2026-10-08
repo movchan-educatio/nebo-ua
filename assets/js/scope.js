@@ -178,8 +178,8 @@ export function createScope(canvas, { onSelect } = {}) {
     sctx.moveTo(cx, cy - R); sctx.lineTo(cx, cy + R); sctx.stroke();
     sctx.globalAlpha = 0.9; sctx.fillStyle = 'rgba(200,255,220,0.9)'; sctx.font = 'bold 11px system-ui';
     sctx.beginPath(); sctx.arc(cx, cy, 3, 0, 7); sctx.fill();
-    sctx.fillText('Пн', cx - 4, cy - R + 14); sctx.fillText('Пд', cx - 4, cy + R - 6);
-    sctx.fillText('Сх', cx + R - 14, cy + 4); sctx.fillText('Зх', cx - R + 5, cy + 4);
+    // Cardinal letters are drawn on the LIVE layer (after blips) so they are
+    // never covered — see frameBody. Nothing here to avoid duplicates.
     sctx.globalAlpha = 1;
   }
   function drawSweep() {
@@ -254,7 +254,9 @@ export function createScope(canvas, { onSelect } = {}) {
       const p = project(e.lat, e.lon, S.center, S.range, size);
       if (p.distKm < (nearest == null ? Infinity : nearest)) nearest = p.distKm;
       if (!p.inside) {
-        if (p.distKm <= S.range * 3) edge.push({ p, e });
+        // Out-of-range contacts are NOT plotted: the operator selected a
+        // radius and the scope shows exactly that radius. Only the distance
+        // of the nearest outside contact is reported below (no icon).
         continue;
       }
       const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
@@ -352,30 +354,21 @@ export function createScope(canvas, { onSelect } = {}) {
       ctx.fillText(txt, x - w / 2 + 4, y + 1);
     }
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
-    // Out-of-range contacts: threat silhouette + distance on the outer edge
-    // at the true bearing. Never faked inside the scope.
+    // Distance of the nearest contact OUTSIDE the selected radius — shown as
+    // a text hint only (no edge icons: the scope shows exactly the radius).
     let edgeNear = null;
     for (const { p, e } of edge) {
       const v = getThreatVisual(e);
       if (v.radarEligible === false) continue;
       if (!edgeNear || p.distKm < edgeNear.p.distKm) edgeNear = { p, e };
-      const a = (p.bearing - 90) * Math.PI / 180;
-      const ex = cx0 + Math.cos(a) * (RR - 16), ey = cy0 + Math.sin(a) * (RR - 16);
-      const img = spriteFor(v.kind);
-      ctx.globalAlpha = 0.9;
-      if (img) {
-        ctx.drawImage(img, ex - 9, ey - 9, 18, 18);
-      } else {
-        ctx.strokeStyle = v.color;
-        ctx.beginPath(); ctx.arc(ex, ey, 4.5, 0, 7); ctx.stroke();
-      }
     }
     if (edgeNear) {
       const { p } = edgeNear;
-      const a = (p.bearing - 90) * Math.PI / 180;
-      ctx.globalAlpha = 1; ctx.fillStyle = '#9fd8f5'; ctx.font = '10px system-ui';
+      ctx.globalAlpha = 0.85; ctx.fillStyle = '#9fd8f5'; ctx.font = '10px system-ui';
       const t = (p.distKm < 10 ? p.distKm.toFixed(1).replace('.', ',') : Math.round(p.distKm)) + ' км';
-      ctx.fillText(t, cx0 + Math.cos(a) * (RR - 40) - 10, cy0 + Math.sin(a) * (RR - 40));
+      ctx.textAlign = 'center';
+      ctx.fillText('Найближча поза радіусом: ' + t, cx0, cy0 + RR - 10);
+      ctx.textAlign = 'left';
     }
     ctx.globalAlpha = 1;
     if (!S.pts.length) {

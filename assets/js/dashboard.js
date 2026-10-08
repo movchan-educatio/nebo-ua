@@ -5,10 +5,11 @@
 import { fetchAll, shouldPoll, POLL_MS } from '../../services/data.js';
 import { createStore, syncStore, selectTrails } from '../../services/tracks.js';
 import { createSituationMap, getThreatVisual } from './map.js';
-import { createScope } from './scope.js';
+import { createScope, haversineKm } from './scope.js';
 import { fetchRegions } from '../../services/regions.js';
 import { oblastRaions, raionAlertActive, territorialDanger, normOblast } from '../../services/districts.js';
 import { getOblastRaionPolygons } from '../../services/raionShapesLocal.js';
+import { loadSelectedPlace } from '../../services/locations.js';
 import {
   computeAlertStats, groupThreats, formatHistory,
   matchTerritory, sourceCards, systemBadge,
@@ -319,14 +320,21 @@ function updateMiniRadar() {
   // Radar shows only CURRENT (non-stale) confirmed coordinates, same set as
   // the map markers. Stale records stay in the lists but are never plotted
   // as live radar contacts.
+  const center = state.userPos
+    || (() => { try { const p = loadSelectedPlace(); return (p && Number.isFinite(p.lat) && Number.isFinite(p.lon)) ? { lat: p.lat, lon: p.lon } : null; } catch { return null; } })()
+    || { lat: 49, lon: 31 };
   const fresh = (st.events || []).filter(e => e.lat != null && !e.areaOnly && !e.stale);
   try {
-    scopeMini.update(fresh, state.userPos || null, { range: scopeMiniRange });
+    scopeMini.update(fresh, center, { range: scopeMiniRange });
   } catch { /* radar best effort */ }
+  // Count ONLY what is inside the selected radius (matches the screen).
+  const inside = fresh.filter(e => {
+    try { return haversineKm(center.lat, center.lon, e.lat, e.lon) <= scopeMiniRange; } catch { return false; }
+  });
   const cnt = $('#radarCount');
   if (cnt) {
     const c = state.userPos ? 'від вас' : 'від центру України';
-    cnt.textContent = `${fresh.length} ${fresh.length === 1 ? 'ціль' : fresh.length < 5 ? 'цілі' : 'цілей'} у радіусі ${scopeMiniRange} км ${c}`;
+    cnt.textContent = `${inside.length} ${inside.length === 1 ? 'ціль' : inside.length < 5 ? 'цілі' : 'цілей'} у радіусі ${scopeMiniRange} км ${c}`;
   }
 }
 async function refreshMap() {
