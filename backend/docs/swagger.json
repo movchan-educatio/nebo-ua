@@ -1,0 +1,806 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "Ukraine Alert API",
+    "contact": {
+      "name": "Stfalcon",
+      "email": "support@stfalcon.com"
+    },
+    "version": "3.0"
+  },
+  "paths": {
+    "/api/v3/alerts": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Області, регіони та громади з тривогами",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertRegionModel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/alerts/{regionId}": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Статус області/регіону/громади",
+        "parameters": [
+          {
+            "name": "regionId",
+            "in": "path",
+            "description": "ID області/регіону/громади",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertRegionModel"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/alerts/dateHistory": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Отримати історію тривог по даті",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Дата в форматі \"РікМісяцьДень\". Приклад: 20220224",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AlertDurationResponse"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/alerts/regionHistory": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Отримати останніх 25 тривог регіону",
+        "parameters": [
+          {
+            "name": "regionId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RegionAlarmsHistory"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/alerts/status": {
+      "get": {
+        "tags": [
+          "Alerts"
+        ],
+        "summary": "Перевірка номеру останньої дії. Використовувати для перевірки необхідності оновлювати дані",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AlertModification"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/geo-data": {
+      "get": {
+        "tags": [
+          "GeoData"
+        ],
+        "summary": "GEOJSON усіх активних тривог.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeaDataResultModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/geo-data/all": {
+      "get": {
+        "tags": [
+          "GeoData"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v3/geo-data/check-coordinates": {
+      "post": {
+        "tags": [
+          "GeoData"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinatesByRegionModel"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinatesByRegionModel"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoordinatesByRegionModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoordinatesByRegionResultModel"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BadRequestResult"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/regions": {
+      "get": {
+        "tags": [
+          "Regions"
+        ],
+        "summary": "Повертає список усіх областей, регіонів та міст",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegionsViewModel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v3/webhook": {
+      "post": {
+        "tags": [
+          "WebHook"
+        ],
+        "summary": "Підписка на WebHook про нові сирени та їх відбій. У вебхукі відпрявляється подія тривоги/відбою (приклад в відповіді \"200\")",
+        "description": "Інструкція з перевірки підпису webhook: <a href=\"/webhook-signature-validation.html\" target=\"_blank\">/webhook-signature-validation.html</a>\nСтруктура та логіка webhook-повідомлення: <a href=\"/webhook-message-model.html\" target=\"_blank\">/webhook-message-model.html</a>",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebHookMessageModel"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebHookMessageModel"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebHookMessageModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "WebHook"
+        ],
+        "summary": "Оновлення WebHook посилання про нові сирени та їх відбій",
+        "description": "Інструкція з перевірки підпису webhook: <a href=\"/webhook-signature-validation.html\" target=\"_blank\">/webhook-signature-validation.html</a>\nСтруктура та логіка webhook-повідомлення: <a href=\"/webhook-message-model.html\" target=\"_blank\">/webhook-message-model.html</a>",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebHookMessageModel"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebHookMessageModel"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebHookMessageModel"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "WebHook"
+        ],
+        "summary": "Відписка на WebHook про нові сирени та їх відбій",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/WebHookModel"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Alert": {
+        "type": "object",
+        "properties": {
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionType": {
+            "$ref": "#/components/schemas/v2RegionType"
+          },
+          "type": {
+            "$ref": "#/components/schemas/AlertType"
+          },
+          "lastUpdate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activeAlertLevels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertLevelWithReason"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertDurationResponse": {
+        "type": "object",
+        "properties": {
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "string",
+            "format": "date-span"
+          },
+          "alertType": {
+            "$ref": "#/components/schemas/AlertType"
+          },
+          "isContinue": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertLevel": {
+        "enum": [
+          "Red",
+          "Yellow"
+        ],
+        "type": "string"
+      },
+      "AlertLevelWithReason": {
+        "type": "object",
+        "properties": {
+          "alertLevel": {
+            "$ref": "#/components/schemas/AlertLevel"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertLevelWithReasonWebhook": {
+        "type": "object",
+        "properties": {
+          "alertLevel": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertModification": {
+        "type": "object",
+        "properties": {
+          "lastActionIndex": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertRegionModel": {
+        "type": "object",
+        "properties": {
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionType": {
+            "$ref": "#/components/schemas/v2RegionType"
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionEngName": {
+            "type": "string",
+            "nullable": true
+          },
+          "lastUpdate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "activeAlerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Alert"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AlertType": {
+        "enum": [
+          "UNKNOWN",
+          "AIR",
+          "ARTILLERY",
+          "URBAN_FIGHTS",
+          "CHEMICAL",
+          "NUCLEAR",
+          "INFO",
+          "CUSTOM"
+        ],
+        "type": "string"
+      },
+      "BadRequestResult": {
+        "type": "object",
+        "properties": {
+          "statusCode": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CoordinatesByRegionModel": {
+        "type": "object",
+        "properties": {
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "CoordinatesByRegionResultModel": {
+        "type": "object",
+        "properties": {
+          "isInRegion": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "GeaDataResultModel": {
+        "type": "object",
+        "properties": {
+          "airAlerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonNode"
+            },
+            "nullable": true
+          },
+          "artilleryAlerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonNode"
+            },
+            "nullable": true
+          },
+          "urbanFightAlerts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JsonNode"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "JsonNode": {
+        "type": "object",
+        "properties": {
+          "options": {
+            "$ref": "#/components/schemas/JsonNodeOptions"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "root": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "additionalProperties": false
+      },
+      "JsonNodeOptions": {
+        "type": "object",
+        "properties": {
+          "propertyNameCaseInsensitive": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegionAlarmModel": {
+        "type": "object",
+        "properties": {
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "duration": {
+            "type": "string",
+            "format": "date-span"
+          },
+          "alertType": {
+            "$ref": "#/components/schemas/AlertType"
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "isContinue": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegionAlarmsHistory": {
+        "type": "object",
+        "properties": {
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "alarms": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegionAlarmModel"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegionViewModel": {
+        "type": "object",
+        "properties": {
+          "regionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionType": {
+            "$ref": "#/components/schemas/v2RegionType"
+          },
+          "regionChildIds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegionViewModel"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RegionsViewModel": {
+        "type": "object",
+        "properties": {
+          "states": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RegionViewModel"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebHookMessageModel": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "nullable": true
+          },
+          "regionId": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "alarmType": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "alertLevel": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "activeAlertLevels": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AlertLevelWithReasonWebhook"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "WebHookModel": {
+        "type": "object",
+        "properties": {
+          "webHookUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "v2RegionType": {
+        "enum": [
+          "State",
+          "District",
+          "Community",
+          "CityOrVillage",
+          "CityDistrict",
+          "Null"
+        ],
+        "type": "string"
+      }
+    },
+    "securitySchemes": {
+      "Token": {
+        "type": "apiKey",
+        "description": "Використовуйте токен, що був відправлений Вам на пошту після реєстрації",
+        "name": "Authorization",
+        "in": "header"
+      }
+    }
+  },
+  "security": [
+    {
+      "Token": [ ]
+    }
+  ],
+  "tags": [
+    {
+      "name": "Alerts"
+    },
+    {
+      "name": "GeoData"
+    },
+    {
+      "name": "Regions"
+    },
+    {
+      "name": "WebHook"
+    }
+  ]
+}

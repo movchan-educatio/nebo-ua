@@ -36,7 +36,7 @@ export const UA_BACKOFF_CAP_MS = 15 * 60_000;
 // key validation. This changes nothing about auth, frequency or retries.
 export const UA_USER_AGENT = 'nebo-ua-check-proxy/1.0 (+https://nebo-ua.vercel.app)';
 
-export const UA_ALERT_TYPES = ['AIR', 'ARTILLERY', 'URBAN_FIGHTS', 'CHEMICAL', 'NUCLEAR', 'INFO', 'UNKNOWN'];
+export const UA_ALERT_TYPES = ['AIR', 'ARTILLERY', 'URBAN_FIGHTS', 'CHEMICAL', 'NUCLEAR', 'INFO', 'CUSTOM', 'UNKNOWN'];
 export const UA_TYPE_LABEL = {
   AIR: 'Повітряна тривога',
   ARTILLERY: 'Артилерійська загроза',
@@ -44,6 +44,7 @@ export const UA_TYPE_LABEL = {
   CHEMICAL: 'Хімічна загроза',
   NUCLEAR: 'Ядерна загроза',
   INFO: 'Інформаційне повідомлення',
+  CUSTOM: 'Особлива тривога',
   UNKNOWN: 'Тривога',
 };
 // Only AIR is an air-raid alarm. Other documented types are real official
@@ -86,7 +87,7 @@ export function uaBase(env) {
 
 // Single choke point for all upstream calls. Throws UAHttpError on HTTP
 // errors (with .status / .retryAfterMs) or Error('Некоректний JSON').
-export async function uaGet(env, path, { timeoutMs = 9000 } = {}) {
+async function uaFetch(env, path, { timeoutMs = 9000 } = {}) {
   const key = env.UKRAINEALARM_API_KEY;
   if (!key) throw new UAHttpError(0, 'UkraineAlarm key not configured');
   const ctrl = new AbortController();
@@ -100,51 +101,84 @@ export async function uaGet(env, path, { timeoutMs = 9000 } = {}) {
         Authorization: authHeaderValue(key, env.UKRAINEALARM_AUTH_SCHEME),
       },
     });
-    // Safe diagnostic headers only (names + non-sensitive values).
-    // Never logged/stored: Authorization, Cookie, Set-Cookie, bodies.
-    // content-type discriminates by CONFIRMED sign: a Cloudflare challenge
-    // page is text/html ("Just a moment..."), a real API rejection is
-    // application/json. text/html on 401/403 means the request never
-    // reached key validation at all.
-    const safeHeader = (name) => {
-      try {
-        return res.headers?.get?.(name) || null;
-      } catch {
-        return null;
-      }
-    };
-    const rayId = safeHeader('cf-ray');
-    const contentType = safeHeader('content-type');
-    const edgeMark = contentType && !/application\/json/i.test(contentType)
-      ? `, edge content-type ${contentType.split(';')[0].trim()}`
-      : '';
-    const raySuffix = rayId ? ` (ray ${rayId})` : '';
-    if (res.status === 429) {
-      const h = res.headers?.get
-        ? (res.headers.get('Retry-After') || res.headers.get('retry-after'))
-        : null;
-      throw new UAHttpError(429, 'UkraineAlarm: перевищено ліміт запитів', parseRetryAfterMs(h) ?? 60_000, rayId);
-    }
-    // 401 vs 403 are deliberately distinct: 401 means the key itself was
-    // rejected; 403 from this edge has been observed intermittently for
-    // valid keys (bot-mitigation sampling), so conflating them would
-    // misdirect the investigation. No retries, no scheme guessing here.
-    if (res.status === 401) {
-      throw new UAHttpError(401, `UkraineAlarm: ключ відхилено (HTTP 401)${raySuffix}${edgeMark}. Перевірте секрет UKRAINEALARM_API_KEY.`, null, rayId);
-    }
-    if (res.status === 403) {
-      throw new UAHttpError(403, `UkraineAlarm: доступ відхилено edge-сервером (HTTP 403)${raySuffix}${edgeMark}. Схоже на WAF/фільтр, а не на невалідний ключ.`, null, rayId);
-    }
-    if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}${raySuffix}${edgeMark}`, null, rayId);
     const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      throw new Error('Некоректний JSON');
-    }
+    return { res, text };
   } finally {
     clearTimeout(timer);
   }
+}
+
+function uaCheckStatus(res) {
+  // Safe diagnostic headers only (names + non-sensitive values).
+  // Never logged/stored: Authorization, Cookie, Set-Cookie, bodies.
+  // content-type discriminates by CONFIRMED sign: a Cloudflare challenge
+  // page is text/html ("Just a moment..."), a real API rejection is
+  // application/json. text/html on 401/403 means the request never
+  // reached key validation at all.
+  const safeHeader = (name) => {
+    try {
+      return res.headers?.get?.(name) || null;
+    } catch {
+      return null;
+    }
+  };
+  const rayId = safeHeader('cf-ray');
+  const contentType = safeHeader('content-type');
+  const edgeMark = contentType && !/application\/json/i.test(contentType)
+    ? `, edge content-type ${contentType.split(';')[0].trim()}`
+    : '';
+  const raySuffix = rayId ? ` (ray ${rayId})` : '';
+  if (res.status === 429) {
+    const h = res.headers?.get
+      ? (res.headers.get('Retry-After') || res.headers.get('retry-after'))
+      : null;
+    throw new UAHttpError(429, 'UkraineAlarm: перевищено ліміт запитів', parseRetryAfterMs(h) ?? 60_000, rayId);
+  }
+  // 401 vs 403 are deliberately distinct: 401 means the key itself was
+  // rejected; 403 from this edge has been observed intermittently for
+  // valid keys (bot-mitigation sampling), so conflating them would
+  // misdirect the investigation. No retries, no scheme guessing here.
+  if (res.status === 401) {
+    throw new UAHttpError(401, `UkraineAlarm: ключ відхилено (HTTP 401)${raySuffix}${edgeMark}. Перевірте секрет UKRAINEALARM_API_KEY.`, null, rayId);
+  }
+  if (res.status === 403) {
+    throw new UAHttpError(403, `UkraineAlarm: доступ відхилено edge-сервером (HTTP 403)${raySuffix}${edgeMark}. Схоже на WAF/фільтр, а не на невалідний ключ.`, null, rayId);
+  }
+  if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}${raySuffix}${edgeMark}`, null, rayId);
+  return { rayId, edgeMark };
+}
+
+export async function uaGet(env, path, opts) {
+  const { res, text } = await uaFetch(env, path, opts);
+  uaCheckStatus(res);
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error('Некоректний JSON');
+  }
+}
+
+// Raw variant for the version gate: also returns the untouched response
+// text. The spec declares lastActionIndex int64, and observed values
+// (≈6.4e17) exceed Number.MAX_SAFE_INTEGER — JSON.parse rounds them, so two
+// different upstream versions could compare EQUAL and the gate would go
+// blind. Exact decimal digits are compared as strings instead.
+export async function uaGetRaw(env, path, opts) {
+  const { res, text } = await uaFetch(env, path, opts);
+  uaCheckStatus(res);
+  try {
+    return { data: JSON.parse(text), text };
+  } catch {
+    throw new Error('Некоректний JSON');
+  }
+}
+
+export function exactActionIndex(text) {
+  if (typeof text !== 'string') return null;
+  const m = text.match(/"lastActionIndex"\s*:\s*(-?\d+)/);
+  if (m) return m[1];
+  const q = text.match(/"lastActionIndex"\s*:\s*"(-?\d+)"/);
+  return q ? q[1] : null;
 }
 
 // ── Runtime validation (documented shapes only) ──────────────────────────
@@ -164,12 +198,26 @@ function parseAlertItem(raw) {
   if (!isObj(raw)) return null;
   const type = typeof raw.type === 'string' ? raw.type : 'UNKNOWN';
   const lu = typeof raw.lastUpdate === 'string' ? raw.lastUpdate : null;
+  // AlertLevelWithReason[] per the spec (alertLevel Red/Yellow + reason +
+  // createdAt). Previously ignored — that hid real levels and reasons.
+  const levels = Array.isArray(raw.activeAlertLevels)
+    ? raw.activeAlertLevels.map(l => {
+      if (!isObj(l)) return null;
+      const createdAt = typeof l.createdAt === 'string' ? l.createdAt : null;
+      return {
+        level: l.alertLevel === 'Red' || l.alertLevel === 'Yellow' ? l.alertLevel : null,
+        reason: typeof l.reason === 'string' && l.reason.trim() ? l.reason.trim().slice(0, 200) : null,
+        createdAt: createdAt && Number.isFinite(Date.parse(createdAt)) ? createdAt : null,
+      };
+    }).filter(Boolean)
+    : [];
   return {
     regionId: typeof raw.regionId === 'string' ? raw.regionId : null,
     regionType: typeof raw.regionType === 'string' ? raw.regionType : null,
     type: UA_ALERT_TYPES.includes(type) ? type : 'UNKNOWN',
     // Source event time ONLY. Invalid/missing stays null (never faked).
     lastUpdate: lu && Number.isFinite(Date.parse(lu)) ? lu : null,
+    levels,
   };
 }
 
@@ -243,14 +291,14 @@ export function buildRegionIndex(states) {
     else if (node.regionType === 'District') {
       entry.oblastName = parent?.regionType === 'State' ? parent.regionName : null;
       entry.districtName = node.regionName;
-    } else if (node.regionType === 'Community') {
-      const district = parent?.regionType === 'District' ? parent : null;
-      entry.districtName = district?.regionName || null;
-      entry.oblastName = district ? null : null; // resolved below via grandparent walk
-      // grandparent state lookup
+    } else if (node.regionType) {
+      // Community / CityOrVillage / CityDistrict / future types: resolve via
+      // the full ancestor chain (nearest District + nearest State), so no
+      // level can lose its oblast or fabricate one.
       let up = parent;
       while (up) {
-        if (up.regionType === 'State') { entry.oblastName = up.regionName; break; }
+        if (!entry.districtName && up.regionType === 'District') entry.districtName = up.regionName;
+        if (!entry.oblastName && up.regionType === 'State') entry.oblastName = up.regionName;
         up = up.__parent || null;
       }
     }
@@ -287,24 +335,32 @@ export function mapAlertRegion(item, byId) {
   const out = [];
   for (const a of item.activeAlerts) {
     const label = UA_TYPE_LABEL[a.type] || UA_TYPE_LABEL.UNKNOWN;
-    const since = a.lastUpdate || item.lastUpdate || null;
+    // Level from the documented activeAlertLevels (Red > Yellow), reasons
+    // from the API with the type label as fallback. Start time = earliest
+    // documented createdAt, falling back to lastUpdate, never to now.
+    const levels = Array.isArray(a.levels) ? a.levels : [];
+    const hasRed = levels.some(l => l.level === 'Red');
+    const hasYellow = levels.some(l => l.level === 'Yellow');
+    const apiReasons = levels.map(l => l.reason).filter(Boolean);
+    const starts = levels.map(l => l.createdAt).filter(Boolean).sort();
+    const since = starts[0] || a.lastUpdate || item.lastUpdate || null;
     const raw = {
       key: `ua:${item.regionId}:${a.type}`,
       name: item.regionName,
       oblast: null,
       since,
-      level: 'red',
-      reasons: [label],
+      level: hasRed || (!hasRed && !hasYellow) ? 'red' : 'yellow',
+      reasons: apiReasons.length ? apiReasons : [label],
       uaType: a.type,
       uaRegionId: item.regionId,
       uaRegionType: typeOf,
     };
     if (typeOf === 'District' && idx?.oblastName) {
       raw.oblast = idx.oblastName;
-    } else if (typeOf === 'Community') {
-      // Community granularity exceeds the alert schema: keep the oblast for
-      // region matching and the community name in the district slot (RAION
-      // precision, honest approximation — documented limitation).
+    } else if (typeOf && typeOf !== 'State' && typeOf !== 'District') {
+      // Community / CityOrVillage / CityDistrict / future levels: keep the
+      // oblast for region matching and the local name in the district slot
+      // (RAION precision, honest approximation — documented limitation).
       raw.oblast = idx?.oblastName || null;
     }
     out.push(raw);
@@ -313,11 +369,13 @@ export function mapAlertRegion(item, byId) {
 }
 
 // Version gate: full /alerts fetch only when the action index moved.
+// Indices are compared as EXACT decimal strings (int64 can exceed
+// Number.MAX_SAFE_INTEGER; numeric comparison could go blind).
 // null (unknown) -> fetch once (fail-open a single validated call).
 export function shouldFetchFull(storedIndex, remoteIndex) {
   if (remoteIndex == null) return true;
   if (storedIndex == null) return true;
-  return remoteIndex !== storedIndex;
+  return String(storedIndex) !== String(remoteIndex);
 }
 
 // ── D1 ua_sync (key/value): lastActionIndex + 429 backoff ────────────────
@@ -328,8 +386,9 @@ export async function getUASync(db) {
     const res = await db.prepare(`SELECT key, value FROM ua_sync`).all();
     for (const r of res?.results || []) {
       if (r?.key === 'lastActionIndex') {
-        const n = Number(r.value);
-        out.lastActionIndex = Number.isFinite(n) ? n : null;
+        // Exact decimal string (int64 range) — never Number(), which would
+        // round values above 2^53 and blind the version gate.
+        out.lastActionIndex = typeof r.value === 'string' && /^-?\d+$/.test(r.value) ? r.value : null;
       } else if (r?.key === 'notBefore') {
         const n = Number(r.value);
         out.notBefore = Number.isFinite(n) ? n : 0;
@@ -412,8 +471,16 @@ export async function fetchOfficialUkraineAlarm(env) {
     if (Date.now() < sync.notBefore) {
       return fail('UkraineAlarm: пауза після 429 (поважаємо Retry-After)');
     }
-    const statusRaw = await uaGet(env, '/api/v3/alerts/status');
-    const remoteIndex = parseStatusVersion(statusRaw);
+    const { data: statusRaw, text: statusText } = await uaGetRaw(env, '/api/v3/alerts/status');
+    // Exact digits first (int64-safe); validated parse as fallback.
+    const remoteIndex = exactActionIndex(statusText) ?? (() => {
+      try {
+        const v = parseStatusVersion(statusRaw);
+        return v == null ? null : String(v);
+      } catch {
+        throw new Error('Некоректний JSON');
+      }
+    })();
     if (!shouldFetchFull(sync.lastActionIndex, remoteIndex)) {
       return {
         ok: true, disabled: false, items: [], carried: true,

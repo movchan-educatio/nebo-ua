@@ -4,8 +4,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
 import {
-  authHeaderValue, UAHttpError, uaGet,
-  parseStatusVersion, parseAlerts, parseRegions, parseHistory,
+  authHeaderValue, UAHttpError, uaGet, uaGetRaw, exactActionIndex,
+  parseStatusVersion, parseAlerts, parseAlertRegion, parseRegions, parseHistory,
   buildRegionIndex, hashRegionIndex, mapAlertRegion,
   shouldFetchFull, getUASync, setUASync,
   getRegionsTree, refreshRegionsTree,
@@ -95,6 +95,13 @@ function stubUa(routes) {
     const route = routes[path];
     if (route instanceof Error) throw route;
     if (!route) throw new Error('unexpected fetch ' + u);
+    if (route.__raw) {
+      return {
+        ok: true, status: 200,
+        headers: { get: () => null },
+        text: async () => route.__raw,
+      };
+    }
     if (route.status) {
       return {
         ok: false, status: route.status,
@@ -237,6 +244,113 @@ test('mapAlertRegion: State/District/Community, stable ids, empty skipped', () =
 });
 
 // ── uaGet transport ───────────────────────────────────────────────────────
+test('exactActionIndex preserves int64 digits beyond 2^53', () => {
+  const big = '639270721844290800';
+  const bigPlus = '639270721844290801';
+  assert.equal(exactActionIndex(`{"lastActionIndex":${big}}`), big);
+  assert.equal(exactActionIndex(`{"lastActionIndex" : "${big}"}`), big);
+  assert.equal(exactActionIndex(`{}`), null);
+  assert.equal(exactActionIndex(null), null);
+  // The trap this guards: numeric comparison goes blind up here.
+  assert.equal(Number(big) === Number(bigPlus), true, 'doubles collide past 2^53');
+  assert.equal(shouldFetchFull(big, bigPlus), true, 'string gate still sees the change');
+  assert.equal(shouldFetchFull(big, big), false);
+});
+
+test('uaGetRaw returns parsed data plus untouched text', async () => {
+  const { restore } = stubUa({ '/s': { lastActionIndex: 5 } });
+  try {
+    const { data, text } = await uaGetRaw(
+      { UKRAINEALARM_API_KEY: 'K', UKRAINEALARM_API_URL: 'https://api.ukrainealarm.com' }, '/s');
+    assert.deepEqual(data, { lastActionIndex: 5 });
+    assert.equal(text, '{"lastActionIndex":5}');
+  } finally {
+    restore();
+  }
+});
+
+test('version gate uses exact digits end-to-end (no blind cycle)', async () => {
+  const big = '639270721844290800';
+  const { restore, calls } = stubUa({
+    '/api/v3/alerts/status': { __raw: `{"lastActionIndex":${big}}` },
+    '/api/v3/alerts': [],
+    '/api/v3/regions': { states: [] },
+  });
+  try {
+    const db = fakeD1ua();
+    const env = envBase(null, db, { UKRAINEALARM_API_KEY: 'K' });
+    const first = await fetchOfficialUkraineAlarm(env);
+    assert.equal(first.ok, true);
+    assert.equal(db.uaSync.get('lastActionIndex'), big, 'exact digits persisted');
+    const n1 = calls.filter(c => c.url.endsWith('/api/v3/alerts')).length;
+    const second = await fetchOfficialUkraineAlarm(env);
+    assert.equal(second.carried, true, 'identical index -> carried');
+    assert.equal(calls.filter(c => c.url.endsWith('/api/v3/alerts')).length, n1, 'no extra full pull');
+  } finally {
+    restore();
+  }
+});
+
+test('activeAlertLevels drive level/reasons/start (spec Red/Yellow)', () => {
+  const byId = buildRegionIndex(structuredClone(TREE.states));
+  // Through the real pipeline shape: parse first, then map.
+  const parsed = parseAlertRegion({
+    regionId: 'd1', regionType: 'District', regionName: 'Район',
+    activeAlerts: [{
+      type: 'AIR', lastUpdate: '2026-10-08T12:00:00Z',
+      activeAlertLevels: [
+        { alertLevel: 'Yellow', reason: 'Загроза з повітря', createdAt: '2026-10-08T11:00:00Z' },
+        { alertLevel: 'Red', reason: 'Ракетна небезпека', createdAt: '2026-10-08T11:30:00Z' },
+        { alertLevel: 'Bogus', reason: 42, createdAt: 'xx' },
+      ],
+    }],
+  });
+  const [raw] = mapAlertRegion(parsed, byId);
+  assert.equal(raw.level, 'red', 'strongest level wins');
+  assert.equal(raw.reasons[0], 'Загроза з повітря', 'API reasons preserved in order');
+  assert.equal(raw.since, '2026-10-08T11:00:00Z', 'earliest documented start, not lastUpdate');
+  const yellowOnly = mapAlertRegion(parseAlertRegion({
+    regionId: 'd1', regionType: 'District', regionName: 'Район',
+    activeAlerts: [{ type: 'AIR', lastUpdate: '2026-10-08T12:00:00Z',
+      activeAlertLevels: [{ alertLevel: 'Yellow', reason: null, createdAt: null }] }],
+  }), byId);
+  assert.equal(yellowOnly[0].level, 'yellow', 'Yellow-only stays yellow (renders as alarm fill)');
+  assert.equal(yellowOnly[0].reasons[0], UA_TYPE_LABEL.AIR, 'label fallback when no reasons');
+});
+
+test('CUSTOM alert type from the spec is supported, not UNKNOWN-masked', () => {
+  const byId = buildRegionIndex(structuredClone(TREE.states));
+  const [raw] = mapAlertRegion({
+    regionId: 's1', regionType: 'State', regionName: 'Область',
+    activeAlerts: [{ type: 'CUSTOM', lastUpdate: '2026-10-08T12:00:00Z' }],
+  }, byId);
+  assert.equal(raw.key, 'ua:s1:CUSTOM');
+  assert.equal(raw.reasons[0], UA_TYPE_LABEL.CUSTOM);
+});
+
+test('ancestor walk covers CityOrVillage/CityDistrict, not just Community', () => {
+  const states = [{
+    regionId: 's', regionName: 'Область', regionType: 'State',
+    regionChildIds: [{
+      regionId: 'd', regionName: 'Район', regionType: 'District',
+      regionChildIds: [{
+        regionId: 'v', regionName: 'Село', regionType: 'CityOrVillage',
+        regionChildIds: [{ regionId: 'cd', regionName: 'Район міста', regionType: 'CityDistrict', regionChildIds: [] }],
+      }],
+    }],
+  }];
+  const byId = buildRegionIndex(structuredClone(states));
+  assert.equal(byId.get('v').oblastName, 'Область');
+  assert.equal(byId.get('v').districtName, 'Район');
+  assert.equal(byId.get('cd').oblastName, 'Область');
+  assert.equal(byId.get('cd').districtName, 'Район');
+  const [raw] = mapAlertRegion({
+    regionId: 'v', regionType: 'CityOrVillage', regionName: 'Село',
+    activeAlerts: [{ type: 'AIR', lastUpdate: '2026-10-08T12:00:00Z' }],
+  }, byId);
+  assert.equal(raw.oblast, 'Область', 'village keeps oblast (no phantom oblast row)');
+});
+
 test('uaGet sends exact Authorization header, classifies errors, never leaks key', async () => {
   const { restore, calls } = stubUa({ '/api/v3/alerts/status': { lastActionIndex: 3 } });
   try {
