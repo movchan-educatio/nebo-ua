@@ -37,9 +37,10 @@ test('source count badge: ×N only from explicit source count', () => {
 });
 
 // ── Threat pane / z-index ────────────────────────────────────────────────────
-test('marker sprite refs are absolute (no bare #fragment that breaks outside index.html)', () => {
-  assert.ok(!mapSrc.includes('<use href="#'), 'bare fragment refs render blank wherever no inline sprite exists');
+test('marker sprite: symbols inlined once, refs point at the inline sprite', () => {
+  assert.ok(mapSrc.includes('ensureSpriteInline'), 'sprite is inlined into the document');
   assert.ok(mapSrc.includes('THREAT_SVG'), 'sprite URL derives from import.meta.url (base-independent)');
+  assert.ok(mapSrc.includes('<use href="#'), 'icons use internal refs (reliable under transforms/filters)');
 });
 
 test('threatPane: dedicated pane above fills, below popups; markers use it', () => {

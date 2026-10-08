@@ -8,6 +8,43 @@ import{planMove}from'../../services/tracks.js';
 // page base path (/, /nebo-ua/, /dev/, widget/...) without hardcoding it.
 const THREAT_SVG = new URL('../brand/threat-icons.svg', import.meta.url).href;
 
+// External-file <use href="file.svg#id"> is flaky in some browsers once the
+// element is re-created inside transformed/filtered containers (Chrome simply
+// paints nothing). Inline the sprite symbols once into the document and use
+// internal references — bulletproof and still a single source of truth.
+let spriteInlined = false;
+const symbolMarkup = new Map(); // id -> { viewBox, inner }  (inline fallback)
+const spriteReady = [];        // callbacks fired after symbols are parsed
+function onSpriteReady(fn) { if (spriteInlined) fn(); else spriteReady.push(fn); }
+function ensureSpriteInline() {
+  if (spriteInlined || typeof document === 'undefined') return;
+  spriteInlined = true;
+  try {
+    fetch(THREAT_SVG).then(r => r.text()).then(txt => {
+      // 1) Parse symbols so markers can inline the paths directly.
+      for (const m of txt.matchAll(/<symbol id="([^"]+)" viewBox="([^"]+)">([\s\S]*?)<\/symbol>/g)) {
+        symbolMarkup.set(m[1], { viewBox: m[2], inner: m[3] });
+      }
+      // 2) Also keep a hidden sprite holder (1×1 off-screen, never 0×0).
+      const wrap = document.createElement('div');
+      wrap.setAttribute('aria-hidden', 'true');
+      wrap.style.cssText = 'position:absolute;width:1px;height:1px;left:-9999px;top:0;overflow:visible';
+      wrap.innerHTML = txt;
+      document.body.appendChild(wrap);
+      for (const fn of spriteReady.splice(0)) { try { fn(); } catch { /* ignore */ } }
+    }).catch(() => { /* keep the <use> fallback */ });
+  } catch { /* ignore */ }
+}
+// Marker HTML glyph: inline paths when parsed, <use> until then.
+function glyphSvg(icon, size) {
+  const sym = symbolMarkup.get(icon);
+  if (sym) {
+    return `<svg class="threat-svg" viewBox="${sym.viewBox}" style="width:${size}px;height:${size}px">${sym.inner}</svg>`;
+  }
+  return `<svg class="threat-svg" style="width:${size}px;height:${size}px"><use href="#${icon}" xlink:href="#${icon}"/></svg>`;
+}
+ensureSpriteInline();
+
 // ── Threat metadata ───────────────────────────────────────────────────────────
 // 'shahed' is a distinct visual kind within the uav category.
 // 'recon' is a distinct kind for reconnaissance UAVs.
@@ -120,6 +157,18 @@ export function createSituationMap(el,onSelect){
   // > kab > aviation > uav > recon). Overlap is resolved by screen distance;
   // hidden icons reappear on zoom. Counts stay truthful in the side panel.
   const targets=L.layerGroup();
+  // When the sprite finishes parsing, re-render markers so they switch from
+  // the <use> fallback to inlined paths (guaranteed painting).
+  onSpriteReady(() => {
+    try {
+      for (const [tid, m] of markerByTrack) {
+        const e = currentByTrack.get(tid);
+        if (!e) continue;
+        m.setIcon(eventIcon(e, ageClass(e, Date.now())));
+        m.options._sig = null;
+      }
+    } catch { /* ignore */ }
+  });
   const PRIORITY={ballistic:1,missile:2,shahed:3,kab:4,aviation:5,uav:6,recon:7,fpv:8,explosion:9,other:10};
   function targetCap(){ const z=map.getZoom(); return z<=5?16:z===6?24:z<=8?40:Infinity; }
   function targetMinDist(){ const z=map.getZoom(); return z<=6?26:z<=8?20:14; }
@@ -700,7 +749,7 @@ function eventIcon(e,ac){
   return L.divIcon({
     className:'',
     html:`<div class="${cls}" style="--c:${m.color};--heading:${heading??0}deg;opacity:1" data-directed="${heading!==null}" data-accuracy="${accuracyTier(e)}">
-      <svg class="threat-svg"><use href="${THREAT_SVG}#${m.icon}"/></svg>${countBadge}
+      ${glyphSvg(m.icon, 32)}${countBadge}
       <span class="mk-label">${m.label}</span>
     </div>`,
     iconSize:[40,40],iconAnchor:[20,20],

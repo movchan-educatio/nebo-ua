@@ -166,10 +166,9 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .threat-marker{color:var(--c,#B8C5D1);width:44px;height:44px}
 /* No backdrop circle: the GLYPH itself is highlighted — a crisp dark outline
    (4-way shadow) plus a subtle bottom shadow for depth. */
-.threat-marker svg.threat-svg{position:relative;z-index:1;width:32px;height:32px;
-  filter:drop-shadow(1px 0 0 rgba(0,0,0,.95)) drop-shadow(-1px 0 0 rgba(0,0,0,.95))
-         drop-shadow(0 1px 0 rgba(0,0,0,.95)) drop-shadow(0 -1px 0 rgba(0,0,0,.95))
-         drop-shadow(0 2px 2px rgba(0,0,0,.75))}
+.threat-marker svg.threat-svg{position:relative;z-index:1;flex:none;width:32px!important;height:32px!important;
+  transform-box:border-box;transform-origin:50% 50%;
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.85))}
 .threat-marker.kind-shahed svg.threat-svg,.threat-marker.kind-ballistic svg.threat-svg{width:34px;height:34px}
 .mk-label{position:relative;z-index:2;background:#0b131bf2;border:1px solid #ffffff26;border-radius:7px;
   padding:1px 7px;margin-top:2px}
