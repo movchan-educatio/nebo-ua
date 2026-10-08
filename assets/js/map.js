@@ -494,12 +494,14 @@ export function createSituationMap(el,onSelect){
   function setWind(items){wind.clearLayers();for(const w of items||[]){if(!Number.isFinite(w.lat)||!Number.isFinite(w.lon)||!Number.isFinite(w.speedKmh)||!Number.isFinite(w.fromDeg))continue;const to=(w.fromDeg+180)%360;L.marker([w.lat,w.lon],{icon:windIcon(w,to),interactive:true}).bindTooltip(`${w.speedKmh} км/год`,{direction:'top',offset:[0,-18]}).addTo(wind)}}
 
   // Raion fills: SOLID opaque colours with thin light outlines (reference),
-  // so each raion/community reads as its own crisp territory.
+  // so each raion/community reads as its own crisp territory. 'calm' is an
+  // invisible-but-clickable polygon so every raion responds to a tap.
   const RAION_FILL = {
     alert:    { color:'#FFFFFF', weight:0.9, opacity:0.5, fillColor:'#C62839', fillOpacity:.95 },
     critical: { color:'#FFFFFF', weight:1.0, opacity:0.55, fillColor:'#B01F30', fillOpacity:.96 },
     high:     { color:'#FFFFFF', weight:0.9, opacity:0.5, fillColor:'#D9A441', fillOpacity:.95 },
     medium:   { color:'#FFFFFF', weight:0.8, opacity:0.4, fillColor:'#A87C22', fillOpacity:.92 },
+    calm:     { color:'#8FB0C9', weight:0.6, opacity:0.28, fillColor:'#000000', fillOpacity:0 },
   };
   function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,fillColor:s.fillColor,fillOpacity:s.fillOpacity}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
 

@@ -366,6 +366,22 @@ async function refreshMap() {
         if (g?.polys) withPolys.push({ ...f, district: g.name, polys: g.polys });
       } catch { /* skip missing geometry: no phantom polygons */ }
     }
+    // Every raion of an affected oblast becomes clickable: already drawn ones
+    // keep their status colour, the rest get an invisible 'calm' polygon.
+    try {
+      const drawn = new Set(withPolys.map(f => f.oblast + '||' + f.district));
+      const oblastsToComplete = [...new Set(withPolys.map(f => f.oblast))].slice(0, 8);
+      for (const ob of oblastsToComplete) {
+        const polys = await getOblastRaionPolygons(ob);
+        for (const g of polys || []) {
+          if (!g?.polys || drawn.has(ob + '||' + g.name)) continue;
+          withPolys.push({ oblast: ob, district: g.name, level: 'calm', polys: g.polys });
+          drawn.add(ob + '||' + g.name);
+          if (withPolys.length > 140) break;
+        }
+        if (withPolys.length > 140) break;
+      }
+    } catch { /* completion is best effort */ }
     // No level selector now: fills are always shown, raion dots always help
     // identify territories at a glance.
     mapUI.setAlertShapes(withPolys, onTerritory);
