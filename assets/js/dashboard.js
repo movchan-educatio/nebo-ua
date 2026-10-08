@@ -543,6 +543,58 @@ function setupNavAutoHide() {
     if (!ticking) { ticking = true; requestAnimationFrame(apply); }
   }, { passive: true });
 }
+// Every panel gets a collapse toggle (desktop + mobile), persisted per id.
+// Headers stay visible; bodies hide. Also: hide whole side columns and the
+// map legend on request.
+function setupCollapsibles() {
+  const KEY = 'nebo-collapsed-v1';
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || '{}'); } catch { /* ignore */ }
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch { /* ignore */ } };
+
+  const targets = [
+    ...$$('.sources-col .panel'), ...$$('.right-col .panel'),
+    ...$$('.stats-row .panel'), $$('.legend-strip')[0], $$('#mapLegend')[0],
+  ].filter(Boolean);
+
+  targets.forEach((el, i) => {
+    const head = el.querySelector('.panel-head') || el;
+    const id = el.id || ('panel-' + i);
+    el.dataset.collapseId = id;
+    const btn = document.createElement('button');
+    btn.className = 'collapse-btn';
+    btn.setAttribute('aria-label', 'Згорнути панель');
+    btn.textContent = '−';
+    btn.onclick = (e) => {
+      e.stopPropagation();
+      const off = el.classList.toggle('collapsed');
+      btn.textContent = off ? '+' : '−';
+      btn.setAttribute('aria-expanded', String(!off));
+      saved[id] = off ? 1 : 0;
+      persist();
+      try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }
+    };
+    if (head.classList.contains('panel-head')) head.appendChild(btn);
+    else { btn.classList.add('float'); el.appendChild(btn); }
+    if (saved[id]) { el.classList.add('collapsed'); btn.textContent = '+'; }
+  });
+
+  // Column-level toggles (desktop): hide sources / threats+radar columns.
+  const addColToggle = (col, label) => {
+    const c = document.querySelector(col);
+    if (!c) return;
+    const b = document.createElement('button');
+    b.className = 'col-toggle';
+    b.textContent = label;
+    b.onclick = () => {
+      c.classList.toggle('col-hidden');
+      try { mapUI.map.invalidateSize(false); } catch { /* ignore */ }
+    };
+    document.querySelector('.dash').appendChild(b);
+  };
+  addColToggle('.sources-col', '⇤ Джерела');
+  addColToggle('.right-col', 'Загрози ⇥');
+}
 function setupMenu() {
   const b = $('#menuButton'), m = $('#topMenu');
   if (!b || !m) return;
@@ -575,6 +627,7 @@ setInterval(tickClock, 20000);
 setupTheme();
 setupViews();
 setupNavAutoHide();
+setupCollapsibles();
 setupMenu();
 setupDialogs();
 initMap();
