@@ -118,7 +118,7 @@ export function createScope(canvas, { onSelect } = {}) {
             if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
           });
           sctx.closePath();
-          sctx.strokeStyle = 'rgba(61,255,158,0.20)';
+          sctx.strokeStyle = 'rgba(214,255,232,0.24)';
           sctx.lineWidth = 0.8;
           sctx.stroke();
         }
@@ -148,15 +148,15 @@ export function createScope(canvas, { onSelect } = {}) {
       const f = km / S.range;
       const outer = i === ringSet.length - 1;
       sctx.globalAlpha = outer ? 1 : 0.7;
-      sctx.strokeStyle = outer ? 'rgba(61,255,158,0.8)' : 'rgba(61,255,158,0.42)';
+      sctx.strokeStyle = outer ? 'rgba(236,255,246,0.92)' : 'rgba(214,255,232,0.5)';
       sctx.lineWidth = outer ? 1.6 : 1.1;
       sctx.beginPath(); sctx.arc(cx, cy, R * f, 0, 7); sctx.stroke();
       sctx.globalAlpha = outer ? 0.75 : 0.5;
-      sctx.fillStyle = outer ? 'rgba(190,255,215,0.85)' : 'rgba(150,255,195,0.6)';
+      sctx.fillStyle = outer ? 'rgba(238,255,245,0.95)' : 'rgba(220,255,236,0.72)';
       sctx.fillText(outer ? km + ' км' : String(km), cx + 4, cy - R * f - 3);
     });
     // Diagonal guides (45°): reference CRT grid.
-    sctx.globalAlpha = 0.3; sctx.lineWidth = 1; sctx.strokeStyle = 'rgba(61,255,158,0.6)';
+    sctx.globalAlpha = 0.3; sctx.lineWidth = 1; sctx.strokeStyle = 'rgba(224,255,240,0.7)';
     const DG = Math.SQRT1_2;
     for (const [dx, dy] of [[DG, DG], [DG, -DG], [-DG, DG], [-DG, -DG]]) {
       sctx.beginPath(); sctx.moveTo(cx, cy); sctx.lineTo(cx + R * dx, cy + R * dy); sctx.stroke();
@@ -166,17 +166,17 @@ export function createScope(canvas, { onSelect } = {}) {
       const major = a % 30 === 0;
       const r0 = R - (a % 90 === 0 ? 9 : major ? 6 : 3), rad = (a - 90) * Math.PI / 180;
       sctx.globalAlpha = 0.55; sctx.lineWidth = 1;
-      sctx.strokeStyle = 'rgba(61,255,158,0.7)';
+      sctx.strokeStyle = 'rgba(230,255,242,0.82)';
       sctx.beginPath();
       sctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
       sctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R);
       sctx.stroke();
     }
     sctx.globalAlpha = 0.5;
-    sctx.strokeStyle = 'rgba(61,255,158,0.55)';
+    sctx.strokeStyle = 'rgba(224,255,240,0.65)';
     sctx.beginPath(); sctx.moveTo(cx - R, cy); sctx.lineTo(cx + R, cy);
     sctx.moveTo(cx, cy - R); sctx.lineTo(cx, cy + R); sctx.stroke();
-    sctx.globalAlpha = 0.9; sctx.fillStyle = 'rgba(200,255,220,0.9)'; sctx.font = 'bold 11px system-ui';
+    sctx.globalAlpha = 0.9; sctx.fillStyle = 'rgba(240,255,247,0.95)'; sctx.font = 'bold 11px system-ui';
     sctx.beginPath(); sctx.arc(cx, cy, 3, 0, 7); sctx.fill();
     // Cardinal letters are drawn on the LIVE layer (after blips) so they are
     // never covered — see frameBody. Nothing here to avoid duplicates.
@@ -190,17 +190,17 @@ export function createScope(canvas, { onSelect } = {}) {
     let g;
     if (typeof ctx.createConicGradient === 'function') {
       g = ctx.createConicGradient(-0.5, 0, 0);
-      g.addColorStop(0, 'rgba(61,255,158,0)');
-      g.addColorStop(0.85, 'rgba(61,255,158,0.10)');
-      g.addColorStop(1, 'rgba(120,255,180,0.42)');
+      g.addColorStop(0, 'rgba(214,255,232,0)');
+      g.addColorStop(0.85, 'rgba(214,255,232,0.14)');
+      g.addColorStop(1, 'rgba(230,255,243,0.5)');
       ctx.fillStyle = g;
     } else {
-      ctx.fillStyle = 'rgba(61,255,158,0.08)';
+      ctx.fillStyle = 'rgba(214,255,232,0.10)';
     }
     // Sector beam ≈20°: bright leading edge, gradual fade behind.
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.35, 0); ctx.closePath(); ctx.fill();
     ctx.strokeStyle = 'rgba(150,255,195,0.75)'; ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'rgba(61,255,158,0.7)'; ctx.shadowBlur = 6;
+    ctx.shadowColor = 'rgba(230,255,242,0.82)'; ctx.shadowBlur = 6;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R, 0); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -350,7 +350,7 @@ export function createScope(canvas, { onSelect } = {}) {
       ctx.fillStyle = '#02120a';
       ctx.fillRect(x - w / 2, y - 10, w, 15);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#9fe8c6';
+      ctx.fillStyle = '#e6fff2';
       ctx.fillText(txt, x - w / 2 + 4, y + 1);
     }
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
