@@ -6,10 +6,10 @@ import { fetchAll, shouldPoll, POLL_MS } from '../../services/data.js';
 import { createStore, syncStore, selectTrails } from '../../services/tracks.js';
 import { createSituationMap, getThreatVisual } from './map.js';
 import { createScope, haversineKm, bearingDeg } from './scope.js';
-import { fetchRegions } from '../../services/regions.js';
+import { fetchRegions, regionName } from '../../services/regions.js';
 import { oblastRaions, raionAlertActive, territorialDanger, normOblast, raionMatches } from '../../services/districts.js';
 import { getOblastRaionPolygons } from '../../services/raionShapesLocal.js';
-import { loadSelectedPlace } from '../../services/locations.js';
+import { loadSelectedPlace, searchUkrainianPlaces } from '../../services/locations.js';
 import {
   computeAlertStats, groupThreats, formatHistory,
   matchTerritory, sourceCards, systemBadge,
@@ -457,14 +457,21 @@ async function refreshMap() {
 }
 
 // ── Search ────────────────────────────────────────────────────────────────
+// Two honest sources: instant LOCAL oblast names (from the boundary geojson)
+// and OpenStreetMap Nominatim for cities/communities/raions. The backend
+// region directory (UkraineAlarm) is used when it is available. Nothing is
+// invented: every hit navigates, no data cards.
 function setupSearch() {
   const input = $('#mapSearch'), box = $('#searchResults');
   let oblasts = [];
-  input.addEventListener('input', () => {
-    const q = input.value;
-    const hits = matchTerritory(q, oblasts, state.regionsDir, 8);
-    if (!hits.length) { box.hidden = true; return; }
-    box.innerHTML = hits.map((h, i) => `<button data-i="${i}"><b>${esc(h.name)}</b><small>${esc(h.kind)}${h.regionId ? ' · ' + esc(h.regionId) : ''}</small></button>`).join('');
+  let debounce = 0, seq = 0;
+  const cache = new Map();
+
+  const render = (hits, note) => {
+    if (!hits.length && !note) { box.hidden = true; return; }
+    box.innerHTML = hits.length
+      ? hits.map((h, i) => `<button data-i="${i}"><b>${esc(h.name)}</b><small>${esc(h.kind)}${h.sub ? ' · ' + esc(h.sub) : ''}</small></button>`).join('')
+      : `<p class="micro" style="padding:10px 13px">${esc(note)}</p>`;
     box.hidden = false;
     box.querySelectorAll('button').forEach(b => b.onclick = () => {
       const h = hits[+b.dataset.i];
@@ -472,19 +479,82 @@ function setupSearch() {
       input.value = h.name;
       focusTerritory(h);
     });
+  };
+
+  const localHits = (q) => matchTerritory(q, oblasts, state.regionsDir, 8).map(h => ({
+    name: h.name,
+    kind: h.kind === 'oblast' ? 'область' : (h.kind || 'територія'),
+    sub: h.regionId || '',
+    local: true,
+  }));
+
+  const osmHits = (q) => {
+    if (cache.has(q)) return cache.get(q);
+    const p = searchUkrainianPlaces(q).then((rows) => rows.map((r) => {
+      const name = r.settlement || r.community || r.raion || r.oblast;
+      const kind = r.settlement ? 'населений пункт' : r.community ? 'громада' : r.raion ? 'район' : 'область';
+      const sub = [r.raion, r.oblast].filter(x => x && x !== name).join(' · ');
+      return { name, kind, sub, lat: r.lat, lon: r.lon, bbox: r.bbox, source: 'OSM' };
+    }).filter(h => h.name)).then((hits) => {
+      cache.set(q, hits);
+      if (cache.size > 40) cache.delete(cache.keys().next().value);
+      return hits;
+    }).catch(() => []);
+    cache.set(q, p);
+    return p;
+  };
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim();
+    clearTimeout(debounce);
+    seq++;
+    if (q.length < 2) { box.hidden = true; return; }
+    const local = localHits(q);
+    render(local, null);
+    const mySeq = seq;
+    debounce = setTimeout(async () => {
+      const osm = await osmHits(q.toLowerCase());
+      if (mySeq !== seq) return; // a newer query is already in flight
+      const merged = [...local];
+      for (const h of osm) {
+        if (!merged.some(l => l.name.toLowerCase() === h.name.toLowerCase())) merged.push(h);
+        if (merged.length >= 8) break;
+      }
+      const note = merged.length ? null : `Нічого не знайдено за «${q}» (області, міста, громади — OpenStreetMap).`;
+      render(merged.slice(0, 8), note);
+    }, 650);
   });
   document.addEventListener('click', (e) => { if (!e.target.closest('.map-search') && !e.target.closest('#searchResults')) box.hidden = true; });
   fetchRegions().then(g => {
     const feats = g?.features || [];
-    oblasts = feats.map(f => f?.properties?.name).filter(Boolean);
+    oblasts = [...new Set(feats.map(f => regionName(f)).filter(n => n && n !== 'Регіон'))];
   }).catch(() => {});
 }
 function focusTerritory(h) {
   if (!mapUI) return;
-  // Informational only: search pans/zooms to the territory, no detail card.
-  if (h.kind === 'oblast' || !h.regionId) {
+  // Search is navigation (not a territory info card): pan/zoom to the hit.
+  const go = (lat, lon, bbox, kind) => {
+    try {
+      if (Array.isArray(bbox) && bbox.length === 4 && bbox.every(Number.isFinite) && bbox[1] > bbox[0] && bbox[3] > bbox[2]) {
+        mapUI.map.fitBounds([[bbox[0], bbox[2]], [bbox[1], bbox[3]]], { padding: [30, 30], maxZoom: 13 });
+      } else {
+        mapUI.map.setView([lat, lon], kind === 'область' ? 7 : 12);
+      }
+    } catch { /* ignore */ }
+    scrollMap();
+  };
+  if (Number.isFinite(h?.lat) && Number.isFinite(h?.lon)) { go(h.lat, h.lon, h.bbox, h.kind); return; }
+  if (h.kind === 'область') {
     try { mapUI.showHome(h.name); } catch { /* ignore */ }
+    scrollMap();
+    return;
   }
+  // Directory entry without coordinates: resolve the name via OSM (honest,
+  // never a guessed point).
+  searchUkrainianPlaces(h.name).then((rows) => {
+    const r = rows[0];
+    if (r && Number.isFinite(r.lat) && Number.isFinite(r.lon)) go(r.lat, r.lon, r.bbox, h.kind);
+  }).catch(() => {});
 }
 
 // ── Basemap + relief toggles now live in the Шари panel ──────────────────
