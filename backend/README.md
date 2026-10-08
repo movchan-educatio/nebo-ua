@@ -67,6 +67,61 @@ curl https://<your-worker>.workers.dev/v1/state | head -c 500
 curl https://<your-worker>.workers.dev/v1/metrics
 ```
 
+## Liveness-контракт `/v1/state` (STATE TIME ≠ PIPELINE HEALTH)
+
+Поля часу мають різну семантику — не плутати їх:
+
+| Поле | Джерело | Значення |
+|---|---|---|
+| `dataUpdatedAt` | KV bundle | коли реально змінився видимий вміст (тривоги/треки/здоров'я). Під час штилю стоїть на місці — це нормально. |
+| `pipelineCheckedAt` | D1 `checks` (read path, 0 KV writes) | остання **успішна** перевірка upstream (NEPTUN або MAPA). Рухається кожну хвилину, поки пайплайн живий. Оновлюється ТІЛЬКИ після успішного fetch — ніколи на failed fetch. |
+| `serverTime` / `receivedAt` | = `pipelineCheckedAt` (fallback: збережений зріз) | legacy-поля для старих consumers (offline threshold 30 хв). Рухаються разом із liveness, тому штиль ≠ OFFLINE. |
+| `health.*.updatedAt` | D1 `checks` (останній рядок джерела) | свіжість per-source; `OFFICIAL: disabled` зберігається як є. |
+
+Freshness для consumers: `LIVE` ≤5 хв від `pipelineCheckedAt`,
+`DELAYED` ≤30 хв, інакше `OFFLINE` (або коли всі моніторингові джерела
+`offline`). Вік `dataUpdatedAt` сам по собі OFFLINE не викликає.
+
+KV-бюджет при цьому не росте: heartbeat KV-ключа — кожні 20 хв
+(~72 writes/day у штиль), снапшот пишеться лише на реальні зміни,
+треки — не частіше ніж раз на 3 хв. Штиль ≈73/day, суцільний churn
+<500/day (див. `backend/test/liveness.test.js`).
+
+## UkraineAlarm API v3 (official)
+
+Офіційне джерело тривог. Активується ТІЛЬКИ секретом Воркера:
+
+```sh
+cd backend
+wrangler secret put UKRAINEALARM_API_KEY
+```
+
+Без секрету джерело `OFFICIAL` має статус `disabled` — поведінка
+байт-в-байт як до інтеграції (жодних змін для NEPTUN/MAPA/фронтенду).
+
+Використані документовані методи (`UkraineAlarm-javascript`, API 3.0):
+`GET /api/v3/alerts/status` (дешевий version gate `lastActionIndex`),
+`GET /api/v3/alerts` (лише коли індекс змінився),
+`GET /api/v3/regions` (дерево для мапінгу районів/громад, кеш KV
+`v1:ua-regions` ≤1 write/day), `GET /api/v3/alerts/regionHistory`
+(читається через `GET /v1/official/history?regionId=`, без KV-записів).
+
+Свідомі рішення:
+- WebHook НЕ відкриваємо: `WebHookModel` не має поля підпису/секрету,
+  надійної автентифікації вхідних подій документація не дає.
+- Повітряною тривогою мапиться лише тип `AIR`; інші документовані типи
+  (`ARTILLERY`, `URBAN_FIGHTS`, `CHEMICAL`, `NUCLEAR`, `INFO`) йдуть
+  з чесним підписом типу, координати не вигадуються.
+- Час події — лише `lastUpdate` джерела; відсутній/битий час дає `null`,
+  а не `now`. Жодних фейкових heartbeat: версія без змін повертає
+  `carried` (перепідтвердження набору), провал — чесний `offline`.
+- 429 поважає `Retry-After` (пауза в D1 `ua_sync`, cap 15 хв).
+
+Власнику для активації потрібно: видати ключ, підтвердити ліміти
+(документація з api.ukrainealarm.com недоступна ззовні — 403),
+умови використання та чи дозволено один ключ на два проєкти
+(див. Remaining Issues у звіті інтеграції).
+
 Після деплою фронтенд (services/config.js, `DATA_MODE='aggregator'`)
 автоматично бере `/v1/state` з `AGGREGATOR_URL`. Старі маршрути
 `/alerts`, `/threats`, `/mapa` залишено для сумісності.
