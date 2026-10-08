@@ -329,17 +329,8 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     ctx.fillStyle = '#eaf6ff';
     ctx.font = '10px system-ui';
-    // Labels ONLY for high-signal kinds (missiles, ballistic, shaheds, KAB,
-    // aviation). Drone churn stays unlabeled — the radar must stay readable.
-    const LABEL_KINDS = new Set(['missile', 'ballistic', 'shahed', 'kab', 'aviation']);
-    const labeled = S.pts.filter(pt => {
-      try { return LABEL_KINDS.has(getThreatVisual(pt.e).kind); } catch (e) { return false; }
-    }).slice(0, 6);
-    for (const pt of labeled) {
-      ctx.globalAlpha = 0.95 * (pt.a != null ? pt.a : 1);
-      ctx.fillStyle = '#d8f5e2';
-      ctx.fillText(pt.label || '', pt.x + 12, pt.y + 4);
-    }
+    // No text labels on the scope: the legend already explains the iconography,
+    // and the map/detail cards carry the names. Keeps the radar clean.
     ctx.globalAlpha = 1;
     // Cardinal marks drawn ON TOP with a dark chip so blips never hide them.
     const cxm = W / 2, cym = H / 2, Rm = Math.min(W, H) / 2 - 6;
