@@ -260,19 +260,28 @@ export function parseRegions(data) {
 
 export function parseHistory(data) {
   if (!Array.isArray(data)) throw new Error('Некоректний JSON');
-  return data.map(raw => {
-    if (!isObj(raw)) return null;
-    const sd = typeof raw.startDate === 'string' ? raw.startDate : null;
-    const ed = typeof raw.endDate === 'string' ? raw.endDate : null;
-    return {
-      regionId: typeof raw.regionId === 'string' ? raw.regionId : null,
-      regionName: typeof raw.regionName === 'string' ? raw.regionName : null,
-      startDate: sd && Number.isFinite(Date.parse(sd)) ? sd : null,
-      endDate: ed && Number.isFinite(Date.parse(ed)) ? ed : null,
-      alertType: UA_ALERT_TYPES.includes(raw.alertType) ? raw.alertType : 'UNKNOWN',
-      isContinue: raw.isContinue === true,
-    };
-  }).filter(Boolean);
+  // Spec RegionAlarmsHistory: [{regionId, regionName, alarms:[RegionAlarmModel]}].
+  // Unwrap .alarms[]; tolerate a flat RegionAlarmModel item defensively
+  // (unknown server builds), never invent rows.
+  const out = [];
+  for (const raw of data) {
+    if (!isObj(raw)) continue;
+    const alarmRows = Array.isArray(raw.alarms) ? raw.alarms : [raw];
+    for (const a of alarmRows) {
+      if (!isObj(a)) continue;
+      const sd = typeof a.startDate === 'string' ? a.startDate : null;
+      const ed = typeof a.endDate === 'string' ? a.endDate : null;
+      out.push({
+        regionId: typeof a.regionId === 'string' ? a.regionId : (typeof raw.regionId === 'string' ? raw.regionId : null),
+        regionName: typeof a.regionName === 'string' ? a.regionName : (typeof raw.regionName === 'string' ? raw.regionName : null),
+        startDate: sd && Number.isFinite(Date.parse(sd)) ? sd : null,
+        endDate: ed && Number.isFinite(Date.parse(ed)) ? ed : null,
+        alertType: UA_ALERT_TYPES.includes(a.alertType) ? a.alertType : 'UNKNOWN',
+        isContinue: a.isContinue === true,
+      });
+    }
+  }
+  return out;
 }
 
 // ── Regions index: regionId -> { oblast, district } via tree parents ─────

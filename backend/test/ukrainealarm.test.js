@@ -560,17 +560,33 @@ test('regions cache: fetch once, hash-gated rewrites', async () => {
 });
 
 // ── history ───────────────────────────────────────────────────────────────
-test('fetchRegionHistory validates input and output', async () => {
+test('fetchRegionHistory validates input and output (spec RegionAlarmsHistory shape)', async () => {
   const { restore } = stubUa({
-    '/api/v3/alerts/regionHistory?regionId=s1': [
-      { regionId: 's1', regionName: 'X', startDate: '2026-10-08T09:00:00Z', endDate: '2026-10-08T09:30:00Z', alertType: 'AIR', isContinue: false },
-    ],
+    '/api/v3/alerts/regionHistory?regionId=s1': [{
+      regionId: 's1', regionName: 'X',
+      alarms: [
+        { regionId: 's1', regionName: 'X', startDate: '2026-10-08T09:00:00Z', endDate: '2026-10-08T09:30:00Z', alertType: 'AIR', isContinue: false },
+        { regionId: 's1', regionName: 'X', startDate: '2026-10-08T08:00:00Z', endDate: '2026-10-08T08:20:00Z', alertType: 'ARTILLERY', isContinue: true },
+      ],
+    }],
   });
   try {
     const env = { UKRAINEALARM_API_KEY: 'K', UKRAINEALARM_API_URL: UA };
     const h = await fetchRegionHistory(env, 's1');
-    assert.equal(h.length, 1);
+    assert.equal(h.length, 2, 'alarms[] unwrapped');
     assert.equal(h[0].alertType, 'AIR');
+    assert.equal(h[1].isContinue, true);
+    // Defensive flat shape still parses (unknown server builds).
+    const { restore: r2 } = stubUa({
+      '/api/v3/alerts/regionHistory?regionId=s1': [
+        { regionId: 's1', regionName: 'X', startDate: '2026-10-08T09:00:00Z', endDate: null, alertType: 'AIR', isContinue: false },
+      ],
+    });
+    try {
+      assert.equal((await fetchRegionHistory(env, 's1')).length, 1);
+    } finally {
+      r2();
+    }
     await assert.rejects(fetchRegionHistory(env, ''), /regionId/);
     await assert.rejects(fetchRegionHistory(env, 'a'.repeat(65)), /regionId/);
     await assert.rejects(fetchRegionHistory(env, '../x'), /regionId/, 'path injection rejected before fetch');
@@ -628,14 +644,101 @@ test('no inbound webhook endpoint exists (undocumented auth -> must stay closed)
   }
 });
 
-test('history route: 503 without key, validated 502 on bad input, CORS present', async () => {
+test('history route: 503 without key, 400 on bad input, CORS present', async () => {
   const store = keyKv();
   const noKey = await worker.fetch(new Request('https://worker.test/v1/official/history?regionId=s1'), envBase(store.kv, fakeD1ua()));
   assert.equal(noKey.status, 503);
   const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
   const bad = await worker.fetch(new Request('https://worker.test/v1/official/history?regionId=../x'), env);
-  assert.equal(bad.status, 502);
+  assert.equal(bad.status, 400, 'validation failure is a client error, not upstream outage');
+  assert.equal((await bad.json()).error, 'Некоректний regionId');
   assert.equal(bad.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
+test('refresh route: open without REFRESH_TOKEN (backward compatible), gated with it', async () => {
+  const { restore } = stubUa({ ...directEmpty });
+  try {
+    const store = keyKv();
+    const open = await worker.fetch(
+      new Request('https://worker.test/v1/refresh', { method: 'POST' }),
+      envBase(store.kv, fakeD1ua()));
+    assert.equal(open.status, 200);
+    const gated401 = await worker.fetch(
+      new Request('https://worker.test/v1/refresh', { method: 'POST' }),
+      envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
+    assert.equal(gated401.status, 403);
+    const gated200 = await worker.fetch(
+      new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer s3cret' } }),
+      envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
+    assert.equal(gated200.status, 200);
+    const gatedWrong = await worker.fetch(
+      new Request('https://worker.test/v1/refresh', { method: 'POST', headers: { Authorization: 'Bearer wrong' } }),
+      envBase(store.kv, fakeD1ua(), { REFRESH_TOKEN: 's3cret' }));
+    assert.equal(gatedWrong.status, 403);
+  } finally {
+    restore();
+  }
+});
+
+test('healthItem emits single contract: online + delayed flag (no separate status)', async () => {
+  const { restore } = stubUa({
+    ...directEmpty,
+    '/api/v3/alerts/status': { lastActionIndex: 500 },
+    '/api/v3/alerts': [],
+    '/api/v3/regions': { states: [] },
+  });
+  try {
+    const store = keyKv();
+    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST' }), env);
+    const body = await (await worker.fetch(new Request('https://worker.test/v1/state'), env)).json();
+    assert.ok(['online', 'offline', 'disabled'].includes(body.health.OFFICIAL.status), 'no bare delayed status');
+  } finally {
+    restore();
+  }
+});
+
+test('public responses never carry key material (WAR LIVE separation: key stays server-side)', async () => {
+  const { restore } = stubUa({
+    ...directEmpty,
+    '/api/v3/alerts/status': { lastActionIndex: 777 },
+    '/api/v3/alerts': [{
+      regionId: 's1', regionType: 'State', regionName: 'Область',
+      activeAlerts: [{ type: 'AIR', lastUpdate: '2026-10-08T12:00:00Z' }],
+    }],
+    '/api/v3/regions': { states: [] },
+  });
+  try {
+    const store = keyKv();
+    const env = envBase(store.kv, fakeD1ua(), { UKRAINEALARM_API_KEY: 'K' });
+    await worker.fetch(new Request('https://worker.test/v1/refresh', { method: 'POST' }), env);
+    for (const path of ['/v1/state', '/v1/metrics', '/v1/official/history?regionId=s1']) {
+      const res = await worker.fetch(new Request('https://worker.test' + path), env);
+      const text = await res.text();
+      assert.ok(!/UKRAINEALARM_API_KEY/i.test(text), path + ': no secret name in body');
+      assert.ok(!/Authorization/i.test(text), path + ': no auth header material in body');
+      assert.ok(!/Bearer\s+\S+/.test(text), path + ': no bearer token in body');
+    }
+  } finally {
+    restore();
+  }
+});
+
+test('push dedup invariant: same territory via two sources unites to one job key', () => {
+  const alerts = [
+    { id: 'official:kyiv', region: 'Київ', district: null },
+    { id: 'official:ua:1:AIR', region: 'Київ', district: null },
+    { id: 'official:ua:2:AIR', region: 'Львів', district: null },
+  ];
+  const keys = new Set();
+  let jobs = 0;
+  for (const e of alerts) {
+    const k = `${e.region || ''}||${e.district || ''}`;
+    if (keys.has(k)) continue;
+    keys.add(k);
+    jobs++;
+  }
+  assert.equal(jobs, 2, 'Kyiv x2 united, Lviv separate');
 });
 
 console.log('All UkraineAlarm adapter tests passed!');

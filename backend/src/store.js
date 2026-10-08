@@ -115,8 +115,10 @@ export async function loadBundle(kv) {
 }
 
 // saveBundle: ONE PUT per logical state change (coalesced snapshot + prev).
-export async function saveBundle(kv, { snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt }) {
-  await kv.put(BUNDLE_KEY, JSON.stringify({ v: 1, snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt }), { expirationTtl: LATEST_TTL_S });
+// dataUpdatedAt is persisted top-level (not only inside snapshot) so the
+// reloaded bundle keeps the same contract as the in-memory one.
+export async function saveBundle(kv, { snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt }) {
+  await kv.put(BUNDLE_KEY, JSON.stringify({ v: 1, snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt: dataUpdatedAt || snapshot?.dataUpdatedAt || null }), { expirationTtl: LATEST_TTL_S });
 }
 
 // Journal upsert optimization:

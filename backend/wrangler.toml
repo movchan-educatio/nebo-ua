@@ -26,6 +26,10 @@ MAPA_URL = "https://mapa.ua/api/v1/current"
 # key issuance docs require a prefix.
 UKRAINEALARM_API_URL = "https://api.ukrainealarm.com"
 UKRAINEALARM_AUTH_SCHEME = ""
+# Admin gate for POST /v1/refresh (shared secret, never a var):
+#   wrangler secret put REFRESH_TOKEN
+# When set, /v1/refresh requires `Authorization: Bearer <token>`.
+# When unset, /v1/refresh stays open (backward compatible).
 # How many consecutive successful cycles an alert may be missing before it is closed.
 ALERT_MISS_LIMIT = "3"
 # Same for monitoring threats (1 miss -> stale, 3 misses -> dropped).

@@ -108,7 +108,16 @@ export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = 
     const startedThreats = diffStarted(prevIds?.threats, snapshot.events.filter(e => !e.stale));
     const startedAlerts = diffStarted(prevIds?.alerts, snapshot.alerts);
     const jobs = [];
-    for (const e of startedAlerts) jobs.push({ event: e, kind: 'officialStart', category: 'officialStart' });
+    // Cross-source dedup: the same territory alarming via NEPTUN and
+    // UkraineAlarm must produce ONE officialStart job per (region, district).
+    // Displayed snapshot keeps both attributed records; only push is united.
+    const seenOfficial = new Set();
+    for (const e of startedAlerts) {
+      const k = `${e.region || ''}||${e.district || ''}`;
+      if (seenOfficial.has(k)) continue;
+      seenOfficial.add(k);
+      jobs.push({ event: e, kind: 'officialStart', category: 'officialStart' });
+    }
     for (const a of endedAlerts) jobs.push({ event: a, kind: 'officialEnd', category: 'officialEnd' });
     for (const e of startedThreats) {
       const category = categoryOf(e);

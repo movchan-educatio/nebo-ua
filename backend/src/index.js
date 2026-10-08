@@ -19,10 +19,21 @@ export function checkBindings(env) {
   return missing;
 }
 
+// Constant-time string compare for shared-secret gates (no timing oracle).
+export function timingSafeEqual(a, b) {
+  const x = String(a || ''), y = String(b || '');
+  if (x.length !== y.length) return false;
+  let diff = 0;
+  for (let i = 0; i < x.length; i++) diff |= x.charCodeAt(i) ^ y.charCodeAt(i);
+  return diff === 0;
+}
+
 function healthItem(result, extra = {}) {
   if (result.disabled) return { status: 'disabled', updatedAt: null, error: null, ...extra };
   if (!result.ok) return { status: 'offline', updatedAt: null, error: result.error, ...extra };
-  return { status: result.delayed ? 'delayed' : 'online', updatedAt: new Date().toISOString(), error: result.delayed ? 'Джерело позначило потік як застарілий' : null, ...extra };
+  // Single contract: online + delayed flag (never a separate 'delayed'
+  // status value). mergeHealth and the frontend preserve the flag.
+  return { status: 'online', updatedAt: new Date().toISOString(), error: result.delayed ? 'Джерело позначило потік як застарілий' : null, ...(result.delayed ? { delayed: true } : {}), ...extra };
 }
 
 function withFreshness(events, nowMs) {
@@ -331,7 +342,7 @@ export default {
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' } });
     }
-    if (url.pathname === '/v1/state') {
+    if (url.pathname === '/v1/state' && request.method === 'GET') {
       if (!env.NEBO_STATE) return json({ error: 'Storage binding NEBO_STATE is not configured' }, 503, 5);
       const bundle = await loadBundle(env.NEBO_STATE);
       if (!bundle?.snapshot) return json({ error: 'Snapshot not ready yet, cron warming up' }, 503, 5);
@@ -344,19 +355,36 @@ export default {
       // Validated read-through to UkraineAlarm regionHistory (last 25).
       // No KV writes, no persistence. Requires the server secret.
       if (!env.UKRAINEALARM_API_KEY) return json({ error: 'Official source not configured' }, 503, 5);
+      const regionId = url.searchParams.get('regionId');
       let items = null;
       try {
-        items = await fetchRegionHistory(env, url.searchParams.get('regionId'));
+        items = await fetchRegionHistory(env, regionId);
       } catch (e) {
+        // fetchRegionHistory throws 'Некоректний regionId' BEFORE any
+        // network call: that is a client error, not an upstream outage.
+        if (e instanceof Error && /regionId/.test(e.message)) {
+          return json({ error: 'Некоректний regionId' }, 400, 5);
+        }
         return json({ error: 'Official source unavailable' }, 502, 5);
       }
-      return json({ v: 1, serverTime: new Date().toISOString(), regionId: url.searchParams.get('regionId'), history: items }, 200, 60);
+      return json({ v: 1, serverTime: new Date().toISOString(), regionId, history: items }, 200, 60);
     }
-    if (url.pathname === '/v1/metrics') {
+    if (url.pathname === '/v1/metrics' && request.method === 'GET') {
       const metrics = await sourceMetrics(env.nebo_journal, SOURCES).catch(() => ({}));
       return json({ serverTime: new Date().toISOString(), sources: metrics });
     }
     if (url.pathname === '/v1/refresh' && request.method === 'POST') {
+      // Admin pipeline trigger. Anyone could otherwise force upstream
+      // fetches, D1/KV writes and push dispatch at will (upstream 429,
+      // quota churn, push flapping). Gate with a shared secret when the
+      // owner configures REFRESH_TOKEN (wrangler secret put REFRESH_TOKEN);
+      // unset => open (backward compatible, documented in README).
+      if (env.REFRESH_TOKEN) {
+        const got = request.headers.get('Authorization') || '';
+        if (!timingSafeEqual(got, `Bearer ${env.REFRESH_TOKEN}`)) {
+          return json({ error: 'Forbidden' }, 403, 5);
+        }
+      }
       const snap = await runPipeline(env);
       let extra = {};
       try {
