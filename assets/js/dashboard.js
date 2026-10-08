@@ -363,7 +363,10 @@ async function refreshMap() {
   try {
     syncStore(state.tracks, st.events);
     let trails = [];
-    try { trails = selectTrails(state.tracks) || []; } catch { trails = []; }
+    try {
+      const visibleSet = new Set(['uav', 'missile', 'ballistic', 'kab', 'aviation', 'shahed', 'recon', 'other']);
+      trails = selectTrails(state.tracks.getAll(), visibleSet) || [];
+    } catch { trails = []; }
     // Fallback: source-provided trail arrays (MAPA) when the store has none.
     if (!trails.length) {
       trails = (st.events || [])
