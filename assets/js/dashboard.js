@@ -363,7 +363,9 @@ async function refreshMap() {
       } catch { /* skip missing geometry: no phantom polygons */ }
     }
     const detail = state.detail;
-    const showRaions = detail === 'raion' || detail === 'community';
+    // Territory fills are ALWAYS shown (reference: the map is never blank);
+    // the level only changes which labels/dots are visible.
+    const showRaions = true;
     mapUI.setAlertShapes(showRaions ? withPolys : [], onTerritory);
     // Level-specific labelling: oblasts at country/oblast, raions deeper.
     try { mapUI.map.getContainer().classList.toggle('detail-raion', detail === 'raion'); } catch { /* ignore */ }

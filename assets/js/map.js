@@ -28,11 +28,11 @@ const META={
 // ── V2 reference styling: expressive fills (washed mosaic forbidden —
 // oblast fills stay restrained, danger reads instantly).
 const DANGER_STYLE = {
-  // Reference look: FLAT soft fills, no neon, no colored glow. Borders are
-  // thin and neutral so only the fill carries the status.
-  oblastCritical: { color:'#00000000', weight:0, fillColor:'#B7253A', fillOpacity:0.40 },
-  oblastElevated: { color:'#00000000', weight:0, fillColor:'#C07A16', fillOpacity:0.32 },
-  neutral:        { color:'#00000000', weight:0, fillColor:'#22344A', fillOpacity:0.40 },
+  // Clear but matte: each territory carries its own thin lighter outline so
+  // filled oblasts/raions/communities never merge into one blob.
+  oblastCritical: { color:'#FF9AA4', weight:1.3, fillColor:'#B7253A', fillOpacity:0.42 },
+  oblastElevated: { color:'#FFD08A', weight:1.1, fillColor:'#C07A16', fillOpacity:0.34 },
+  neutral:        { color:'#46586B', weight:0.7, fillColor:'#22344A', fillOpacity:0.40 },
 };
 
 // ── Unified threat visual registry ──────────────────────────────────────────
@@ -484,12 +484,13 @@ export function createSituationMap(el,onSelect){
 
   function setWind(items){wind.clearLayers();for(const w of items||[]){if(!Number.isFinite(w.lat)||!Number.isFinite(w.lon)||!Number.isFinite(w.speedKmh)||!Number.isFinite(w.fromDeg))continue;const to=(w.fromDeg+180)%360;L.marker([w.lat,w.lon],{icon:windIcon(w,to),interactive:true}).bindTooltip(`${w.speedKmh} км/год`,{direction:'top',offset:[0,-18]}).addTo(wind)}}
 
-  // Raion fills: flat soft fills, no glowing borders (reference look).
+  // Raion fills: distinct outline per polygon so each raion/community reads
+  // as its own territory (matte, no glow).
   const RAION_FILL = {
-    alert:    { color:'#00000000', weight:0, fillColor:'#B7253A', fillOpacity:.36 },
-    critical: { color:'#00000000', weight:0, fillColor:'#C22B3E', fillOpacity:.40 },
-    high:     { color:'#00000000', weight:0, fillColor:'#C07A16', fillOpacity:.30 },
-    medium:   { color:'#00000000', weight:0, fillColor:'#8E6316', fillOpacity:.24 },
+    alert:    { color:'#FF9AA4', weight:1.2, fillColor:'#B7253A', fillOpacity:.42 },
+    critical: { color:'#FF8A94', weight:1.3, fillColor:'#C22B3E', fillOpacity:.46 },
+    high:     { color:'#FFD08A', weight:1.1, fillColor:'#C07A16', fillOpacity:.34 },
+    medium:   { color:'#E6B678', weight:1.0, fillColor:'#8E6316', fillOpacity:.26 },
   };
   function setAlertShapes(items,onPick){ashapes.clearLayers();for(const r of items||[]){const s=RAION_FILL[r.level]||RAION_FILL.alert;for(const poly of r.polys||[])L.polygon(poly,{color:s.color,weight:s.weight,fillColor:s.fillColor,fillOpacity:s.fillOpacity}).on('click',()=>onPick&&onPick(r)).addTo(ashapes)}}
 
