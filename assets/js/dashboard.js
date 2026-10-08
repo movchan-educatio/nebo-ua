@@ -220,16 +220,18 @@ function initMap() {
 function renderLayerPanel() {
   const p = $('#layerPanel');
   const rows = [
-    ['satellite', 'Супутник'], ['monitoring', 'Моніторинг'], ['alerts', 'Тривоги'],
+    ['satellite', 'Супутник'], ['relief', 'Рельєф'], ['monitoring', 'Моніторинг'], ['alerts', 'Тривоги'],
     ['raions', 'Райони'], ['shapes', 'Межі'], ['wind', 'Вітер'],
   ];
   p.innerHTML = rows.map(([k, n]) => {
-    const on = k === 'satellite' ? state.layers.satellite : true;
+    const on = k === 'satellite' ? state.base === 'sat' : k === 'relief' ? state.base === 'relief' : true;
     return `<label style="display:flex;gap:8px;align-items:center;min-height:40px;font-size:13px"><input type="checkbox" data-layer="${k}"${on ? ' checked' : ''}>${n}</label>`;
   }).join('');
   p.querySelectorAll('input').forEach(i => i.onchange = () => {
-    if (i.dataset.layer === 'satellite') state.layers.satellite = i.checked;
-    mapUI.toggle(i.dataset.layer, i.checked);
+    const k = i.dataset.layer;
+    if (k === 'satellite') { applyBasemap(i.checked ? 'sat' : 'dark'); if (i.checked) p.querySelector('[data-layer="relief"]').checked = false; return; }
+    if (k === 'relief') { applyBasemap(i.checked ? 'relief' : 'dark'); if (i.checked) p.querySelector('[data-layer="satellite"]').checked = false; return; }
+    mapUI.toggle(k, i.checked);
   });
 }
 function locateMe(silent) {
@@ -469,7 +471,21 @@ function focusTerritory(h) {
   onTerritory({ oblast: h.name, district: h.kind === 'District' ? h.name : null });
 }
 
-// ── Detail + basemap segs ─────────────────────────────────────────────────
+// ── Basemap + relief toggles now live in the Шари panel ──────────────────
+let reliefLayer = null;
+function applyBasemap(kind) {
+  if (!mapUI) return;
+  state.base = kind;
+  mapUI.toggle('satellite', kind === 'sat');
+  try {
+    if (kind === 'relief') {
+      if (!reliefLayer) reliefLayer = window.L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '© OpenStreetMap, SRTM | style: © OpenTopoMap (CC-BY-SA)' });
+      if (reliefLayer) reliefLayer.addTo(mapUI.map);
+    } else if (reliefLayer && mapUI.map.hasLayer(reliefLayer)) {
+      mapUI.map.removeLayer(reliefLayer);
+    }
+  } catch { /* basemap best effort */ }
+}
 function setupSegs() {
   const detailSeg = $('#detailSeg');
   if (detailSeg) detailSeg.addEventListener('click', (e) => {
@@ -478,22 +494,6 @@ function setupSegs() {
     state.detail = b.dataset.detail;
     $$('#detailSeg button').forEach(x => x.classList.toggle('active', x === b));
     refreshMap();
-  });
-  let relief = null;
-  $('#baseSeg').addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b || !mapUI) return;
-    state.base = b.dataset.base;
-    $$('#baseSeg button').forEach(x => x.classList.toggle('active', x === b));
-    mapUI.toggle('satellite', state.base === 'sat');
-    try {
-      if (state.base === 'relief') {
-        if (!relief) relief = window.L.tileLayer('https://tile.opentopomap.org/{z}/{x}/{y}.png', { maxZoom: 17, attribution: '© OpenStreetMap, SRTM | style: © OpenTopoMap (CC-BY-SA)' });
-        relief.addTo(mapUI.map);
-      } else if (relief && mapUI.map.hasLayer(relief)) {
-        mapUI.map.removeLayer(relief);
-      }
-    } catch { /* basemap best effort */ }
   });
 }
 
