@@ -688,7 +688,7 @@ function setupCollapsibles() {
 
   const targets = [
     ...$$('.sources-col .panel'), ...$$('.right-col .panel'),
-    ...$$('.stats-row .panel'), $$('.legend-strip')[0], $$('#mapLegend')[0],
+    $$('.legend-strip')[0], $$('#mapLegend')[0],
   ].filter(Boolean);
 
   targets.forEach((el, i) => {
@@ -714,6 +714,30 @@ function setupCollapsibles() {
     else { btn.classList.add('float'); el.appendChild(btn); }
     if (saved[id]) { el.classList.add('collapsed'); btn.textContent = '▸'; }
   });
+
+  // ONE toggle for the whole bottom row (Активні тривоги + Останні події).
+  const statsRow = document.querySelector('.stats-row');
+  if (statsRow) {
+    const head = statsRow.querySelector('.panel .panel-head');
+    if (head) {
+      const btn = document.createElement('button');
+      btn.className = 'collapse-btn';
+      btn.type = 'button';
+      btn.title = 'Згорнути / розгорнути блок';
+      btn.setAttribute('aria-label', 'Згорнути блок статистики та подій');
+      btn.textContent = '▾';
+      if (saved['stats-row']) { statsRow.classList.add('collapsed'); btn.textContent = '▸'; }
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        const off = statsRow.classList.toggle('collapsed');
+        btn.textContent = off ? '▸' : '▾';
+        btn.setAttribute('aria-expanded', String(!off));
+        saved['stats-row'] = off ? 1 : 0;
+        persist();
+      };
+      head.appendChild(btn);
+    }
+  }
 
   // Column-level toggles (desktop): hide sources / threats+radar columns.
   const addColToggle = (col, label) => {

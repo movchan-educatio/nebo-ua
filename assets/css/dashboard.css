@@ -203,6 +203,11 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .col-toggle:hover{color:var(--text);border-color:#4d7fa0}
 .col-hidden{display:none!important}
 
+/* One toggle collapses the whole bottom row (stats + recent events). */
+.stats-row.collapsed .panel{padding-top:10px;padding-bottom:10px}
+.stats-row.collapsed .panel>*:not(.panel-head){display:none}
+.stats-row.collapsed .panel .panel-head{margin-bottom:0}
+
 /* Buttons: clear, matte, no neon glow. */
 .mainnav button.active{color:#fff;background:#1d4e73;box-shadow:none;border:1px solid #3f7ea8}
 .mainnav button:hover{color:var(--text);background:#ffffff10}
