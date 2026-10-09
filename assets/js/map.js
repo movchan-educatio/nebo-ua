@@ -94,6 +94,20 @@ export function getThreatVisual(input) {
   };
 }
 
+// A position that is not "exact" may still be REAL: the source gave
+// coordinates AND its own ±km. Such events must not vanish from the map —
+// they are plotted with a dashed uncertainty ring instead. Nothing is
+// invented: no coordinates, no radius beyond what the source stated.
+function plotworthy(e){
+  if(!e||e.areaOnly)return false;
+  if(!Number.isFinite(Number(e.lat))||!Number.isFinite(Number(e.lon)))return false;
+  if(accuracyTier(e)==='exact')return true;
+  const pq=String(e.positionQuality||'');
+  if(['area','raion','district','region'].includes(pq))return false;
+  const unc=Number(e.uncertaintyKm);
+  return Number.isFinite(unc)&&unc>0;
+}
+
 function iconFor(e){
   const v = getThreatVisual(e);
   return { label: v.label, icon: v.icon, color: v.color, kind: v.kind };
@@ -354,7 +368,7 @@ export function createSituationMap(el,onSelect){
   // same L.marker object glides via planMove, DOM persists when visuals
   // are unchanged. Returns the marker, or null for non-point events.
   function upsertMarker(e,now){
-    if(!e||accuracyTier(e)!=='exact'||e.lat==null||e.lon==null)return null;
+    if(!e||!plotworthy(e))return null;
     const ac=ageClass(e,now);
     const tid=e.trackId||e.id;
     const prevEv=currentByTrack.get(tid)||null;
@@ -510,7 +524,7 @@ export function createSituationMap(el,onSelect){
       const tier=accuracyTier(e);
 
       // ── Area-only / Imprecise: dashed region outline ONLY ────────────────
-      if(tier==='area'||tier==='report'){
+      if((tier==='area'||tier==='report')&&!plotworthy(e)){
         if(e.areaOnly&&geo){
           const f=geo.features.find(x=>regionName(x)===e.region);
           if(f)L.geoJSON(f,{style:{color:META[classifyThreat(e)]?.color||'#efb55b',dashArray:'6 7',weight:1.4,fillOpacity:.06}}).addTo(areas);
@@ -519,12 +533,18 @@ export function createSituationMap(el,onSelect){
         continue;
       }
 
-      // ── Exact coordinate marker: persistent object per stable track ──────
+      // ── Coordinate marker: persistent object per stable track ────────────
       const m=upsertMarker(e,now);
       if(m)seenTracks.add(e.trackId||e.id);
 
-      // Uncertainty is shown as a number in the popup, never as a circle:
-      // no accuracy/uncertainty rings around targets on the main map.
+      // Approximate but real positions show the source's own uncertainty as a
+      // dashed ring — the glyph never pretends to be a precise point.
+      if(tier!=='exact'){
+        const unc=Number(e.uncertaintyKm);
+        if(Number.isFinite(unc)&&unc>0){
+          L.circle([+e.lat,+e.lon],{radius:unc*1000,color:META[classifyThreat(e)]?.color||'#efb55b',weight:1.1,opacity:.5,dashArray:'4 6',fill:false,interactive:false}).addTo(uncertainties);
+        }
+      }
 
       // NOTE: no forward heading line and no full-route polyline here.
       // Direction is shown ONLY by rotating the glyph itself (orientation,
@@ -686,8 +706,13 @@ export function createRadarMap(el,onSelect){
     for(const km of rangeRings(opts.range||100))L.circle(center,{radius:km*1000,color:'#66c7ff',weight:1,opacity:.18,fill:false,interactive:false}).addTo(rings);
     if(Number.isFinite(opts.guardKm)&&opts.guardKm>0)L.circle(center,{radius:opts.guardKm*1000,color:'#ff6f7d',weight:1.6,opacity:.6,dashArray:'8 8',fill:false,interactive:false}).addTo(guard);
     L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#66c7ff',fillOpacity:1,weight:2}).addTo(rings);
-    events.filter(e=>e.lat!=null&&e.lon!=null&&accuracyTier(e)==='exact').slice(0,300).forEach(e=>{
+    events.filter(e=>plotworthy(e)).slice(0,300).forEach(e=>{
       L.marker([e.lat,e.lon],{icon:blipIcon(e),category:e.category,threatKind:classifyThreat(e),pane:'threatPane'}).on('click',()=>onSelect(e)).addTo(layer);
+      const tier=accuracyTier(e);
+      const unc=Number(e.uncertaintyKm);
+      if(tier!=='exact'&&Number.isFinite(unc)&&unc>0){
+        L.circle([+e.lat,+e.lon],{radius:unc*1000,color:META[classifyThreat(e)]?.color||'#efb55b',weight:1.1,opacity:.5,dashArray:'4 6',fill:false,interactive:false}).addTo(vectors);
+      }
       // NOTE: no forward heading projection here either — the rotated glyph
       // alone shows direction. Nothing is drawn ahead of any marker.
     });
