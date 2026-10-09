@@ -7,6 +7,8 @@ import { fetchOfficialUkraineAlarm, fetchRegionHistory, getRegionsTree } from '.
 import { loadPrev, saveState, loadLatest, loadBundle, saveBundle, meaningfulFp, shouldWrite, isAlreadyPersisted, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
+import { runDurablePipeline } from './pipeline.js';
+import { loadRuntime, runtimeResponse } from './runtime-state.js';
 
 const SOURCES = ['OFFICIAL', 'NEPTUN', 'MAPA'];
 
@@ -58,6 +60,7 @@ function kvSummaryTick() {
 async function runPipeline(env) {
   const missing = checkBindings(env);
   if (missing.length) throw new Error('Missing bindings: ' + missing.join(', '));
+  if (env.SYNC_STATE_STORE === 'd1') return runDurablePipeline(env);
   const now = new Date();
   const nowMs = now.getTime();
   const nowIso = now.toISOString();
@@ -343,6 +346,15 @@ export default {
       return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' } });
     }
     if (url.pathname === '/v1/state' && request.method === 'GET') {
+      if (env.SYNC_STATE_STORE === 'd1') {
+        try {
+          const current = await loadRuntime(env.nebo_journal);
+          if (current) return json(runtimeResponse(current, Date.now()), 200, 5);
+        } catch { /* serve the last committed checkpoint, with its own times */ }
+        const fallback = await loadBundle(env.NEBO_STATE);
+        if (fallback?.snapshot) return json(runtimeResponse(fallback, Date.now(), 'kv-fallback'), 200, 5);
+        return json({ error: 'Актуальний стан тимчасово недоступний' }, 503, 0);
+      }
       if (!env.NEBO_STATE) return json({ error: 'Storage binding NEBO_STATE is not configured' }, 503, 5);
       const bundle = await loadBundle(env.NEBO_STATE);
       if (!bundle?.snapshot) return json({ error: 'Snapshot not ready yet, cron warming up' }, 503, 5);
@@ -407,7 +419,14 @@ export default {
       if (!timingSafeEqual(got, `Bearer ${env.REFRESH_TOKEN}`)) {
         return json({ error: 'Forbidden' }, 403, 5);
       }
-      const snap = await runPipeline(env);
+      let snap;
+      try { snap = await runPipeline(env); }
+      catch { return json({ ok: false, error: 'Не вдалося опублікувати оновлення' }, 503, 0); }
+      if (env.SYNC_STATE_STORE === 'd1') {
+        return json({ ok: true, serverTime: snap.serverTime, alerts: snap.alerts.length,
+          events: snap.events.length, pipelineCheckedAt: snap.pipelineCheckedAt,
+          dataUpdatedAt: snap.dataUpdatedAt, publishedAt: snap.publishedAt }, 200, 0);
+      }
       let extra = {};
       try {
         const b = await loadBundle(env.NEBO_STATE);

@@ -59,7 +59,7 @@ test('sourceCards maps ONLINE/DEGRADED/OFFLINE/STALE/IDLE explicitly', () => {
     OFFICIAL: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
     NEPTUN: { status: 'online', updatedAt: '2026-10-08T12:00:00Z', delayed: true },
     MAPA: { status: 'offline', updatedAt: null, error: 'x' },
-  });
+  }, Date.parse('2026-10-08T12:01:00Z'));
   assert.equal(cards[0].state, 'ONLINE');
   assert.equal(cards[1].state, 'DEGRADED');
   assert.equal(cards[2].state, 'OFFLINE');
@@ -74,7 +74,15 @@ test('systemBadge: ok/warn/bad from cards + pipeline age', () => {
   assert.equal(systemBadge(ok, 60000).level, 'ok');
   assert.equal(systemBadge([{ state: 'ONLINE' }, { state: 'OFFLINE' }], 60000).level, 'warn');
   assert.equal(systemBadge(ok, 31 * 60000).level, 'bad', 'stale pipeline overrides');
+  assert.equal(systemBadge(ok, 9 * 60000).level, 'warn', 'a nine-minute delay is never healthy');
+  assert.equal(systemBadge([{ state: 'STALE' }], 0).level, 'warn');
   assert.equal(systemBadge([{ state: 'IDLE' }], 0).level, 'bad');
+});
+
+test('a stopped cron cannot keep source cards online with a cached successful response', () => {
+  const cards = sourceCards({ MAPA: { status: 'online', updatedAt: '2026-10-09T07:45:00Z' } },
+    Date.parse('2026-10-09T07:54:00Z'));
+  assert.equal(cards[2].state, 'STALE');
 });
 
 console.log('All overview tests passed!');

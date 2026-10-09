@@ -16,6 +16,8 @@ function adaptHealth(serverHealth = {}) {
     out[k] = {
       status: v?.status || 'offline',
       updatedAt: toDate(v?.updatedAt),
+      checkedAt: toDate(v?.checkedAt),
+      lastSuccessAt: toDate(v?.lastSuccessAt || v?.updatedAt),
       error: v?.error || null,
       // Preserve the backend stale/delayed flag: without it the frontend
       // cannot tell DELAYED (old data) from DOWN (no data).
@@ -30,7 +32,7 @@ function adaptAlert(a) {
   return {
     ...a,
     timestamp: toDate(a.eventTime || a.timestamp),
-    receivedAt: toDate(a.receivedAt) || new Date(),
+    receivedAt: toDate(a.receivedAt),
   };
 }
 
@@ -38,7 +40,7 @@ function adaptEvent(e) {
   return {
     ...e,
     timestamp: toDate(e.eventTime || e.timestamp),
-    receivedAt: toDate(e.receivedAt) || new Date(),
+    receivedAt: toDate(e.receivedAt),
     trail: Array.isArray(e.trail)
       ? e.trail.map(p => ({ ...p, timestamp: toDate(p.timestamp) })).filter(p => p.timestamp)
       : [],
@@ -55,7 +57,7 @@ export async function fetchAggregated(signal) {
   // dataUpdatedAt stays put when nothing really changed — calm data + live
   // pipeline must read as LIVE, never OFFLINE. Legacy snapshots without the
   // new fields fall back to receivedAt/serverTime exactly as before.
-  const receivedAt = toDate(data.pipelineCheckedAt || data.receivedAt || data.serverTime) || new Date();
+  const receivedAt = toDate(data.pipelineCheckedAt || data.receivedAt || data.serverTime);
   return {
     alerts: data.alerts.map(adaptAlert).filter(a => a.timestamp || a.official),
     events: data.events.map(adaptEvent),
@@ -66,5 +68,9 @@ export async function fetchAggregated(signal) {
     serverTime: toDate(data.serverTime),
     dataUpdatedAt: toDate(data.dataUpdatedAt),
     pipelineCheckedAt: toDate(data.pipelineCheckedAt),
+    publishedAt: toDate(data.publishedAt),
+    responseAt: toDate(data.responseAt),
+    pipelineStartedAt: toDate(data.pipelineStartedAt),
+    degraded: data.degraded === true,
   };
 }
