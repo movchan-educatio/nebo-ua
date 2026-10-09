@@ -34,8 +34,14 @@ function healthOf(result, previous = {}) {
   if (result.disabled) return { status: 'disabled', checkedAt: result.checkedAt, updatedAt: null, lastSuccessAt: null, error: null };
   const successAt = result.ok && !result.stale && !result.partial
     ? result.checkedAt : previous.lastSuccessAt || (previous.status === 'online' ? previous.updatedAt : null) || null;
+  // RECOVERING: this check succeeded but the previous recorded state was a
+  // failure — the source just came back. One more clean cycle resolves it to
+  // online (see mergeHealth + the next healthOf call).
+  const status = result.ok
+    ? (previous?.status === 'offline' ? 'recovering' : 'online')
+    : 'offline';
   return {
-    status: result.ok ? 'online' : 'offline',
+    status,
     checkedAt: result.checkedAt,
     lastSuccessAt: successAt,
     updatedAt: successAt,
@@ -127,10 +133,17 @@ export async function runDurablePipeline(env) {
   const started = Date.now();
   const telemetry = { pipeline: 'cycle', startedAt: new Date(started).toISOString(), stagesMs: {} };
   try {
-    // A database failure cannot be treated as an empty previous state. Stop
-    // writes honestly; the read route can still serve the KV checkpoint.
-    let previous = await loadRuntime(env.nebo_journal);
-    let checkpoint = await loadBundle(env.NEBO_STATE);
+    // A database READ failure must not kill the cycle: fall back to the KV
+    // checkpoint (which loadBundle reads safely) instead of publishing
+    // nothing. Writes stay honest — a failed commit publishes to KV only.
+    let previous = null, d1LoadError = false, kvLoadError = false;
+    try {
+      previous = await loadRuntime(env.nebo_journal);
+    } catch { d1LoadError = true; telemetry.d1LoadError = true; }
+    let checkpoint = null;
+    try {
+      checkpoint = await loadBundle(env.NEBO_STATE);
+    } catch { kvLoadError = true; telemetry.kvLoadError = true; }
     previous ||= checkpoint;
     telemetry.stagesMs.load = Date.now() - started;
     let officialResult = null;
@@ -149,7 +162,7 @@ export async function runDurablePipeline(env) {
       alertLimit: Number(env.ALERT_MISS_LIMIT) || 3,
       threatLimit: Number(env.THREAT_MISS_LIMIT) || 3 };
     let published = previous;
-    let superseded = false;
+    let superseded = false, d1CommitFailed = false;
     const publish = async (official, phase) => {
       const reduceStart = Date.now();
       const next = reduceCycle(previous, { ...common, official }, started);
@@ -159,9 +172,19 @@ export async function runDurablePipeline(env) {
       next.writtenAt = Date.now();
       next.snapshot.publishedAt = publishedAt;
       next.snapshot.pipelineCompletedAt = phase === 1 ? publishedAt : null;
+      let committed = false;
       const commitStart = Date.now();
-      if (!await commitRuntime(env.nebo_journal, next)) { superseded = true; return; }
+      try {
+        committed = await commitRuntime(env.nebo_journal, next);
+      } catch {
+        // D1 write failed: keep serving the freshly verified snapshot from
+        // the KV checkpoint instead of dropping the whole cycle. Journal,
+        // checks and push below fail best-effort and are flagged.
+        d1CommitFailed = true;
+        telemetry.d1CommitError = true;
+      }
       telemetry.stagesMs.publish = (telemetry.stagesMs.publish || 0) + Date.now() - commitStart;
+      if (!committed && !d1CommitFailed) { superseded = true; return; }
       const before = published;
       published = next;
       // Best-effort recovery checkpoint. Critical publication is already in
@@ -193,10 +216,9 @@ export async function runDurablePipeline(env) {
     if (!officialResult) await publish(null, 0);
     const official = await officialPromise;
     if (!superseded) await publish(official, 1);
-    if (superseded) {
-      telemetry.outcome = 'superseded';
-      return (await loadRuntime(env.nebo_journal))?.snapshot || previous?.snapshot;
-    }
+    // Checks reflect actually verified lanes even when this cycle lost the
+    // commit race: a superseded cycle still verified its sources, and the
+    // liveness journal must not develop a gap because of it.
     try {
       await recordChecksBatch(env.nebo_journal, [
         { source: 'OFFICIAL', ok: official.ok && !official.disabled && !official.partial, latencyMs: official.latencyMs, error: official.error },
@@ -204,7 +226,15 @@ export async function runDurablePipeline(env) {
         { source: 'MAPA', ok: mapa.ok, latencyMs: mapa.latencyMs, error: mapa.error },
       ]);
     } catch { telemetry.checksError = true; }
-    telemetry.outcome = 'published';
+    if (superseded) {
+      telemetry.outcome = 'superseded';
+      try {
+        return (await loadRuntime(env.nebo_journal))?.snapshot || previous?.snapshot;
+      } catch {
+        return previous?.snapshot;
+      }
+    }
+    telemetry.outcome = d1CommitFailed ? 'published-kv' : 'published';
     return published.snapshot;
   } catch (error) {
     telemetry.outcome = 'failed';

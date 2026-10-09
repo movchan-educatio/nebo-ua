@@ -16,6 +16,7 @@ async function fetchOnce(url, { timeoutMs = 8000, headers = {} } = {}) {
   }
 }
 
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export async function fetchWithRetry(url, opts = {}, attempts = 2) {
   const started = Date.now();
   let lastErr = null;
@@ -26,6 +27,10 @@ export async function fetchWithRetry(url, opts = {}, attempts = 2) {
     } catch (e) {
       lastErr = e;
     }
+    // Bounded backoff with jitter between attempts only: absorbs a transient
+    // blip without hammering the upstream. Single attempt => no waiting.
+    // Stays far below per-lane pipeline timeouts (19-25s).
+    if (i < attempts - 1) await sleep(300 + Math.random() * 500);
   }
   return { ok: false, data: null, latencyMs: Date.now() - started, error: String(lastErr?.message || lastErr) };
 }

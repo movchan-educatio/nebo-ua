@@ -54,7 +54,7 @@ test('matchTerritory: oblasts first, min length, capped', () => {
   assert.equal(matchTerritory('бучан', oblasts, dir)[0].regionId, 'd1');
 });
 
-test('sourceCards maps ONLINE/DEGRADED/OFFLINE/STALE/IDLE explicitly', () => {
+test('sourceCards maps ONLINE/DEGRADED/OFFLINE/RECOVERING/STALE/IDLE explicitly', () => {
   const cards = sourceCards({
     OFFICIAL: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
     NEPTUN: { status: 'online', updatedAt: '2026-10-08T12:00:00Z', delayed: true },
@@ -67,6 +67,10 @@ test('sourceCards maps ONLINE/DEGRADED/OFFLINE/STALE/IDLE explicitly', () => {
   assert.equal(idle[0].state, 'IDLE');
   const stale = sourceCards({ NEPTUN: { status: 'online', updatedAt: null } });
   assert.equal(stale[1].state, 'STALE');
+  const rec = sourceCards({ MAPA: { status: 'recovering', updatedAt: '2026-10-08T12:00:00Z' } },
+    Date.parse('2026-10-08T12:01:00Z'));
+  assert.equal(rec[2].state, 'RECOVERING');
+  assert.equal(rec[2].label, 'Відновлення');
 });
 
 test('systemBadge: ok/warn/bad from cards + pipeline age', () => {
@@ -77,6 +81,21 @@ test('systemBadge: ok/warn/bad from cards + pipeline age', () => {
   assert.equal(systemBadge(ok, 9 * 60000).level, 'warn', 'a nine-minute delay is never healthy');
   assert.equal(systemBadge([{ state: 'STALE' }], 0).level, 'warn');
   assert.equal(systemBadge([{ state: 'IDLE' }], 0).level, 'bad');
+});
+
+test('systemBadge: aggregate follows the two primaries, not the auxiliary source', () => {
+  const keyed = (n, m, o) => ([
+    { key: 'NEPTUN', state: n }, { key: 'MAPA', state: m }, { key: 'OFFICIAL', state: o },
+  ]);
+  // Both primaries healthy + UkraineAlarm offline => still ok (auxiliary).
+  assert.equal(systemBadge(keyed('ONLINE', 'ONLINE', 'OFFLINE'), 60000).level, 'ok');
+  // One primary down => warn; both down => bad.
+  assert.equal(systemBadge(keyed('ONLINE', 'OFFLINE', 'ONLINE'), 60000).level, 'warn');
+  assert.equal(systemBadge(keyed('OFFLINE', 'OFFLINE', 'ONLINE'), 60000).level, 'bad');
+  // A recovering primary is honest warn, never fake-ok.
+  const rec = systemBadge(keyed('RECOVERING', 'ONLINE', 'OFFLINE'), 60000);
+  assert.equal(rec.level, 'warn');
+  assert.equal(rec.text, 'Відновлення джерела');
 });
 
 test('a stopped cron cannot keep source cards online with a cached successful response', () => {

@@ -147,9 +147,14 @@ test('failed publication cannot advance the UA version; next cycle fetches and p
     if (sql.includes('INSERT INTO pipeline_state')) throw new Error('D1 unavailable');
     return prepare(sql);
   };
-  await assert.rejects(run(env), /D1 unavailable/);
-  const afterFailure = await read(env);
-  assert.equal(officialAlerts(afterFailure).length, 1);
+  // A failed commit no longer kills the cycle: lanes still verify, the fresh
+  // snapshot reaches the KV checkpoint on content change, and the served D1
+  // state keeps the last committed officials (no invented all-clear, no silence).
+  await run(env);
+  const duringFailure = await read(env);
+  assert.equal(officialAlerts(duringFailure).length, 1);
+  const kvSnap = JSON.parse(env.NEBO_STATE.data.get('v1:latest'));
+  assert.ok(Date.parse(kvSnap.snapshot.pipelineCheckedAt) >= Date.parse(duringFailure.pipelineCheckedAt));
   env.nebo_journal.prepare = prepare;
   const fullBefore = calls.filter(p => p === '/api/v3/alerts').length;
   await run(env);
@@ -160,15 +165,19 @@ test('failed publication cannot advance the UA version; next cycle fetches and p
   assert.equal(officialAlerts(await read(env)).length, 0);
 });
 
-test('D1 outage serves the old KV checkpoint with old verification time, never overlays fresh logs', async () => {
+test('D1 outage keeps verifying lanes and serving fresh KV instead of going silent', async () => {
   const env = testEnv(); globalThis.fetch = mockSources(sourceRoutes());
   await run(env);
   const checkpoint = JSON.parse(env.NEBO_STATE.data.get('v1:latest'));
   env.nebo_journal.prepare = () => { throw new Error('D1 unavailable'); };
+  const routes = sourceRoutes();
+  routes['/mapa'] = { objects: [{ id: 9, kind: 'uav', status: 'active', lat: 49, lon: 31, last_seen: Date.now() / 1000 }] };
+  globalThis.fetch = mockSources(routes);
+  await run(env); // resolves via KV instead of rejecting
   const fallback = await read(env);
   assert.equal(fallback.storage, 'kv-fallback'); assert.equal(fallback.degraded, true);
-  assert.equal(fallback.pipelineCheckedAt, checkpoint.snapshot.pipelineCheckedAt);
-  await assert.rejects(run(env), /D1 unavailable/);
+  assert.ok(Date.parse(fallback.pipelineCheckedAt) >= Date.parse(checkpoint.snapshot.pipelineCheckedAt),
+    'served verification time never moves backwards during the outage');
 });
 
 test('KV outage does not prevent D1 publication or serving fresh events', async () => {

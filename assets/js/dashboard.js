@@ -129,7 +129,7 @@ function renderSources(health) {
     <div class="src-card" title="${esc(c.error || '')}"><span class="src-ico ${c.ico}">${SRC_ICON[c.ico]}</span>
     <span><b>${esc(c.name)}</b><small>${esc(c.sub)}</small>
     <time>${c.updatedAt ? (c.state === 'OFFLINE' ? 'Успішно перевірено ' : 'Перевірено ') + esc(clock(c.updatedAt)) : (c.error ? esc(c.error) : 'Очікування')}</time></span>
-    <span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'DEGRADED' || c.state === 'STALE' ? 'warn' : c.state === 'OFFLINE' ? 'off' : 'idle'}">${esc(c.label)}</span></div>`).join('');
+    <span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'DEGRADED' || c.state === 'STALE' || c.state === 'RECOVERING' ? 'warn' : c.state === 'OFFLINE' ? 'off' : 'idle'}">${esc(c.label)}</span></div>`).join('');
   const age = state.lastSuccess ? Date.now() - state.lastSuccess.getTime() : null;
   const badge = state.snapshot?.degraded
     ? { level: 'warn', text: 'Оновлення тимчасово затримуються' } : systemBadge(cards, age);

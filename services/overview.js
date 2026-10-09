@@ -89,8 +89,9 @@ export function matchTerritory(query, oblastNames = [], dirRegions = [], limit =
 }
 
 // Source cards view-model from /v1/state health. ONLINE/DEGRADED/OFFLINE/
-// STALE/IDLE map explicitly: delayed flag => DEGRADED (data old but real);
-// missing updatedAt on online => STALE (unconfirmed freshness).
+// RECOVERING/STALE/IDLE map explicitly: delayed flag => DEGRADED (data old
+// but real); missing updatedAt on online => STALE (unconfirmed freshness).
+// RECOVERING = this check succeeded right after a recorded failure.
 export function sourceCards(health, nowMs = Date.now()) {
   const defs = [
     { key: 'OFFICIAL', name: 'UkraineAlarm API', sub: 'Офіційні дані тривог', ico: 'ua' },
@@ -103,6 +104,7 @@ export function sourceCards(health, nowMs = Date.now()) {
     if (h) {
       if (h.status === 'disabled') { state = 'IDLE'; label = 'Вимкнено'; }
       else if (h.status === 'offline') { state = 'OFFLINE'; label = 'Офлайн'; }
+      else if (h.status === 'recovering') { state = 'RECOVERING'; label = 'Відновлення'; }
       else if (h.delayed) { state = 'DEGRADED'; label = 'Застарілі дані'; }
       else if (!h.updatedAt) { state = 'STALE'; label = 'Не підтверджено'; }
       else if (!Number.isFinite(Date.parse(h.updatedAt)) || nowMs - Date.parse(h.updatedAt) > 3 * 60000) {
@@ -115,14 +117,25 @@ export function sourceCards(health, nowMs = Date.now()) {
 }
 
 // Overall system badge from per-source states + pipeline age.
+// The aggregate reflects the two PRIMARY sources only (NEPTUN, MAPA): an
+// auxiliary source (UkraineAlarm) being offline must not drag a healthy
+// monitoring pipeline into warning. Cards without a key (legacy callers)
+// fall back to the whole set.
 export function systemBadge(cards, pipelineAgeMs) {
   if (!cards.length) return { level: 'bad', text: 'Немає даних' };
-  if (cards.every(c => c.state === 'OFFLINE' || c.state === 'IDLE')) return { level: 'bad', text: 'Системи недоступні' };
+  const primaries = cards.some(c => c.key)
+    ? cards.filter(c => c.key === 'NEPTUN' || c.key === 'MAPA')
+    : cards;
+  const set = primaries.length ? primaries : cards;
+  if (set.every(c => c.state === 'OFFLINE' || c.state === 'IDLE')) return { level: 'bad', text: 'Системи недоступні' };
   if (pipelineAgeMs != null && pipelineAgeMs > 30 * 60000) return { level: 'bad', text: 'Дані застарілі' };
-  if (pipelineAgeMs != null && pipelineAgeMs > 3 * 60000 || cards.some(c => c.state === 'STALE')) {
+  if (pipelineAgeMs != null && pipelineAgeMs > 3 * 60000 || set.some(c => c.state === 'STALE')) {
     return { level: 'warn', text: 'Перевірка затримується' };
   }
-  if (cards.some(c => c.state === 'OFFLINE') || cards.some(c => c.state === 'DEGRADED')) {
+  if (set.some(c => c.state === 'RECOVERING')) {
+    return { level: 'warn', text: 'Відновлення джерела' };
+  }
+  if (set.some(c => c.state === 'OFFLINE') || set.some(c => c.state === 'DEGRADED')) {
     return { level: 'warn', text: 'Часткові дані' };
   }
   return { level: 'ok', text: 'Всі системи працюють' };

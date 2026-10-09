@@ -265,8 +265,14 @@ export function mergeHealth(storedHealth = {}, bySource = {}) {
     const row = bySource[key];
     if (!row || !row.ts) continue;
     const prev = storedHealth?.[key] || {};
+    // RECOVERING is transient and self-resolving: a successful check right
+    // after a recorded failure shows recovery; the next success (with stored
+    // status already past 'offline') reads as plain online.
+    const status = !row.ok ? 'offline'
+      : prev.status === 'offline' ? 'recovering'
+      : 'online';
     out[key] = {
-      status: row.ok ? 'online' : 'offline',
+      status,
       updatedAt: row.ts,
       error: row.ok ? null : (row.error || prev.error || 'Джерело недоступне'),
       ...(row.ok && (prev.delayed || prev.status === 'delayed') ? { delayed: true } : {}),
@@ -293,7 +299,11 @@ export function buildStateResponse(bundle, d1, nowMs) {
   if (!stored) return null;
   const storedTime = stored.serverTime || stored.receivedAt || null;
   const dataUpdatedAt = bundle?.dataUpdatedAt || stored.dataUpdatedAt || storedTime;
-  const checkedAt = d1?.checkedAt || null;
+  // Prefer the journal overlay, but never discard the snapshot's own embedded
+  // verification time: when D1 checks are unreachable, the freshly verified
+  // snapshot still proves its own liveness. Both values are real successful
+  // verifications — neither is invented.
+  const checkedAt = d1?.checkedAt || stored.pipelineCheckedAt || null;
   return {
     ...stored,
     serverTime: checkedAt || storedTime,
