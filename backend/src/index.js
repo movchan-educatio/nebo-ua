@@ -333,10 +333,18 @@ function json(data, status = 200, cacheSeconds = 10) {
 }
 
 // Legacy passthrough (kept for backward compatibility).
+// Bounded: a hung upstream must never hold a Worker invocation open.
+const LEGACY_TIMEOUT_MS = 12000;
+const legacyFetch = (url) => {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(new DOMException('Timeout', 'AbortError')), LEGACY_TIMEOUT_MS);
+  return fetch(url, { signal: ctrl.signal, headers: { Accept: 'application/json' } })
+    .finally(() => clearTimeout(timer));
+};
 const LEGACY = {
-  '/alerts': (env) => fetch(env.NEPTUN_ALERTS_URL, { headers: { Accept: 'application/json' } }),
-  '/threats': (env) => fetch(env.NEPTUN_THREATS_URL, { headers: { Accept: 'application/json' } }),
-  '/mapa': (env) => fetch(env.MAPA_URL, { headers: { Accept: 'application/json' } }),
+  '/alerts': (env) => legacyFetch(env.NEPTUN_ALERTS_URL),
+  '/threats': (env) => legacyFetch(env.NEPTUN_THREATS_URL),
+  '/mapa': (env) => legacyFetch(env.MAPA_URL),
 };
 
 export default {
