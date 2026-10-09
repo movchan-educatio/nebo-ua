@@ -113,7 +113,7 @@ button { font-family: inherit; }
 }
 .rl-icon-btn:hover { color: var(--text); border-color: #C9D2DB; background: var(--surface-2); }
 .rl-icon-btn svg { width: 19px; height: 19px; }
-.rl-icon-btn svg, .rl-bottomnav svg, .rl-nav svg {
+.rl-icon-btn svg, .rl-bottomnav svg, .rl-nav svg, .rl-ico {
   fill: none; stroke: currentColor; stroke-width: 1.7;
   stroke-linecap: round; stroke-linejoin: round;
 }
