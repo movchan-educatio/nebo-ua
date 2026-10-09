@@ -212,17 +212,25 @@ export async function runDurablePipeline(env) {
     // Coalesce responses finishing in the same burst; avoid running the CPU
     // work twice for a fast UA response. A slow lane costs at most 50 ms
     // before the monitoring publication, never its network timeout.
+    // LIVENESS FIRST. NEPTUN/MAPA are already verified at this point, so their
+    // check rows are written BEFORE any publish or push crypto happens. This
+    // is the whole point: an isolate that dies later (e.g. exceededCpu inside
+    // Web Push ECDSA) must still leave a liveness trace, otherwise the site
+    // silently rots into ДАНІ ЗАСТАРІЛІ with no evidence of why.
+    try {
+      await recordChecksBatch(env.nebo_journal, [
+        { source: 'NEPTUN', ok: threats.ok && !threats.stale, latencyMs: threats.latencyMs, error: threats.error },
+        { source: 'MAPA', ok: mapa.ok, latencyMs: mapa.latencyMs, error: mapa.error },
+      ]);
+      telemetry.stagesMs.checks = Date.now() - started - (telemetry.stagesMs.monitoringFetch || 0);
+    } catch { telemetry.checksError = true; }
+
     if (!officialResult) await briefWait(officialPromise, 50);
     if (!officialResult) await publish(null, 0);
     const official = await officialPromise;
-    // Liveness first: checks reflect VERIFIED lanes and must be recorded even
-    // if a later commit loses the race or the isolate dies during push
-    // crypto. A dead cycle must never create a liveness gap.
     try {
       await recordChecksBatch(env.nebo_journal, [
         { source: 'OFFICIAL', ok: official.ok && !official.disabled && !official.partial, latencyMs: official.latencyMs, error: official.error },
-        { source: 'NEPTUN', ok: threats.ok && !threats.stale, latencyMs: threats.latencyMs, error: threats.error },
-        { source: 'MAPA', ok: mapa.ok, latencyMs: mapa.latencyMs, error: mapa.error },
       ]);
     } catch { telemetry.checksError = true; }
     if (!superseded) await publish(official, 1);

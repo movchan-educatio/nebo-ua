@@ -91,7 +91,6 @@ export async function logDeliveries(db, rows) {
     `INSERT INTO push_log (ts, endpoint_hash, event_id, category, status, attempts, error, latency_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
   await db.batch(rows.map(r => stmt.bind(r.ts, r.endpoint_hash, r.event_id || null, r.category || null, r.status, r.attempts || 1, r.error || null, r.latency_ms ?? null)));
-  await db.prepare(`DELETE FROM push_log WHERE ts < datetime('now', '-30 days')`).run();
 }
 
 // Main dispatch: called once per pipeline with protected lists.
@@ -104,6 +103,10 @@ export async function logDeliveries(db, rows) {
 // are therefore hard-capped; overflow is logged as skipped-cap, never sent.
 // Priority: official start/end first, then newest threats.
 const MAX_PUSH_SENDS_PER_CYCLE = 8;
+// Hard ceiling on jobs considered per cycle. Official signals are pushed to
+// the front before the cap is applied, so an air-raid start/end is never the
+// thing that gets dropped. Overflow is counted, never silently discarded.
+const MAX_PUSH_JOBS_PER_CYCLE = 24;
 export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = new Date() }) {
   const out = { sent: 0, failed: 0, skipped: 0 };
   try {
@@ -135,12 +138,19 @@ export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = 
     const firstSeen = await firstSeenMap(env.nebo_journal, jobs.map(j => j.event.id));
     const subs = await loadSubscriptions(env.nebo_journal);
     const logs = [];
+    const skippedByReason = {};
     const ts = now.toISOString();
     // Official signals first, then newest threats — so the cap below drops
     // the least critical overflow, never an official alert.
     const prio = (j) => j.category === 'officialStart' ? 0 : j.category === 'officialEnd' ? 1 : 2;
     const tOf = (j) => new Date(j.event.eventTime || j.event.timestamp || 0).getTime() || 0;
     jobs.sort((a, b) => prio(a) - prio(b) || tOf(b) - tOf(a));
+    const droppedJobs = Math.max(0, jobs.length - MAX_PUSH_JOBS_PER_CYCLE);
+    if (droppedJobs) {
+      out.jobsDropped = (out.jobsDropped || 0) + droppedJobs;
+      jobs.length = MAX_PUSH_JOBS_PER_CYCLE;
+      console.warn(JSON.stringify({ push: 'jobs-cap', dropped: droppedJobs, kept: jobs.length }));
+    }
     let sendsUsed = 0;
     const concurrency = 20;
     for (let i = 0; i < subs.length; i += concurrency) {
@@ -151,8 +161,10 @@ export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = 
         for (const job of jobs) {
           const reason = shouldDeliver(sub, job.event, job.category, { now, firstSeen: firstSeen.get(job.event.id) || null });
           if (reason) {
+            // Counted, but NOT written per pair: a subscriber that follows ten
+            // oblasts used to produce one row for every non-matching event.
             out.skipped++;
-            logs.push({ ts, endpoint_hash: hash, event_id: job.event.id, category: job.category, status: reason, attempts: 0, error: null, latency_ms: null });
+            skippedByReason[reason] = (skippedByReason[reason] || 0) + 1;
             continue;
           }
           if (sendsUsed >= MAX_PUSH_SENDS_PER_CYCLE) {
@@ -170,6 +182,12 @@ export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = 
         }
       }));
     }
+    // Relevance misses are summarised in ONE row per reason per cycle instead
+    // of one row per (subscriber x unrelated event). Deliberate sends, failures
+    // and skipped-cap decisions keep their individual rows above.
+    for (const [status, n] of Object.entries(skippedByReason)) {
+      logs.push({ ts, endpoint_hash: 'aggregate', event_id: null, category: null, status: `${status}x${n}`, attempts: 0, error: null, latency_ms: null });
+    }
     await logDeliveries(env.nebo_journal, logs).catch(e => console.error('push log failed', e));
   } catch (e) {
     console.error('dispatchPush failed', e);
@@ -179,7 +197,9 @@ export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = 
 
 async function firstSeenMap(db, ids) {
   const map = new Map();
-  const list = [...new Set((ids || []).filter(Boolean))].slice(0, 500);
+  // One IN(...) with hundreds of placeholders is itself expensive; the jobs we
+  // actually consider are already capped, so match that bound.
+  const list = [...new Set((ids || []).filter(Boolean))].slice(0, 32);
   if (!list.length) return map;
   const placeholders = list.map(() => '?').join(',');
   try {
