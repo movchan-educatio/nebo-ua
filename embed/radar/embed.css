@@ -15,10 +15,11 @@ body { background: var(--surface); }
 }
 .rl-embed-full:hover { border-color: var(--red); }
 .rl-embed-screen {
-  position: relative; width: 100%; max-width: 560px; aspect-ratio: 1; margin: 0 auto;
+  position: relative; width: min(100%, 560px, 72vh); aspect-ratio: 1 / 1; margin: 0 auto;
   border-radius: 50%; overflow: hidden; background: #fff; border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
 }
-.rl-embed-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.rl-embed-screen canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; aspect-ratio: 1 / 1; }
 .rl-embed-controls { display: grid; gap: 8px; }
 .rl-embed-search { position: relative; }
 .rl-embed-results {

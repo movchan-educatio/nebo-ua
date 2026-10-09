@@ -63,11 +63,11 @@ function rebuildStatic(W, H, dpr, css) {
   const cx = W / 2, cy = H / 2, R = W / 2 - 8 * dpr;
   c.beginPath(); c.arc(cx, cy, R, 0, 7);
   c.fillStyle = '#FFFFFF'; c.fill();
-  c.strokeStyle = '#C9D2DB'; c.lineWidth = 1.5 * dpr; c.stroke();
+  c.strokeStyle = '#CBD5E1'; c.lineWidth = 1.5 * dpr; c.stroke();
   c.save();
   c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
   if (state.contours?.length) {
-    c.strokeStyle = 'rgba(100,116,139,0.30)';
+    c.strokeStyle = 'rgba(100,116,139,0.22)';
     c.lineWidth = 1 * dpr;
     for (const poly of state.contours) {
       c.beginPath();
@@ -80,12 +80,12 @@ function rebuildStatic(W, H, dpr, css) {
     }
   }
   const rings = rangeRings(state.range);
-  c.font = `${10 * dpr}px system-ui`;
+  c.font = `${10 * dpr}px Inter, system-ui, sans-serif`;
   rings.forEach((km, i) => {
     const r = R * ((i + 1) / rings.length);
     const outer = i === rings.length - 1;
     c.strokeStyle = outer ? '#EF3F36' : '#E2E8F0';
-    c.lineWidth = (outer ? 1.8 : 1.1) * dpr;
+    c.lineWidth = (outer ? 1.6 : 1) * dpr;
     c.beginPath(); c.arc(cx, cy, r, 0, 7); c.stroke();
     if (outer) {
       const dg = Math.SQRT1_2;
@@ -134,7 +134,8 @@ function frame(t) {
   if (animate) sweepDeg = (sweepDeg + dt / 6000 * 360) % 360;
   const r = canvas.getBoundingClientRect();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const css = Math.max(80, Math.round(r.width));
+  // Square buffer only: identical X/Y scale keeps the ring circular.
+  const css = Math.max(80, Math.round(Math.min(r.width, r.height || r.width)));
   canvas.width = css * dpr; canvas.height = css * dpr;
   const W = canvas.width, H = canvas.height;
   const key = [css, dpr, state.range, state.center.join(','), state.centerName, state.contours?.length || 0].join('|');
@@ -148,7 +149,7 @@ function frame(t) {
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
     ctx.translate(cx, cy); ctx.rotate(a);
-    ctx.fillStyle = 'rgba(239,63,54,0.13)';
+    ctx.fillStyle = 'rgba(239,63,54,0.10)';
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.3, 0); ctx.closePath(); ctx.fill();
     ctx.restore();
   }

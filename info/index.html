@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#F3F5F7">
+<meta name="theme-color" content="#F4F6F9">
+<meta name="color-scheme" content="light">
 <title>Про РАДАР.LIVE — як працює радар, джерела, типи загроз, FAQ</title>
 <meta name="description" content="РАДАР.LIVE: як працює онлайн-радар повітряних загроз України, що означають типи БпЛА, ракети, КАБ, звідки дані NEPTUN і MAPA. Відповіді на часті запитання.">
 <link rel="canonical" href="https://nebo-ua.vercel.app/info/">
@@ -16,7 +17,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Про РАДАР.LIVE — як працює радар повітряних загроз">
 <meta name="twitter:description" content="Джерела, типи загроз, позначення, FAQ.">
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/radar/"},{"@type":"WebPage","name":"Про РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/info/","description":"Як працює радар, джерела даних, типи загроз, FAQ."},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Звідки РАДАР.LIVE бере дані?","acceptedAnswer":{"@type":"Answer","text":"З відкритих джерел NEPTUN і MAPA. Допоміжне офіційне джерело — UkraineAlarm."}},{"@type":"Question","name":"Чому радар інколи порожній?","acceptedAnswer":{"@type":"Answer","text":"Маркери з'являються лише для повідомлень із достатньо точними координатами. Повідомлення про області без координат показані лише у стрічці."}},{"@type":"Question","name":"Чи замінює сервіс офіційні сповіщення?","acceptedAnswer":{"@type":"Answer","text":"Ні. орієнтуйтеся на офіційні сигнали повітряної тривоги."}}]}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/"},{"@type":"WebPage","name":"Про РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/info/","description":"Як працює радар, джерела даних, типи загроз, FAQ."},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Звідки РАДАР.LIVE бере дані?","acceptedAnswer":{"@type":"Answer","text":"З відкритих джерел NEPTUN і MAPA. Допоміжне офіційне джерело — UkraineAlarm."}},{"@type":"Question","name":"Чому радар інколи порожній?","acceptedAnswer":{"@type":"Answer","text":"Маркери з'являються лише для повідомлень із достатньо точними координатами. Повідомлення про області без координат показані лише у стрічці."}},{"@type":"Question","name":"Чи замінює сервіс офіційні сповіщення?","acceptedAnswer":{"@type":"Answer","text":"Ні. орієнтуйтеся на офіційні сигнали повітряної тривоги."}}]}]}</script>
 <link rel="icon" type="image/x-icon" href="../favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
@@ -25,19 +26,38 @@
 </head>
 <body>
 <header class="rl-topbar">
-  <a class="rl-brand" href="./" aria-label="РАДАР.LIVE — на радар">
-    <img src="../assets/brand/logo-mark.svg" alt="РАДАР.LIVE">
+  <a class="rl-brand" href="../" aria-label="РАДАР.LIVE — на радар">
+    <img src="../assets/brand/radar-mark.svg" alt="РАДАР.LIVE">
     <span><b>РАДАР.<span>LIVE</span></b><small>Моніторинг повітряних загроз України</small></span>
   </a>
   <nav class="rl-nav" aria-label="Розділи">
-    <a class="rl-btn" style="text-decoration:none;display:inline-flex;align-items:center" href="../">Радар</a>
+    <a class="rl-btn" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px" href="../"><svg aria-hidden="true" style="width:17px;height:17px"><use href="../assets/brand/icons.svg#i-radar"/></svg>Радар</a>
   </nav>
   <div class="rl-top-right"><span class="rl-live stale">ІНФО</span></div>
 </header>
 <main class="rl-doc">
-  <p><a href="../">← Назад до радара</a></p>
-  <h1>Про РАДАР.LIVE</h1>
-  <p>РАДАР.LIVE — онлайн-сервіс моніторингу повітряних загроз України. Сервіс збирає повідомлення з відкритих джерел і показує їх на географічному радарі та у стрічці подій. Координати ніколи не вигадуються: маркер з'являється лише там, де джерело передало достатньо точні дані.</p>
+  <p class="rl-muted"><a href="../">← Назад до радара</a></p>
+
+  <section class="rl-card">
+    <div class="rl-doc-lead">
+      <div>
+        <h1>Що таке РАДАР.LIVE</h1>
+        <p class="rl-muted" style="font-size:15px;line-height:1.6">Сучасний сервіс моніторингу повітряних загроз України.</p>
+        <p class="rl-muted" style="font-size:14px;line-height:1.6">РАДАР.LIVE збирає повідомлення з відкритих джерел і показує їх на географічному радарі та у стрічці подій. Координати ніколи не вигадуються: маркер з'являється лише там, де джерело передало достатньо точні дані.</p>
+        <a class="rl-doc-cta" href="../how-it-works/">Як це працює<svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-help"/></svg></a>
+      </div>
+      <figure style="margin:0">
+        <img src="../assets/brand/ukraine-map.svg" alt="Карта України з областями" width="320" height="200" style="width:100%;height:auto;display:block">
+      </figure>
+    </div>
+  </section>
+
+  <div class="rl-doc-feats">
+    <div class="rl-card rl-info-card"><div class="rl-threat-ico" style="color:#EF3F36"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-source"/></svg></div><h3>Реальні дані</h3><p>Підтверджена інформація з відкритих джерел.</p></div>
+    <div class="rl-card rl-info-card"><div class="rl-threat-ico" style="color:#EF3F36"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-layers"/></svg></div><h3>Кілька джерел</h3><p>Незалежна перевірка даних NEPTUN і MAPA.</p></div>
+    <div class="rl-card rl-info-card"><div class="rl-threat-ico" style="color:#EF3F36"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-radar"/></svg></div><h3>Зручний радар</h3><p>Візуалізація загроз у реальному часі.</p></div>
+    <div class="rl-card rl-info-card"><div class="rl-threat-ico" style="color:#EF3F36"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-bell"/></svg></div><h3>Сповіщення</h3><p>Звукові та візуальні повідомлення.</p></div>
+  </div>
 
   <section class="rl-card" id="how">
     <h2>Як працює радар</h2>
@@ -52,14 +72,14 @@
 
   <section class="rl-card" id="types">
     <h2>Типи повітряних загроз</h2>
-    <ul>
-      <li><b>БпЛА / шахеди</b> — ударні безпілотники, які можуть використовуватися для атак.</li>
-      <li><b>Крилаті ракети</b> — ракети великої дальності повітряного, морського або наземного базування.</li>
-      <li><b>Балістичні ракети</b> — високошвидкісні ракети з коротким часом підльоту.</li>
-      <li><b>КАБ</b> — керовані авіаційні бомби, що застосовуються з літаків.</li>
-      <li><b>Авіація</b> — бойова авіація, яка може нести ракети, КАБ та інші засоби ураження.</li>
-      <li><b>Інші загрози</b> — повідомлення про повітряну небезпеку без уточненого типу.</li>
-    </ul>
+    <div class="rl-info-grid rl-threat-grid">
+      <div class="rl-card rl-info-card"><div class="rl-threat-ico"><svg style="color:#EBAA19" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#uav"/></svg></div><h3>БпЛА / шахеди</h3><p>Ударні безпілотники, які можуть використовуватися для атак.</p></div>
+      <div class="rl-card rl-info-card"><div class="rl-threat-ico"><svg style="color:#EF3F36" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#missile"/></svg></div><h3>Крилаті ракети</h3><p>Ракети великої дальності повітряного, морського або наземного базування.</p></div>
+      <div class="rl-card rl-info-card"><div class="rl-threat-ico"><svg style="color:#D92D2D" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#ballistic"/></svg></div><h3>Балістичні ракети</h3><p>Високошвидкісні ракети з коротким часом підльоту.</p></div>
+      <div class="rl-card rl-info-card"><div class="rl-threat-ico"><svg style="color:#F08B2F" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#kab"/></svg></div><h3>КАБ</h3><p>Керовані авіаційні бомби, що застосовуються з літаків.</p></div>
+      <div class="rl-card rl-info-card"><div class="rl-threat-ico"><svg style="color:#477FE0" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#aircraft"/></svg></div><h3>Авіація</h3><p>Бойова авіація, яка може нести ракети, КАБ та інші засоби ураження.</p></div>
+      <div class="rl-card rl-info-card"><div class="rl-threat-ico"><svg style="color:#64748B" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#other"/></svg></div><h3>Інші загрози</h3><p>Повідомлення про повітряну небезпеку без уточненого типу.</p></div>
+    </div>
   </section>
 
   <section class="rl-card" id="sources">

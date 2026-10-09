@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" role="img" aria-label="Карта України з областями">
+  <!-- Stylised Ukraine silhouette used as an illustrative graphic only:
+       it is NOT a data layer and carries no geographic meaning. -->
+  <g fill="#F0EDE6" stroke="#DCD5C7" stroke-width="1.2" stroke-linejoin="round">
+    <path d="M96 18 L150 12 L205 20 L246 38 L268 62 L262 88 L276 112 L262 140 L236 158 L206 176 L170 184 L132 176 L96 158 L64 130 L44 96 L52 62 L74 34 Z"/>
+  </g>
+  <g fill="#F6E2A8" stroke="none">
+    <path d="M112 40 L150 34 L146 62 L108 66 Z"/>
+    <path d="M96 92 L140 88 L136 118 L94 120 Z"/>
+    <path d="M158 70 L200 68 L198 96 L156 96 Z"/>
+  </g>
+  <g fill="#F3C4BE" stroke="none">
+    <path d="M206 100 L252 96 L248 128 L204 130 Z"/>
+    <path d="M146 126 L192 124 L188 154 L144 154 Z"/>
+  </g>
+  <circle cx="126" cy="86" r="4" fill="#EF3F36"/>
+  <circle cx="126" cy="86" r="9" fill="#EF3F36" opacity=".16"/>
+  <circle cx="126" cy="86" r="15" fill="none" stroke="#EF3F36" stroke-opacity=".4" stroke-width="1.4"/>
+</svg>

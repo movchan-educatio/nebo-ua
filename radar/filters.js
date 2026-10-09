@@ -6,7 +6,8 @@ import { accuracyLevel } from './geo.js';
 export const KIND_FILTERS = ['uav', 'missile', 'ballistic', 'kab', 'aviation', 'other'];
 // Shared kind presentation (single source for full page + embed).
 export const KIND_LABEL = { uav: 'БпЛА', missile: 'Крилата ракета', ballistic: 'Балістика', kab: 'КАБ', aviation: 'Авіація', other: 'Інше' };
-export const KIND_COLOR = { uav: '#D99A00', missile: '#EF3F36', ballistic: '#D9342C', kab: '#ED8B36', aviation: '#4B80D9', other: '#64748B' };
+// Premium palette (centralized design tokens mirror in radar/radar.css :root).
+export const KIND_COLOR = { uav: '#EBAA19', missile: '#EF3F36', ballistic: '#D92D2D', kab: '#F08B2F', aviation: '#477FE0', other: '#64748B' };
 export const KIND_SYMBOL = { uav: 'uav', missile: 'missile', ballistic: 'ballistic', kab: 'kab', aviation: 'aircraft', other: 'other' };
 
 export function normalizeKind(event) {

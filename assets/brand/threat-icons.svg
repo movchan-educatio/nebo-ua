@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg">
-  <!-- Dark outline group: every filled silhouette gets a subtle dark halo
-       (stroke painted UNDER the fill) so markers stay readable over black
-       basemap and over red/orange/yellow alert polygons. Detail strokes
+  <!-- Light halo group: every filled silhouette gets a subtle white halo
+       (stroke painted UNDER the fill) so markers stay readable over the light
+       radar disc and grey contours. Detail strokes
        carry their own explicit stroke and are unaffected. -->
   <!-- ================= SHAHED / GERAN-2 =================
        Loitering munition, top view, nose up (0° = NORTH).
        Wide delta with notched (W) trailing edge, thick fuselage,
        tip winglets, wide rear propeller. NOT a plain triangle. -->
-  <symbol id="shahed" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="shahed" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Delta wing with W trailing-edge notch -->
     <path d="M32 4 L60 45 L45 41.5 L32 47.5 L19 41.5 L4 45 Z" fill="currentColor" stroke="none"/>
     <!-- Thick central fuselage overlapping the wing -->
@@ -27,7 +27,7 @@
        Reads as "це БПЛА" at 22px. Distinct from Shahed delta, FPV quad,
        slim recon and fighter silhouettes.
        Used for any unconfirmed "БПЛА/дрон" — NEVER the Shahed silhouette. -->
-  <symbol id="uav" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="uav" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Wide straight main wings -->
     <path d="M6 24 L58 24 L53 36 L11 36 Z" fill="currentColor" stroke="none"/>
     <!-- Strong fuselage with round nose -->
@@ -41,7 +41,7 @@
   <!-- ================= RECON (fixed-wing UAV) =================
        Wide tapered straight wings, thick fuselage, full tail unit,
        camera gimbal. Visually distinct from Shahed. -->
-  <symbol id="recon" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="recon" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Narrow tapered wings -->
     <path d="M12 24 L52 24 L49 30 L15 30 Z" fill="currentColor" stroke="none"/>
     <!-- Slim fuselage -->
@@ -57,7 +57,7 @@
   <!-- ================= CRUISE MISSILE =================
        Slender body, sharp nose, broad swept mid-wings, cruciform tail.
        Nose up: heading rotates the whole silhouette. -->
-  <symbol id="missile" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="missile" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Sharp nose + slender body -->
     <path d="M32 3 L36 14 L36 50 L28 50 L28 14 Z" fill="currentColor" stroke="none"/>
     <!-- Broad swept mid-wings -->
@@ -75,7 +75,7 @@
   <!-- ================= BALLISTIC MISSILE =================
        Heavy thick body, long conical nose, wide tail fins, nozzle cluster.
        Clearly heavier than the cruise missile. -->
-  <symbol id="ballistic" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="ballistic" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Thick body -->
     <path d="M26 20 L38 20 L38 47 L26 47 Z" fill="currentColor" stroke="none"/>
     <!-- Long conical nose -->
@@ -94,7 +94,7 @@
   <!-- ================= KAB (guided aerial bomb) =================
        Fat ogive body, blunt round nose, prominent UMPK wing band,
        cross tail. A bomb, NOT a missile. -->
-  <symbol id="kab" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="kab" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Fat ogive body, blunt nose -->
     <path d="M32 4 C37.5 10.5 40 19 40 28.5 L40 42 L32 53 L24 42 L24 28.5 C24 19 26.5 10.5 32 4 Z" fill="currentColor" stroke="none"/>
     <!-- Prominent UMPK wing band -->
@@ -110,7 +110,7 @@
 
   <!-- ================= AVIATION (tactical jet) =================
        Pointed nose, big swept wings, twin canted fins, twin engines. -->
-  <symbol id="aircraft" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="aircraft" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Fuselage + pointed nose -->
     <path d="M32 3 L35.5 15 L35.5 49 L28.5 49 L28.5 15 Z" fill="currentColor" stroke="none"/>
     <!-- Big swept main wings -->
@@ -140,7 +140,7 @@
         Top-view quadcopter: central body, 4 diagonal arms, 4 rotor rings
         with motor dots. NOT a plane, NOT a Shahed, NOT generic UAV.
         Used ONLY on explicit FPV source indication. -->
-  <symbol id="fpv" viewBox="0 0 64 64"><g stroke="#050a0f" stroke-opacity="0.8" stroke-width="2.4" paint-order="stroke" stroke-linejoin="round">
+  <symbol id="fpv" viewBox="0 0 64 64"><g stroke="#FFFFFF" stroke-opacity="0.95" stroke-width="3" paint-order="stroke" stroke-linejoin="round">
     <!-- Diagonal arms -->
     <path d="M27 27 L19 19 M37 27 L45 19 M27 37 L19 45 M37 37 L45 45" stroke="currentColor" stroke-width="3" stroke-linecap="round" fill="none"/>
     <!-- Central body -->

@@ -111,10 +111,12 @@ function ensureSprites() {
 function resizeCanvas() {
   const r = canvas.getBoundingClientRect();
   const dpr = Math.min(2, window.devicePixelRatio || 1);
-  const w = Math.max(80, Math.round(r.width));
-  canvas.width = w * dpr;
-  canvas.height = w * dpr;
-  return { w, dpr };
+  // Square buffer only: identical X/Y scale so the outer ring can never
+  // become an oval even if CSS is constrained. Uses the smaller side.
+  const side = Math.max(80, Math.round(Math.min(r.width, r.height || r.width)));
+  canvas.width = side * dpr;
+  canvas.height = side * dpr;
+  return { w: side, dpr };
 }
 
 function currentPoints(size) {
@@ -150,87 +152,84 @@ function rebuildStatic(W, H, dpr, cssSize) {
   const cx = W / 2, cy = H / 2, R = W / 2 - 10 * dpr;
 
   c.beginPath(); c.arc(cx, cy, R, 0, 7);
-  c.fillStyle = '#FFFFFF'; c.fill();
-  c.strokeStyle = '#C9D2DB'; c.lineWidth = 1.5 * dpr; c.stroke();
+  c.fillStyle = '#FBFAF7'; c.fill();
+  c.strokeStyle = '#DDE3EA'; c.lineWidth = 1.5 * dpr; c.stroke();
   c.save();
   c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
 
+  // Oblast contours: filled, very light, so the disc reads as a map backdrop
+  // without ever competing with the markers. Purely presentational — the same
+  // geojson that already drew the outlines, no new data.
   if (state.showContours && state.contours?.length) {
-    c.strokeStyle = 'rgba(100,116,139,0.30)';
-    c.lineWidth = 1 * dpr;
     for (const poly of state.contours) {
       c.beginPath();
-      poly.forEach(([lo, la], i) => {
+      let started = false;
+      for (const [lo, la] of poly) {
         const p = projectRadar(la, lo, state.center, state.range, cssSize);
-        if (!p) return;
+        if (!p) continue;
         const x = p.x * dpr, y = p.y * dpr;
-        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
-      });
+        if (!started) { c.moveTo(x, y); started = true; } else c.lineTo(x, y);
+      }
+      c.closePath();
+      c.fillStyle = '#F0EDE6';
+      c.fill();
+      c.strokeStyle = '#DCD5C7';
+      c.lineWidth = 1 * dpr;
       c.stroke();
     }
   }
 
   const rings = rangeRings(state.range);
-  c.font = `${11 * dpr}px system-ui`;
-  c.textAlign = 'left';
+  c.font = `${11 * dpr}px Inter, system-ui, sans-serif`;
+  c.textAlign = 'center';
   rings.forEach((km, i) => {
     const r = R * ((i + 1) / rings.length);
     const outer = i === rings.length - 1;
-    c.strokeStyle = outer ? '#EF3F36' : '#E2E8F0';
-    c.lineWidth = (outer ? 1.8 : 1.1) * dpr;
+    c.setLineDash(outer ? [] : [4 * dpr, 5 * dpr]);
+    c.strokeStyle = outer ? '#EF3F36' : '#D8DEE6';
+    c.lineWidth = (outer ? 1.4 : 1) * dpr;
     c.beginPath(); c.arc(cx, cy, r, 0, 7); c.stroke();
-    if (outer) {
-      const dg = Math.SQRT1_2;
-      c.fillStyle = '#EF3F36';
-      c.textAlign = 'right';
-      c.fillText(km + ' км', cx + r * dg - 4 * dpr, cy - r * dg + 12 * dpr);
-      c.textAlign = 'left';
-    } else {
-      c.fillStyle = '#64748B';
-      c.fillText(km + ' км', cx + 5 * dpr, cy - r + 13 * dpr);
-    }
+    c.setLineDash([]);
+    // Range label along the north spoke, as on the approved mockup.
+    c.fillStyle = outer ? '#EF3F36' : '#8A94A3';
+    c.fillText(km + ' км', cx, cy - r + 14 * dpr);
   });
 
-  c.strokeStyle = '#EDF1F5';
+  // Faint crosshair axes only — the dashed rings carry the scale.
+  c.strokeStyle = '#E4E8EE';
   c.lineWidth = 1 * dpr;
-  for (let a = 0; a < 360; a += 30) {
-    const rad = (a - 90) * Math.PI / 180;
-    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R); c.stroke();
-  }
-  c.strokeStyle = '#D7DEE6';
+  c.setLineDash([3 * dpr, 5 * dpr]);
   c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.stroke();
+  c.setLineDash([]);
 
   // city labels (real geocoded positions, faint; skipped when unavailable)
   if (state.cityLabels?.length) {
-    c.font = `${10 * dpr}px system-ui`;
+    c.font = `${10 * dpr}px Inter, system-ui, sans-serif`;
     c.textAlign = 'center';
     for (const city of state.cityLabels) {
       const p = projectRadar(city.lat, city.lon, state.center, state.range, cssSize);
       if (!p || !p.inside) continue;
       if (Math.hypot(p.x * dpr - cx, p.y * dpr - cy) < 20 * dpr) continue;
-      c.fillStyle = 'rgba(100,116,139,0.9)';
+      c.fillStyle = 'rgba(100,116,139,0.85)';
       c.fillText(city.name, p.x * dpr, p.y * dpr - 4 * dpr);
     }
   }
 
-  c.font = `700 ${12 * dpr}px system-ui`;
-  c.fillStyle = '#172638';
-  c.textAlign = 'center';
-  c.fillText('Пн', cx, cy - R + 15 * dpr);
-  c.fillText('Пд', cx, cy + R - 7 * dpr);
-  c.fillText('Сх', cx + R - 13 * dpr, cy + 4 * dpr);
-  c.fillText('Зх', cx - R + 13 * dpr, cy + 4 * dpr);
-  c.fillStyle = '#4B80D9';
-  c.beginPath(); c.arc(cx, cy, 4 * dpr, 0, 7); c.fill();
+  // Cardinal points (Пн/Пд/Сх/Зх) are DOM elements positioned OUTSIDE the
+  // disc, so they stay crisp and never overlap the map or the rings.
+  // Center marker: red dot with a white halo ring, as on the mockup.
   c.fillStyle = '#FFFFFF';
-  c.beginPath(); c.arc(cx, cy, 1.6 * dpr, 0, 7); c.fill();
-  // center name under the dot
-  c.font = `700 ${12 * dpr}px system-ui`;
-  c.lineWidth = 3 * dpr;
+  c.beginPath(); c.arc(cx, cy, 5.5 * dpr, 0, 7); c.fill();
+  c.fillStyle = '#EF3F36';
+  c.beginPath(); c.arc(cx, cy, 3.4 * dpr, 0, 7); c.fill();
+  // center name under the dot (halo keeps rings/labels readable)
+  c.font = `700 ${12.5 * dpr}px Inter, system-ui, sans-serif`;
+  c.textAlign = 'center';
+  c.lineWidth = 3.5 * dpr;
   c.strokeStyle = '#FFFFFF';
-  c.strokeText(state.centerName, cx, cy + 18 * dpr);
-  c.fillStyle = '#172638';
-  c.fillText(state.centerName, cx, cy + 18 * dpr);
+  c.strokeText(state.centerName, cx, cy + 19 * dpr);
+  c.fillStyle = '#14263D';
+  c.fillText(state.centerName, cx, cy + 19 * dpr);
   c.restore();
 }
 
@@ -261,9 +260,9 @@ function drawFrame(t) {
     ctx.save();
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
     ctx.translate(cx, cy); ctx.rotate(a);
-    ctx.fillStyle = 'rgba(239,63,54,0.13)';
+    ctx.fillStyle = 'rgba(239,63,54,0.10)';
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.3, 0); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(239,63,54,0.65)'; ctx.lineWidth = 1.5 * dpr;
+    ctx.strokeStyle = 'rgba(239,63,54,0.55)'; ctx.lineWidth = 1.5 * dpr;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R, 0); ctx.stroke();
     ctx.restore();
   }
@@ -272,7 +271,8 @@ function drawFrame(t) {
   const pts = currentPoints(cssW);
   const clusters = clusterPoints(pts.map(p => ({ x: p.x * dpr, y: p.y * dpr, data: p })), 30 * dpr);
   state._clusters = clusters;
-  const sPx = (cssW < 420 ? 19 : 22) * dpr;
+  // Premium sizes: desktop 23px, mobile 20px, selected ring 27px equivalent.
+  const sPx = (cssW < 420 ? 20 : 23) * dpr;
   const now = performance.now();
   for (const c of clusters) {
     if (c.members.length === 1) {
@@ -284,22 +284,40 @@ function drawFrame(t) {
         scale = 0.6 + 0.4 * k;
       }
       const img = spriteImgs.get(glyphSymbol(p.kind, p.e));
+      // Soft colour halo under the glyph so it reads over both the light map
+      // fill and the contours. Decorative only — no coordinate implication.
+      const halo = KIND_COLOR[p.kind] || KIND_COLOR.other;
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(c.x, c.y, sPx * 0.78 * scale, 0, 7); ctx.fill();
+      ctx.globalAlpha = 0.3;
+      ctx.beginPath(); ctx.arc(c.x, c.y, sPx * 0.6 * scale, 0, 7); ctx.fill();
+      ctx.restore();
       if (img && img.complete && img.naturalWidth) {
         ctx.drawImage(img, c.x - (sPx / 2) * scale, c.y - (sPx / 2) * scale, sPx * scale, sPx * scale);
       } else {
-        ctx.fillStyle = KIND_COLOR[p.kind] || KIND_COLOR.other;
+        ctx.fillStyle = halo;
         ctx.beginPath(); ctx.arc(c.x, c.y, 4 * dpr * scale, 0, 7); ctx.fill();
       }
       if (p.id != null && String(p.id) === String(state.selectedId)) {
+        // Selected: soft white halo + red ring (26–28px visual weight).
+        ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4 * dpr;
+        ctx.beginPath(); ctx.arc(c.x, c.y, sPx / 2 + 4 * dpr, 0, 7); ctx.stroke();
         ctx.strokeStyle = '#EF3F36'; ctx.lineWidth = 2 * dpr;
-        ctx.beginPath(); ctx.arc(c.x, c.y, sPx / 2 + 5 * dpr, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(c.x, c.y, sPx / 2 + 4 * dpr, 0, 7); ctx.stroke();
       }
     } else {
       // compact cluster badge with honest count; tap opens the member list
+      ctx.save();
+      ctx.globalAlpha = 0.16;
+      ctx.fillStyle = '#EF3F36';
+      ctx.beginPath(); ctx.arc(c.x, c.y, 17 * dpr, 0, 7); ctx.fill();
+      ctx.restore();
       ctx.beginPath(); ctx.arc(c.x, c.y, 11 * dpr, 0, 7);
       ctx.fillStyle = '#EF3F36'; ctx.fill();
       ctx.fillStyle = '#FFFFFF';
-      ctx.font = `800 ${11 * dpr}px system-ui`;
+      ctx.font = `800 ${11 * dpr}px Inter, system-ui, sans-serif`;
       ctx.textAlign = 'center';
       ctx.fillText(String(Math.min(99, c.members.length)), c.x, c.y + 4 * dpr);
     }
@@ -320,7 +338,7 @@ function drawFrame(t) {
           ? ['У цьому радіусі цілей немає', '']
           : ['Немає повідомлень із достатньо точними координатами', 'для відображення на радарі'];
     ctx.fillStyle = '#64748B';
-    ctx.font = `${12 * dpr}px system-ui`;
+    ctx.font = `${12 * dpr}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText(lines[0], cx, cy + 26 * dpr);
     if (lines[1]) ctx.fillText(lines[1], cx, cy + 42 * dpr);
@@ -452,6 +470,93 @@ function fmtTime(t) {
   if (!Number.isFinite(d.getTime())) return '—';
   return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
 }
+function fmtFullTime(t) {
+  if (!t) return '—';
+  const d = new Date(t);
+  if (!Number.isFinite(d.getTime())) return '—';
+  return d.toLocaleString('uk-UA', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: 'long', year: 'numeric' });
+}
+
+// Mini-map in the detail panel: an OBLIQUE context view centred on the target.
+// Reuses the same projection as the scope; it adds NO coordinate of its own.
+function renderMiniMap(e, distKm) {
+  const cv = $('#rlMiniMap');
+  if (!cv) return;
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const W = Math.round(r.width), H = Math.round(r.height);
+  cv.width = W * dpr; cv.height = H * dpr;
+  const c = cv.getContext('2d');
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.fillStyle = '#FBFAF7'; c.fillRect(0, 0, W, H);
+
+  const hasPos = e.lat != null && e.lon != null && !e.areaOnly;
+  if (!hasPos) {
+    c.fillStyle = '#64748B';
+    c.font = '12px Inter, system-ui, sans-serif';
+    c.textAlign = 'center';
+    c.fillText('Немає координат — лише стрічка', W / 2, H / 2);
+    return;
+  }
+  const ctxCenter = hasPos ? [+e.lat, +e.lon] : state.center;
+  const span = Math.max(1, Math.min(600, (Number(distKm) || 0) * 2 + 60));
+  const size = Math.min(W, H);
+  const pad = 14;
+  // Reuse projectRadar with a local range so the disc fits the box.
+  const kx = 111.32 * Math.cos(ctxCenter[0] * Math.PI / 180);
+  const dx = (0 * kx), dy = 0;
+  void dx; void dy;
+  const k = (size / 2 - pad) / span;
+  const px = (lat, lon) => ({
+    x: W / 2 + (lon - ctxCenter[1]) * kx * k,
+    y: H / 2 - (lat - ctxCenter[0]) * 110.57 * k,
+  });
+
+  // oblast outlines as context (same geojson the scope uses)
+  if (state.contours?.length) {
+    c.strokeStyle = '#DCD5C7';
+    c.lineWidth = 1;
+    for (const poly of state.contours) {
+      c.beginPath();
+      let started = false;
+      for (const [lo, la] of poly) {
+        const p = px(la, lo);
+        if (!started) { c.moveTo(p.x, p.y); started = true; } else c.lineTo(p.x, p.y);
+      }
+      c.stroke();
+    }
+  }
+  // radius ring around the target
+  const rad = Math.min(W, H) / 2 - pad;
+  c.strokeStyle = 'rgba(239,63,54,.45)';
+  c.setLineDash([4, 4]);
+  c.beginPath(); c.arc(W / 2, H / 2, rad, 0, 7); c.stroke();
+  c.setLineDash([]);
+  // red beam from the observation centre toward the target
+  const from = px(state.center[0], state.center[1]);
+  if (Number.isFinite(from.x)) {
+    const grad = c.createLinearGradient(from.x, from.y, W / 2, H / 2);
+    grad.addColorStop(0, 'rgba(239,63,54,0)');
+    grad.addColorStop(1, 'rgba(239,63,54,.28)');
+    c.fillStyle = grad;
+    c.beginPath();
+    c.moveTo(from.x, from.y);
+    c.lineTo(W / 2 - 9, H / 2 + 5); c.lineTo(W / 2 + 9, H / 2 + 5);
+    c.closePath(); c.fill();
+  }
+  // target marker
+  c.fillStyle = '#EF3F36';
+  c.beginPath(); c.arc(W / 2, H / 2, 4.5, 0, 7); c.fill();
+  c.strokeStyle = '#FFFFFF'; c.lineWidth = 1.6;
+  c.beginPath(); c.arc(W / 2, H / 2, 4.5, 0, 7); c.stroke();
+  // place label
+  c.fillStyle = '#64748B';
+  c.font = '11px Inter, system-ui, sans-serif';
+  c.textAlign = 'center';
+  c.fillText(geoDesc(e), W / 2, H - 8);
+}
+
 function geoDesc(e) {
   const place = e.settlement || e.district || e.region || e.derivedRegion;
   if (place) return place;
@@ -459,7 +564,7 @@ function geoDesc(e) {
 }
 function kindIcon(kind, color) {
   const sym = KIND_SYMBOL[kind] || 'other';
-  return `<svg style="color:${color}" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#${sym}"/></svg>`;
+  return `<svg class="rl-ev-ico" style="color:${color}" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#${sym}"/></svg>`;
 }
 
 function pipeAgeMs() {
@@ -496,17 +601,20 @@ function renderFeed() {
   box.innerHTML = list.slice(0, 40).map(e => {
     const kind = normalizeKind(e);
     const color = KIND_COLOR[kind];
-    const d = (e.lat != null && e.lon != null && !e.areaOnly)
-      ? `${formatDistanceKm(haversineKm(state.center[0], state.center[1], +e.lat, +e.lon))} · ${e.source || ''}`
-      : `${esc(e.source || '')}`;
+    const hasPos = e.lat != null && e.lon != null && !e.areaOnly;
+    const dist = hasPos ? formatDistanceKm(haversineKm(state.center[0], state.center[1], +e.lat, +e.lon)) : '—';
     // Honest per-event status: green "active" only with context. When the
     // pipeline itself is stale, the badge says so instead of implying a
-    // fresh confirmation.
+    // fresh confirmation. The dense row shows the short form; the full
+    // wording always stays in the title so nothing is hidden.
     const badge = statusBadge(e, { pipeStale });
-    const st = `<span class="${badge.live ? 'st live' : 'st'}"${badge.title ? ` title="${esc(badge.title)}"` : ''}>${esc(badge.text)}</span>`;
-    return `<button class="rl-event" data-id="${esc(e.trackId ?? e.id ?? '')}" aria-current="${String((e.trackId ?? e.id) === state.selectedId)}">
+    const short = badge.text.split(' · ')[0];
+    const stTitle = badge.text + (badge.title ? ' — ' + badge.title : '');
+    const st = `<span class="${badge.live ? 'st live' : 'st'}">${esc(short)}</span>`;
+    return `<button class="rl-event" data-id="${esc(e.trackId ?? e.id ?? '')}" aria-current="${String((e.trackId ?? e.id) === state.selectedId)}" title="${esc(stTitle)}">
       <time>${esc(fmtTime(e.eventTime || e.timestamp))}</time>${kindIcon(kind, color)}
-      <span><b${kind === 'missile' || kind === 'ballistic' ? ' style="color:#D9342C"' : ''}>${esc(KIND_LABEL[kind])}</b><small>${esc(geoDesc(e))} · ${esc(d)}</small></span>${st}</button>`;
+      <span class="rl-ev-main"><b style="color:${color}">${esc(KIND_LABEL[kind])}</b><em>${esc(geoDesc(e))}</em></span>
+      <span class="rl-ev-meta"><span class="rl-ev-dist">${esc(dist)}</span><span class="rl-ev-src">${esc(e.source || '')}</span></span>${st}</button>`;
   }).join('');
   box.querySelectorAll('.rl-event').forEach(b => b.onclick = () => openDetail(b.dataset.id));
 }
@@ -541,28 +649,29 @@ function renderSources() {
   const snap = state.snapshot;
   const cards = sourceCards(snap?.health);
   const dot = { ONLINE: 'online', DEGRADED: 'delayed', OFFLINE: 'offline', RECOVERING: 'recovering', STALE: 'delayed', IDLE: 'offline' };
-  const lat = (c) => {
-    const ms = Number(c.latencyMs);
-    if (!Number.isFinite(ms) || ms <= 0) return '';
-    return `<small>Затримка ${ms < 1000 ? Math.round(ms) + ' мс' : (ms / 1000).toFixed(0) + ' с'}</small>`;
-  };
   const shortErr = (c) => {
     const e = String(c.error || '');
     if (!e) return 'Очікування';
     return e.length > 60 ? e.slice(0, 60) + '…' : e;
   };
+  const cls = { ONLINE: 'ok', DEGRADED: 'warn', STALE: 'warn', RECOVERING: 'ok', OFFLINE: 'bad', IDLE: 'bad' };
   $('#rlSources').innerHTML = `<div class="rl-source-grid">` + cards.map(c => {
     // UkraineAlarm failures stay visible but human-readable: the raw HTTP
     // status lives behind an expandable technical block, never as the headline.
     const auxFail = c.key === 'OFFICIAL' && c.state === 'OFFLINE';
-    const sub = c.updatedAt ? 'Перевірено ' + esc(fmtTime(c.updatedAt))
-      : auxFail ? 'Джерело тимчасово недоступне' : esc(shortErr(c));
-    const tech = auxFail && c.error ? `<details class="rl-tech"><summary>Технічні деталі</summary><small>${esc(c.error)}</small></details>` : '';
+    const k = cls[c.state] || 'bad';
+    const notes = [];
+    if (c.updatedAt) notes.push('Оновлено ' + esc(fmtTime(c.updatedAt)));
+    if (auxFail && !c.updatedAt) notes.push('Джерело тимчасово недоступне');
+    const ms = Number(c.latencyMs);
+    if (Number.isFinite(ms) && ms > 0) notes.push('Затримка ' + (ms < 1000 ? Math.round(ms) + ' мс' : (ms / 1000).toFixed(0) + ' с'));
+    const tech = auxFail && c.error ? `<details class="rl-tech"><summary>Технічні деталі</summary>${esc(c.error)}</details>` : '';
     return `
-    <div class="rl-source-mini" title="${esc(c.error || c.label)}"><span class="rl-dot ${dot[c.state] || 'offline'}"></span>
-    <b>${esc(c.name)}</b>
-    <div class="row" style="color:${c.state === 'ONLINE' ? 'var(--green)' : c.state === 'OFFLINE' ? 'var(--red)' : 'var(--muted)'}">${esc(c.label)}</div>
-    <small>${sub}</small>${tech}${lat(c)}</div>`;
+    <div class="rl-source-mini" title="${esc(c.error || c.label)}">
+      <span class="rl-src-ico ${k}"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-source"/></svg></span>
+      <span class="rl-src-name">${esc(c.name)}</span>
+      <span class="rl-src-state ${k}">${esc(c.label)}</span>
+      <span class="rl-src-note">${notes.join(' · ') || esc(shortErr(c))}</span>${tech}</div>`;
   }).join('') + `</div>`
     + (snap ? `<p class="rl-muted">Зміна даних: ${snap.dataUpdatedAt ? esc(fmtTime(snap.dataUpdatedAt)) : '—'} · Публікація: ${snap.publishedAt ? esc(fmtTime(snap.publishedAt)) : '—'}</p>` : '');
   // header badge: honest liveness (primaries only)
@@ -587,11 +696,13 @@ function renderKindFilters() {
   const total = KIND_FILTERS.reduce((s, k) => s + (counts[k] || 0), 0);
   const allOn = KIND_FILTERS.every(k => state.kinds.has(k));
   $('#rlKindFilters').innerHTML = `
-    <label class="rl-toggle switch"><input type="checkbox" data-kind="__all" ${allOn ? 'checked' : ''}>
-    <span>Усі загрози</span><span class="n">${total}</span></label>`
+    <label class="rl-kind"><input class="rl-kind-sw" type="checkbox" data-kind="__all" ${allOn ? 'checked' : ''}>
+    <span class="rl-kind-dot" style="background:#64748B;color:#64748B"></span>
+    <span class="rl-kind-label">Усі загрози</span><span class="n">${total}</span></label>`
     + KIND_FILTERS.map(k => `
-    <label class="rl-toggle switch"><input type="checkbox" data-kind="${k}" ${state.kinds.has(k) ? 'checked' : ''}>
-    <span style="color:${KIND_COLOR[k]}">●</span> ${esc(KIND_LABEL[k])}<span class="n">${counts[k] || 0}</span></label>`).join('');
+    <label class="rl-kind"><input class="rl-kind-sw" type="checkbox" data-kind="${k}" ${state.kinds.has(k) ? 'checked' : ''}>
+    <span class="rl-kind-dot" style="background:${KIND_COLOR[k]};color:${KIND_COLOR[k]}"></span>
+    <span class="rl-kind-label">${esc(KIND_LABEL[k])}</span><span class="n">${counts[k] || 0}</span></label>`).join('');
   $$('#rlKindFilters input').forEach(i => i.onchange = () => {
     if (i.dataset.kind === '__all') {
       // Master switch: enables every kind. At least one kind always stays on.
@@ -629,27 +740,35 @@ function openDetail(id) {
   const d = hasPos ? haversineKm(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
   const b = hasPos ? bearingDeg(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
   const confirmed = e.eventTime || e.timestamp;
+  const danger = kind === 'missile' || kind === 'ballistic';
+  const sevCls = danger ? '' : (kind === 'kab' ? ' mid' : ' low');
   $('#rlDetailBody').innerHTML = `
-    <span class="rl-muted">ДЕТАЛЬНА ІНФОРМАЦІЯ ПРО ЗАГРОЗУ</span>
-    <h2 style="margin:6px 0">${kindIcon(kind, KIND_COLOR[kind])} ${esc(KIND_LABEL[kind])}
-    <span class="rl-count" style="background:${kind === 'missile' || kind === 'ballistic' ? 'var(--red)' : 'var(--muted)'}">${esc(SEVERITY[kind])}</span></h2>
-    <p class="rl-muted">${esc(fmtTime(confirmed))} · ${esc(e.source || '')}</p>
+    <div class="rl-detail-hero">
+      ${kindIcon(kind, KIND_COLOR[kind]).replace('class="rl-ev-ico"', 'class="rl-dh-ico"').replace('<svg ', '<svg class="rl-dh-ico" ')}
+      <b style="color:${KIND_COLOR[kind]}">${esc(KIND_LABEL[kind])}</b>
+      <span class="rl-sev${sevCls}">${esc(SEVERITY[kind])}</span>
+    </div>
+    <p class="rl-detail-sub">${esc(fmtFullTime(confirmed))}${e.source ? ' · ' + esc(e.source) : ''}</p>
     <dl class="rl-kv">
       <dt>Джерело</dt><dd>${esc(e.source || '—')}</dd>
-      <dt>Можливе місце</dt><dd>${esc(geoDesc(e))}</dd>
+      <dt>Можливе місцезнаходження</dt><dd>${esc(geoDesc(e))}</dd>
       <dt>Відстань від центру</dt><dd>${hasPos ? esc(formatDistanceKm(d)) : 'невідома (немає координат)'}</dd>
       <dt>Напрямок</dt><dd>${hasPos ? `на ${esc(compassUk(b))} (≈ ${Math.round(b)}°)` : 'недостовірний'}</dd>
       <dt>Рівень точності</dt><dd>${esc(accuracyText(e))}</dd>
-      <dt>Статус</dt><dd>${e.stale || e.status === 'ended' ? 'Завершена' : 'Активна загроза'}</dd>
+      <dt>Статус</dt><dd class="${e.stale || e.status === 'ended' ? '' : 'ok'}">${e.stale || e.status === 'ended' ? 'Завершена' : 'Активна загроза'}</dd>
       <dt>Актуальність</dt><dd>${(pipeAgeMs() ?? Infinity) > 5 * 60000 ? 'Потребує повторної перевірки (' + esc(confirmAgeText()) + ')' : esc(confirmAgeText())}</dd>
       <dt>Останнє підтвердження</dt><dd>${confirmed ? esc(fmtTime(confirmed)) : 'час не передано'}</dd>
     </dl>
-    <div class="rl-warn">Координати є приблизними. Використовуйте інформацію з офіційних джерел для прийняття рішень.</div>
-    <div class="rl-btn-row"><button class="rl-btn" id="rlShowOnRadar" style="flex:1">Показати на радарі</button>
-    <button class="rl-btn" id="rlWatchKind" style="flex:1">Стежити за типом</button></div>
+    <div class="rl-minimap"><canvas id="rlMiniMap" aria-label="Міні-карта положення загрози"></canvas></div>
+    <div class="rl-warn"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-warning"/></svg><span>Координати є приблизними. Використовуйте інформацію з офіційних джерел для прийняття рішень.</span></div>
+    <div class="rl-btn-row"><button class="rl-btn primary" id="rlWatchKind" style="flex:1"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-bell"/></svg>Стежити за цією загрозою</button>
+    <button class="rl-btn" id="rlShowOnRadar" style="flex:none">На радарі</button></div>
     <p class="rl-muted" id="rlWatchNote" style="margin:6px 0 0"></p>`;
   $('#detailCard').hidden = false;
+  const ph = $('#detailPlaceholder');
+  if (ph) ph.hidden = true;
   renderFeed();
+  renderMiniMap(e, d);
   $('#rlShowOnRadar').onclick = () => {
     $('#radarCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
@@ -683,6 +802,8 @@ function openClusterList(members) {
       <span>${esc(KIND_LABEL[kind])} · ${esc(geoDesc(e))}</span>
       <time>${Number.isFinite(d) ? esc(formatDistanceKm(d)) : '—'}</time></button>`).join('')}</div>`;
   $('#detailCard').hidden = false;
+  const ph2 = $('#detailPlaceholder');
+  if (ph2) ph2.hidden = true;
   $('#rlDetailBody').querySelectorAll('.rl-contact').forEach(b => b.onclick = () => openDetail(b.dataset.id));
   $('#detailCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
@@ -700,7 +821,9 @@ function renderAll() {
 function tickClock() {
   try {
     const now = new Date();
-    $('#rlClock').textContent = now.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+    const time = now.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+    const day = now.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' });
+    $('#rlClock').textContent = day + ', ' + time;
     const t = state.lastSuccess;
     $('#rlUpdated').textContent = t
       ? 'Оновлено ' + t.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -829,7 +952,12 @@ function setupControls() {
   });
   canvas.setAttribute('tabindex', '0');
   // detail close
-  $('#rlDetailClose').onclick = () => { $('#detailCard').hidden = true; state.selectedId = null; renderFeed(); };
+  $('#rlDetailClose').onclick = () => {
+    $('#detailCard').hidden = true;
+    const ph3 = $('#detailPlaceholder');
+    if (ph3) ph3.hidden = false;
+    state.selectedId = null; renderFeed();
+  };
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#detailCard').hidden) $('#rlDetailClose').click(); });
   // nav
   const goto = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -846,8 +974,12 @@ function setupControls() {
   const dlg = $('#rlSettings');
   const openSettings = () => { syncAudioDlg(); if (typeof dlg.showModal === 'function' && !dlg.open) dlg.showModal(); };
   $('#rlSettingsBtn').onclick = openSettings;
+  const sb2 = $('#rlSettingsBtn2');
+  if (sb2) sb2.onclick = openSettings;
   $('#rlMobileSettings').onclick = openSettings;
   $('#rlSettingsClose').onclick = () => dlg.close();
+  const closeTop = $('#rlSettingsCloseTop');
+  if (closeTop) closeTop.onclick = () => dlg.close();
   dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
   $('#rlSoundDlg').onchange = (e) => { state.audio.enabled = e.target.checked; saveAudio(); $('#rlSound').checked = e.target.checked; };
   $('#rlVolumeDlg').oninput = (e) => { state.audio.volume = Number(e.target.value) / 100; saveAudio(); $('#rlVolume').value = e.target.value; };
