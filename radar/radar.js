@@ -7,7 +7,7 @@ import { sourceCards, systemBadge } from '../services/overview.js';
 import { classifyThreat } from '../services/threatClassify.js';
 import {
   haversineKm, bearingDeg, projectRadar, formatDistanceKm, formatBearing,
-  compassUk, accuracyLevel, radarPoint, rangeRings,
+  compassUk, accuracyLevel, radarPoint, rangeRings, clusterPoints,
 } from './geo.js';
 import {
   KIND_FILTERS, normalizeKind, isNew, isActive, radarEvents, countByKind,
@@ -38,6 +38,8 @@ const state = {
   onlyActive: false,
   onlyCoords: false,
   showContours: true,
+  animOn: !matchMedia('(prefers-reduced-motion: reduce)').matches,
+  cityLabels: [],
   selectedId: null,
   seenIds: new Set(),
   firstSeenAt: new Map(),
@@ -121,79 +123,139 @@ function currentPoints(size) {
   return pts;
 }
 
+const staticC = document.createElement('canvas');
+let staticKey = '';
+const sctx = staticC.getContext('2d');
+
+function staticCacheKey(cssSize, dpr) {
+  return [cssSize, dpr, state.range,
+    state.center[0].toFixed(3), state.center[1].toFixed(3), state.centerName,
+    state.showContours ? 1 : 0, (state.cityLabels || []).length,
+  ].join('|');
+}
+
+// Static layer (cached): disc, contours, rings, radials, cardinals, center,
+// city labels. Rebuilt only when size/range/center/overlays change — never
+// per animation frame.
+function rebuildStatic(W, H, dpr, cssSize) {
+  staticC.width = W;
+  staticC.height = H;
+  const c = sctx;
+  c.setTransform(1, 0, 0, 1, 0, 0);
+  c.clearRect(0, 0, W, H);
+  const cx = W / 2, cy = H / 2, R = W / 2 - 10 * dpr;
+
+  c.beginPath(); c.arc(cx, cy, R, 0, 7);
+  c.fillStyle = '#FFFFFF'; c.fill();
+  c.strokeStyle = '#C9D2DB'; c.lineWidth = 1.5 * dpr; c.stroke();
+  c.save();
+  c.beginPath(); c.arc(cx, cy, R, 0, 7); c.clip();
+
+  if (state.showContours && state.contours?.length) {
+    c.strokeStyle = 'rgba(100,116,139,0.30)';
+    c.lineWidth = 1 * dpr;
+    for (const poly of state.contours) {
+      c.beginPath();
+      poly.forEach(([lo, la], i) => {
+        const p = projectRadar(la, lo, state.center, state.range, cssSize);
+        if (!p) return;
+        const x = p.x * dpr, y = p.y * dpr;
+        if (i === 0) c.moveTo(x, y); else c.lineTo(x, y);
+      });
+      c.stroke();
+    }
+  }
+
+  const rings = rangeRings(state.range);
+  c.font = `${11 * dpr}px system-ui`;
+  c.textAlign = 'left';
+  rings.forEach((km, i) => {
+    const r = R * ((i + 1) / rings.length);
+    const outer = i === rings.length - 1;
+    c.strokeStyle = outer ? '#EF3F36' : '#E2E8F0';
+    c.lineWidth = (outer ? 1.8 : 1.1) * dpr;
+    c.beginPath(); c.arc(cx, cy, r, 0, 7); c.stroke();
+    if (outer) {
+      const dg = Math.SQRT1_2;
+      c.fillStyle = '#EF3F36';
+      c.textAlign = 'right';
+      c.fillText(km + ' км', cx + r * dg - 4 * dpr, cy - r * dg + 12 * dpr);
+      c.textAlign = 'left';
+    } else {
+      c.fillStyle = '#64748B';
+      c.fillText(km + ' км', cx + 5 * dpr, cy - r + 13 * dpr);
+    }
+  });
+
+  c.strokeStyle = '#EDF1F5';
+  c.lineWidth = 1 * dpr;
+  for (let a = 0; a < 360; a += 30) {
+    const rad = (a - 90) * Math.PI / 180;
+    c.beginPath(); c.moveTo(cx, cy); c.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R); c.stroke();
+  }
+  c.strokeStyle = '#D7DEE6';
+  c.beginPath(); c.moveTo(cx - R, cy); c.lineTo(cx + R, cy); c.moveTo(cx, cy - R); c.lineTo(cx, cy + R); c.stroke();
+
+  // city labels (real geocoded positions, faint; skipped when unavailable)
+  if (state.cityLabels?.length) {
+    c.font = `${10 * dpr}px system-ui`;
+    c.textAlign = 'center';
+    for (const city of state.cityLabels) {
+      const p = projectRadar(city.lat, city.lon, state.center, state.range, cssSize);
+      if (!p || !p.inside) continue;
+      if (Math.hypot(p.x * dpr - cx, p.y * dpr - cy) < 20 * dpr) continue;
+      c.fillStyle = 'rgba(100,116,139,0.9)';
+      c.fillText(city.name, p.x * dpr, p.y * dpr - 4 * dpr);
+    }
+  }
+
+  c.font = `700 ${12 * dpr}px system-ui`;
+  c.fillStyle = '#172638';
+  c.textAlign = 'center';
+  c.fillText('Пн', cx, cy - R + 15 * dpr);
+  c.fillText('Пд', cx, cy + R - 7 * dpr);
+  c.fillText('Сх', cx + R - 13 * dpr, cy + 4 * dpr);
+  c.fillText('Зх', cx - R + 13 * dpr, cy + 4 * dpr);
+  c.fillStyle = '#4B80D9';
+  c.beginPath(); c.arc(cx, cy, 4 * dpr, 0, 7); c.fill();
+  c.fillStyle = '#FFFFFF';
+  c.beginPath(); c.arc(cx, cy, 1.6 * dpr, 0, 7); c.fill();
+  // center name under the dot
+  c.font = `700 ${12 * dpr}px system-ui`;
+  c.lineWidth = 3 * dpr;
+  c.strokeStyle = '#FFFFFF';
+  c.strokeText(state.centerName, cx, cy + 18 * dpr);
+  c.fillStyle = '#172638';
+  c.fillText(state.centerName, cx, cy + 18 * dpr);
+  c.restore();
+}
+
+function glyphSymbol(kind, e) {
+  if (kind === 'uav' && /shahed/i.test([e?.kind, e?.subtype].join(' '))) return 'shahed';
+  return KIND_SYMBOL[kind] || 'other';
+}
+
 function drawFrame(t) {
   if (!scopeActive) return;
   rafId = requestAnimationFrame(drawFrame);
   const dt = Math.min(100, t - (lastFrame || t));
   lastFrame = t;
-  if (!reducedMotion()) sweepDeg = (sweepDeg + dt / 6000 * 360) % 360;
+  const animate = state.animOn && !reducedMotion();
+  if (animate) sweepDeg = (sweepDeg + dt / 6000 * 360) % 360;
   const { w: cssW, dpr } = resizeCanvas();
-  const W = canvas.width, H = canvas.height, size = W;
+  const W = canvas.width, H = canvas.height;
+  const key = staticCacheKey(cssW, dpr);
+  if (key !== staticKey) { staticKey = key; rebuildStatic(W, H, dpr, cssW); }
+  const cx = W / 2, cy = H / 2, R = W / 2 - 10 * dpr;
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, W, H);
-  const cx = W / 2, cy = H / 2, R = W / 2 - 10 * dpr;
-
-  // disc
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7);
-  ctx.fillStyle = '#FFFFFF'; ctx.fill();
-  ctx.strokeStyle = '#C9D2DB'; ctx.lineWidth = 1.5 * dpr; ctx.stroke();
-  ctx.save();
-  ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
-
-  // faint Ukraine contours (real boundaries, optional)
-  if (state.showContours && state.contours) {
-    ctx.strokeStyle = 'rgba(101,113,132,0.28)';
-    ctx.lineWidth = 1 * dpr;
-    for (const poly of state.contours) {
-      ctx.beginPath();
-      poly.forEach(([lo, la], i) => {
-        const p = projectRadar(la, lo, state.center, state.range, size / dpr);
-        if (!p) return;
-        const x = p.x * dpr, y = p.y * dpr;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-      });
-      ctx.stroke();
-    }
-  }
-
-  // rings + labels (outer label sits on the NE diagonal: the vertical axis
-  // is taken by the Пн cardinal chip)
-  const rings = rangeRings(state.range);
-  ctx.font = `${11 * dpr}px system-ui`;
-  ctx.fillStyle = '#657184';
-  ctx.textAlign = 'left';
-  rings.forEach((km, i) => {
-    const r = R * ((i + 1) / rings.length);
-    const outer = i === rings.length - 1;
-    ctx.strokeStyle = outer ? '#EF3F36' : '#E2E7ED';
-    ctx.lineWidth = (outer ? 1.8 : 1.1) * dpr;
-    ctx.beginPath(); ctx.arc(cx, cy, r, 0, 7); ctx.stroke();
-    if (outer) {
-      const dg = Math.SQRT1_2;
-      ctx.fillStyle = '#EF3F36';
-      ctx.textAlign = 'right';
-      ctx.fillText(km + ' км', cx + r * dg - 4 * dpr, cy - r * dg + 12 * dpr);
-      ctx.textAlign = 'left';
-    } else {
-      ctx.fillStyle = '#657184';
-      ctx.fillText(km + ' км', cx + 5 * dpr, cy - r + 13 * dpr);
-    }
-  });
-
-  // thin radials every 30° + cross
-  ctx.strokeStyle = '#EDF1F5';
-  ctx.lineWidth = 1 * dpr;
-  for (let a = 0; a < 360; a += 30) {
-    const rad = (a - 90) * Math.PI / 180;
-    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R); ctx.stroke();
-  }
-  ctx.strokeStyle = '#D7DEE6';
-  ctx.beginPath(); ctx.moveTo(cx - R, cy); ctx.lineTo(cx + R, cy); ctx.moveTo(cx, cy - R); ctx.lineTo(cx, cy + R); ctx.stroke();
+  ctx.drawImage(staticC, 0, 0);
 
   // sweep (decorative only — never gates data)
-  if (!reducedMotion()) {
+  if (animate) {
     const a = (sweepDeg - 90) * Math.PI / 180;
     ctx.save();
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
     ctx.translate(cx, cy); ctx.rotate(a);
     ctx.fillStyle = 'rgba(239,63,54,0.13)';
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.3, 0); ctx.closePath(); ctx.fill();
@@ -202,59 +264,48 @@ function drawFrame(t) {
     ctx.restore();
   }
 
-  // markers
-  const pts = currentPoints(size / dpr);
-  state._pts = pts.map(p => ({ ...p, x: p.x * dpr, y: p.y * dpr }));
+  // markers: bare glyphs (no discs), clustered when overlapping
+  const pts = currentPoints(cssW);
+  const clusters = clusterPoints(pts.map(p => ({ x: p.x * dpr, y: p.y * dpr, data: p })), 30 * dpr);
+  state._clusters = clusters;
+  const sPx = (cssW < 420 ? 19 : 22) * dpr;
   const now = performance.now();
-  for (const p of state._pts) {
-    const color = KIND_COLOR[p.kind] || KIND_COLOR.other;
-    const sPx = 22 * dpr;
-    const born = state.firstSeenAt.get(p.id);
-    let scale = 1;
-    if (born && !reducedMotion()) {
-      const k = Math.min(1, (now - born) / 300);
-      scale = 0.6 + 0.4 * k;
-    }
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.beginPath(); ctx.arc(0, 0, (sPx / 2 + 2 * dpr) * scale, 0, 7);
-    ctx.fillStyle = '#FFFFFF'; ctx.fill();
-    ctx.strokeStyle = color; ctx.lineWidth = 1.6 * dpr; ctx.stroke();
-    const sym = p.kind === 'uav' && /shahed/i.test([p.e.kind, p.e.subtype].join(' ')) ? 'shahed'
-      : (KIND_SYMBOL[p.kind] || 'other');
-    const img = spriteImgs.get(sym);
-    if (img && img.complete && img.naturalWidth) {
-      ctx.globalAlpha = 1;
-      ctx.drawImage(img, (-sPx / 2) * scale, (-sPx / 2) * scale, sPx * scale, sPx * scale);
-      // tint ring already colored; glyph drawn as-is
+  for (const c of clusters) {
+    if (c.members.length === 1) {
+      const p = c.members[0].data;
+      const born = state.firstSeenAt.get(p.id);
+      let scale = 1;
+      if (born && animate) {
+        const k = Math.min(1, (now - born) / 300);
+        scale = 0.6 + 0.4 * k;
+      }
+      const img = spriteImgs.get(glyphSymbol(p.kind, p.e));
+      if (img && img.complete && img.naturalWidth) {
+        ctx.drawImage(img, c.x - (sPx / 2) * scale, c.y - (sPx / 2) * scale, sPx * scale, sPx * scale);
+      } else {
+        ctx.fillStyle = KIND_COLOR[p.kind] || KIND_COLOR.other;
+        ctx.beginPath(); ctx.arc(c.x, c.y, 4 * dpr * scale, 0, 7); ctx.fill();
+      }
+      if (p.id != null && String(p.id) === String(state.selectedId)) {
+        ctx.strokeStyle = '#EF3F36'; ctx.lineWidth = 2 * dpr;
+        ctx.beginPath(); ctx.arc(c.x, c.y, sPx / 2 + 5 * dpr, 0, 7); ctx.stroke();
+      }
     } else {
-      ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(0, 0, 4 * dpr * scale, 0, 7); ctx.fill();
-    }
-    ctx.restore();
-    if (p.id != null && String(p.id) === String(state.selectedId)) {
-      ctx.strokeStyle = '#EF3F36'; ctx.lineWidth = 2 * dpr;
-      ctx.beginPath(); ctx.arc(p.x, p.y, sPx / 2 + 7 * dpr, 0, 7); ctx.stroke();
+      // compact cluster badge with honest count; tap opens the member list
+      ctx.beginPath(); ctx.arc(c.x, c.y, 11 * dpr, 0, 7);
+      ctx.fillStyle = '#EF3F36'; ctx.fill();
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = `800 ${11 * dpr}px system-ui`;
+      ctx.textAlign = 'center';
+      ctx.fillText(String(Math.min(99, c.members.length)), c.x, c.y + 4 * dpr);
     }
   }
 
-  // cardinals + center
-  ctx.font = `700 ${12 * dpr}px system-ui`;
-  ctx.fillStyle = '#172638';
-  ctx.textAlign = 'center';
-  ctx.fillText('Пн', cx, cy - R + 15 * dpr);
-  ctx.fillText('Пд', cx, cy + R - 7 * dpr);
-  ctx.fillText('Сх', cx + R - 13 * dpr, cy + 4 * dpr);
-  ctx.fillText('Зх', cx - R + 13 * dpr, cy + 4 * dpr);
-  ctx.fillStyle = '#4B80D9';
-  ctx.beginPath(); ctx.arc(cx, cy, 4 * dpr, 0, 7); ctx.fill();
-  ctx.fillStyle = '#FFFFFF';
-  ctx.beginPath(); ctx.arc(cx, cy, 1.6 * dpr, 0, 7); ctx.fill();
-
   // empty state (honest: no plottable coords, not "no threats")
   if (!pts.length) {
-    ctx.fillStyle = '#657184';
+    ctx.fillStyle = '#64748B';
     ctx.font = `${12 * dpr}px system-ui`;
+    ctx.textAlign = 'center';
     ctx.fillText('Немає повідомлень із достатньо точними координатами', cx, cy + 26 * dpr);
     ctx.fillText('для відображення на радарі', cx, cy + 42 * dpr);
   }
@@ -425,7 +476,7 @@ function renderFeed() {
       : isNew(e) ? '<span class="st live">Нова</span>' : '<span class="st live">Активна</span>';
     return `<button class="rl-event" data-id="${esc(e.trackId ?? e.id ?? '')}" aria-current="${String((e.trackId ?? e.id) === state.selectedId)}">
       <time>${esc(fmtTime(e.eventTime || e.timestamp))}</time>${kindIcon(kind, color)}
-      <span><b>${esc(KIND_LABEL[kind])}</b><small>${esc(geoDesc(e))} · ${esc(d)}</small></span>${st}</button>`;
+      <span><b${kind === 'missile' || kind === 'ballistic' ? ' style="color:#D9342C"' : ''}>${esc(KIND_LABEL[kind])}</b><small>${esc(geoDesc(e))} · ${esc(d)}</small></span>${st}</button>`;
   }).join('');
   box.querySelectorAll('.rl-event').forEach(b => b.onclick = () => openDetail(b.dataset.id));
 }
@@ -455,16 +506,28 @@ function renderSources() {
   const snap = state.snapshot;
   const cards = sourceCards(snap?.health);
   const dot = { ONLINE: 'online', DEGRADED: 'delayed', OFFLINE: 'offline', RECOVERING: 'recovering', STALE: 'delayed', IDLE: 'offline' };
-  $('#rlSources').innerHTML = cards.map(c => `
-    <div class="rl-source"><span class="rl-dot ${dot[c.state] || 'offline'}"></span>
-    <span><b>${esc(c.name)}</b>
-    <small>${esc(c.label)}${c.updatedAt ? ' · перевірено ' + esc(fmtTime(c.updatedAt)) : ''}</small></span></div>`).join('')
+  const lat = (c) => {
+    const ms = Number(c.latencyMs);
+    if (!Number.isFinite(ms) || ms <= 0) return '';
+    return `<small>Затримка ${ms < 1000 ? Math.round(ms) + ' мс' : (ms / 1000).toFixed(0) + ' с'}</small>`;
+  };
+  const shortErr = (c) => {
+    const e = String(c.error || '');
+    if (!e) return 'Очікування';
+    return e.length > 60 ? e.slice(0, 60) + '…' : e;
+  };
+  $('#rlSources').innerHTML = `<div class="rl-source-grid">` + cards.map(c => `
+    <div class="rl-source-mini" title="${esc(c.error || c.label)}"><span class="rl-dot ${dot[c.state] || 'offline'}"></span>
+    <b>${esc(c.name)}</b>
+    <div class="row" style="color:${c.state === 'ONLINE' ? 'var(--green)' : c.state === 'OFFLINE' ? 'var(--red)' : 'var(--muted)'}">${esc(c.label)}</div>
+    <small>${c.updatedAt ? 'Перевірено ' + esc(fmtTime(c.updatedAt)) : esc(shortErr(c))}</small>${lat(c)}</div>`).join('') + `</div>`
     + (snap ? `<p class="rl-muted">Зміна даних: ${snap.dataUpdatedAt ? esc(fmtTime(snap.dataUpdatedAt)) : '—'} · Публікація: ${snap.publishedAt ? esc(fmtTime(snap.publishedAt)) : '—'}</p>` : '');
   // header badge: honest liveness (primaries only)
   const age = state.lastSuccess ? Date.now() - state.lastSuccess.getTime() : null;
   const badge = systemBadge(cards, age);
   const el = $('#rlLive');
   el.textContent = badge.level === 'ok' ? 'LIVE' : badge.text.toUpperCase();
+  el.title = badge.text;
   el.classList.toggle('stale', badge.level !== 'ok');
 }
 
@@ -478,13 +541,23 @@ function renderStatus(fetchFailed = false) {
 
 function renderKindFilters() {
   const counts = countByKind((state.snapshot?.events || []).filter(e => !e.stale));
-  $('#rlKindFilters').innerHTML = KIND_FILTERS.map(k => `
-    <label class="rl-toggle"><input type="checkbox" data-kind="${k}" ${state.kinds.has(k) ? 'checked' : ''}>
+  const total = KIND_FILTERS.reduce((s, k) => s + (counts[k] || 0), 0);
+  const allOn = KIND_FILTERS.every(k => state.kinds.has(k));
+  $('#rlKindFilters').innerHTML = `
+    <label class="rl-toggle switch"><input type="checkbox" data-kind="__all" ${allOn ? 'checked' : ''}>
+    <span>Усі загрози</span><span class="n">${total}</span></label>`
+    + KIND_FILTERS.map(k => `
+    <label class="rl-toggle switch"><input type="checkbox" data-kind="${k}" ${state.kinds.has(k) ? 'checked' : ''}>
     <span style="color:${KIND_COLOR[k]}">●</span> ${esc(KIND_LABEL[k])}<span class="n">${counts[k] || 0}</span></label>`).join('');
   $$('#rlKindFilters input').forEach(i => i.onchange = () => {
-    if (i.checked) state.kinds.add(i.dataset.kind); else state.kinds.delete(i.dataset.kind);
-    if (!state.kinds.size) state.kinds = new Set(KIND_FILTERS);
-    savePrefs(); syncDialogKinds(); renderFeed(); renderContacts();
+    if (i.dataset.kind === '__all') {
+      // Master switch: enables every kind. At least one kind always stays on.
+      state.kinds = new Set(KIND_FILTERS);
+    } else {
+      if (i.checked) state.kinds.add(i.dataset.kind); else state.kinds.delete(i.dataset.kind);
+      if (!state.kinds.size) state.kinds = new Set(KIND_FILTERS);
+    }
+    savePrefs(); syncDialogKinds(); renderKindFilters(); renderFeed(); renderContacts();
   });
 }
 
@@ -499,6 +572,11 @@ function accuracyText(e) {
   return 'Місце невідоме — лише стрічка';
 }
 
+const SEVERITY = {
+  missile: 'Висока небезпека', ballistic: 'Висока небезпека',
+  kab: 'Підвищена небезпека', uav: 'Моніторинг', aviation: 'Моніторинг', other: 'Моніторинг',
+};
+
 function openDetail(id) {
   const e = (state.snapshot?.events || []).find(x => String(x.trackId ?? x.id) === String(id));
   if (!e) return;
@@ -507,10 +585,12 @@ function openDetail(id) {
   const hasPos = e.lat != null && e.lon != null && !e.areaOnly;
   const d = hasPos ? haversineKm(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
   const b = hasPos ? bearingDeg(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
+  const confirmed = e.eventTime || e.timestamp;
   $('#rlDetailBody').innerHTML = `
     <span class="rl-muted">ДЕТАЛЬНА ІНФОРМАЦІЯ ПРО ЗАГРОЗУ</span>
-    <h2 style="margin:6px 0">${kindIcon(kind, KIND_COLOR[kind])} ${esc(KIND_LABEL[kind])}</h2>
-    <p class="rl-muted">${esc(fmtTime(e.eventTime || e.timestamp))} · ${esc(e.source || '')}</p>
+    <h2 style="margin:6px 0">${kindIcon(kind, KIND_COLOR[kind])} ${esc(KIND_LABEL[kind])}
+    <span class="rl-count" style="background:${kind === 'missile' || kind === 'ballistic' ? 'var(--red)' : 'var(--muted)'}">${esc(SEVERITY[kind])}</span></h2>
+    <p class="rl-muted">${esc(fmtTime(confirmed))} · ${esc(e.source || '')}</p>
     <dl class="rl-kv">
       <dt>Джерело</dt><dd>${esc(e.source || '—')}</dd>
       <dt>Можливе місце</dt><dd>${esc(geoDesc(e))}</dd>
@@ -518,14 +598,48 @@ function openDetail(id) {
       <dt>Напрямок</dt><dd>${hasPos ? `на ${esc(compassUk(b))} (≈ ${Math.round(b)}°)` : 'недостовірний'}</dd>
       <dt>Рівень точності</dt><dd>${esc(accuracyText(e))}</dd>
       <dt>Статус</dt><dd>${e.stale || e.status === 'ended' ? 'Завершена' : 'Активна загроза'}</dd>
+      <dt>Останнє підтвердження</dt><dd>${confirmed ? esc(fmtTime(confirmed)) : 'час не передано'}</dd>
     </dl>
     <div class="rl-warn">Координати є приблизними. Використовуйте інформацію з офіційних джерел для прийняття рішень.</div>
-    <button class="rl-btn" id="rlShowOnRadar" style="width:100%">Показати на радарі</button>`;
+    <div class="rl-btn-row"><button class="rl-btn" id="rlShowOnRadar" style="flex:1">Показати на радарі</button>
+    <button class="rl-btn" id="rlWatchKind" style="flex:1">Стежити за типом</button></div>
+    <p class="rl-muted" id="rlWatchNote" style="margin:6px 0 0"></p>`;
   $('#detailCard').hidden = false;
   renderFeed();
   $('#rlShowOnRadar').onclick = () => {
     $('#radarCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+  $('#rlWatchKind').onclick = (ev) => {
+    state.audio.enabled = true;
+    state.audio.kinds[kind] = true;
+    saveAudio(); syncAudioUI();
+    blip(660);
+    const note = $('#rlWatchNote');
+    if (note) note.textContent = `Звук увімкнено для типу «${KIND_LABEL[kind]}». Сигнал м'який, не сирена.`;
+    ev.target.disabled = true;
+  };
+  $('#detailCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// Cluster tap: honest member list (real positions untouched) to pick from.
+function openClusterList(members) {
+  state.selectedId = null;
+  const rows = members.map(e => {
+    const kind = normalizeKind(e);
+    const hasPos = e.lat != null && e.lon != null && !e.areaOnly;
+    const d = hasPos ? haversineKm(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
+    return { e, kind, d };
+  }).sort((a, b) => (a.d || Infinity) - (b.d || Infinity));
+  $('#rlDetailBody').innerHTML = `
+    <span class="rl-muted">ПОРУЧ ${rows.length} ПОВІДОМЛЕНЬ</span>
+    <h2 style="margin:6px 0">Виберіть загрозу</h2>
+    <p class="rl-muted">Маркери накладаються — координати не зміщено.</p>
+    <div class="rl-cluster-list">${rows.map(({ e, kind, d }) => `
+      <button class="rl-contact" data-id="${esc(e.trackId ?? e.id ?? '')}">${kindIcon(kind, KIND_COLOR[kind])}
+      <span>${esc(KIND_LABEL[kind])} · ${esc(geoDesc(e))}</span>
+      <time>${Number.isFinite(d) ? esc(formatDistanceKm(d)) : '—'}</time></button>`).join('')}</div>`;
+  $('#detailCard').hidden = false;
+  $('#rlDetailBody').querySelectorAll('.rl-contact').forEach(b => b.onclick = () => openDetail(b.dataset.id));
   $('#detailCard').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
@@ -578,13 +692,27 @@ function setupControls() {
     state.tab = b.dataset.tab;
     renderFeed();
   });
-  // extra filters
-  $('#rlOnlyNew').onchange = (e) => { state.onlyNew = e.target.checked; renderFeed(); renderContacts(); };
-  $('#rlOnlyActive').onchange = (e) => { state.onlyActive = e.target.checked; renderFeed(); renderContacts(); };
-  $('#rlOnlyCoords').onchange = (e) => { state.onlyCoords = e.target.checked; renderFeed(); renderContacts(); };
-  $('#rlContours').checked = state.showContours;
-  $('#rlContours').onchange = (e) => { state.showContours = e.target.checked; savePrefs(); };
-  // popular cities (resolved via Nominatim — never hardcoded coords)
+  // extra filters + contours + sweep animation live in the settings dialog
+  const extra = [
+    ['#rlOnlyNewDlg', 'onlyNew'], ['#rlOnlyActiveDlg', 'onlyActive'], ['#rlOnlyCoordsDlg', 'onlyCoords'],
+  ];
+  for (const [sel, key] of extra) {
+    const el = $(sel);
+    if (el) { el.checked = !!state[key]; el.onchange = (e) => { state[key] = e.target.checked; renderFeed(); renderContacts(); }; }
+  }
+  const animDlg = $('#rlAnimDlg');
+  if (animDlg) { animDlg.checked = state.animOn; animDlg.onchange = (e) => { state.animOn = e.target.checked; }; }
+  // oblast select (real coords via Nominatim on choice — nothing hardcoded)
+  const OBLASTS = ['Вінницька область', 'Волинська область', 'Дніпропетровська область', 'Донецька область', 'Житомирська область', 'Закарпатська область', 'Запорізька область', 'Івано-Франківська область', 'Київська область', 'Кіровоградська область', 'Луганська область', 'Львівська область', 'Миколаївська область', 'Одеська область', 'Полтавська область', 'Рівненська область', 'Сумська область', 'Тернопільська область', 'Харківська область', 'Херсонська область', 'Хмельницька область', 'Черкаська область', 'Чернівецька область', 'Чернігівська область', 'м. Київ'];
+  const oblastSel = $('#rlOblast');
+  if (oblastSel) {
+    oblastSel.innerHTML = '<option value="">Оберіть область…</option>' + OBLASTS.map(n => `<option value="${esc(n)}">${esc(n)}</option>`).join('');
+    oblastSel.onchange = async () => {
+      if (!oblastSel.value) return;
+      await pickCity(oblastSel.value);
+      oblastSel.value = '';
+    };
+  }
   const pop = $('#rlPopular');
   pop.innerHTML = POPULAR.map(n => `<button class="rl-chip" data-city="${esc(n)}">${esc(n)}</button>`).join('');
   pop.addEventListener('click', async (e) => {
@@ -639,18 +767,20 @@ function setupControls() {
   $('#rlSound').onchange = (e) => { state.audio.enabled = e.target.checked; saveAudio(); syncAudioDlg(); if (e.target.checked) blip(660); };
   $('#rlVolume').oninput = (e) => { state.audio.volume = Number(e.target.value) / 100; saveAudio(); };
   $('#rlTestSound').onclick = () => blip(660);
-  // canvas click -> detail
+  // canvas click -> nearest cluster: single opens detail, multi opens list
   canvas.style.cursor = 'pointer';
   canvas.addEventListener('click', (ev) => {
     const r = canvas.getBoundingClientRect();
     const dpr = canvas.width / r.width;
     const x = (ev.clientX - r.left) * dpr, y = (ev.clientY - r.top) * dpr;
     let best = null, bd = 24 * dpr;
-    for (const p of state._pts || []) {
-      const d = Math.hypot(p.x - x, p.y - y);
-      if (d < bd) { bd = d; best = p.e; }
+    for (const c of state._clusters || []) {
+      const d = Math.hypot(c.x - x, c.y - y);
+      if (d < bd) { bd = d; best = c; }
     }
-    if (best) openDetail(best.trackId ?? best.id);
+    if (!best) return;
+    if (best.members.length === 1) openDetail(best.members[0].data.trackId ?? best.members[0].data.id);
+    else openClusterList(best.members.map(m => m.data));
   });
   canvas.setAttribute('tabindex', '0');
   // detail close
@@ -666,6 +796,7 @@ function setupControls() {
       $$('.rl-nav button').forEach(x => x.classList.toggle('active', x === b));
     }
   }));
+  $$('[data-href]').forEach(b => b.addEventListener('click', () => { location.assign(b.dataset.href); }));
   // settings dialog
   const dlg = $('#rlSettings');
   const openSettings = () => { syncAudioDlg(); if (typeof dlg.showModal === 'function' && !dlg.open) dlg.showModal(); };
@@ -676,7 +807,12 @@ function setupControls() {
   $('#rlSoundDlg').onchange = (e) => { state.audio.enabled = e.target.checked; saveAudio(); $('#rlSound').checked = e.target.checked; };
   $('#rlVolumeDlg').oninput = (e) => { state.audio.volume = Number(e.target.value) / 100; saveAudio(); $('#rlVolume').value = e.target.value; };
   $('#rlTestSoundDlg').onclick = () => blip(660);
-  $('#rlContoursDlg').onchange = (e) => { state.showContours = e.target.checked; $('#rlContours').checked = e.target.checked; savePrefs(); };
+  $('#rlContoursDlg').onchange = (e) => { state.showContours = e.target.checked; savePrefs(); };
+  const sndKinds = [['#rlSndUav', 'uav'], ['#rlSndMissile', 'missile'], ['#rlSndKab', 'kab'], ['#rlSndAviation', 'aviation']];
+  for (const [sel, k] of sndKinds) {
+    const el = $(sel);
+    if (el) { el.checked = state.audio.kinds[k] !== false; el.onchange = (e) => { state.audio.kinds[k] = e.target.checked; saveAudio(); }; }
+  }
   const kindDlg = [['#rlUavDlg', 'uav'], ['#rlMissileDlg', 'missile'], ['#rlBallisticDlg', 'ballistic'], ['#rlKabDlg', 'kab'], ['#rlAviationDlg', 'aviation']];
   for (const [sel, k] of kindDlg) {
     $(sel).onchange = (e) => {
@@ -686,12 +822,36 @@ function setupControls() {
     };
   }
   syncAudioDlg(); syncDialogKinds();
+  syncExtraDlg();
+  const animDlg2 = $('#rlAnimDlg');
+  if (animDlg2) animDlg2.checked = state.animOn;
   $('#rlContoursDlg').checked = state.showContours;
 }
 
 function syncAudioDlg() {
-  $('#rlSoundDlg').checked = state.audio.enabled;
-  $('#rlVolumeDlg').value = Math.round((state.audio.volume ?? 0.65) * 100);
+  const s = $('#rlSoundDlg'), v = $('#rlVolumeDlg');
+  if (s) s.checked = state.audio.enabled;
+  if (v) v.value = Math.round((state.audio.volume ?? 0.65) * 100);
+  const panelS = $('#rlSound'), panelV = $('#rlVolume');
+  if (panelS) panelS.checked = state.audio.enabled;
+  if (panelV) panelV.value = Math.round((state.audio.volume ?? 0.65) * 100);
+}
+
+function syncAudioUI() {
+  syncAudioDlg();
+  const map = { uav: '#rlSndUav', missile: '#rlSndMissile', kab: '#rlSndKab', aviation: '#rlSndAviation' };
+  for (const [k, sel] of Object.entries(map)) {
+    const el = $(sel);
+    if (el) el.checked = state.audio.kinds[k] !== false;
+  }
+}
+
+function syncExtraDlg() {
+  const map = { onlyNew: '#rlOnlyNewDlg', onlyActive: '#rlOnlyActiveDlg', onlyCoords: '#rlOnlyCoordsDlg' };
+  for (const [k, sel] of Object.entries(map)) {
+    const el = $(sel);
+    if (el) el.checked = !!state[k];
+  }
 }
 
 async function pickCity(name) {
@@ -711,16 +871,59 @@ function setCenter(place, save = true) {
   renderContacts();
 }
 
+// Faint city labels: real Nominatim positions cached for 30 days. If the
+// geocoder is unreachable, labels are simply skipped (clean radar over
+// wrong labels).
+const CITY_LABEL_NAMES = ['Львів', 'Вінниця', 'Полтава', 'Кропивницький', 'Запоріжжя', 'Миколаїв', 'Одеса'];
+
 // ── Boot ──────────────────────────────────────────────────────────
 loadPrefs();
-$('#rlCenterLabel').textContent = 'Центр: ' + state.centerName;
+const bootLabel = $('#rlCenterLabel');
+if (bootLabel) bootLabel.textContent = 'Центр: ' + state.centerName + (state.centerName === 'Україна' ? ' (приблизний)' : '');
 setupControls();
 loadContours();
+loadCityLabels();
 startScope();
 load(true);
+// Default center: resolve Kyiv honestly via Nominatim (cached). Until then
+// the fallback is the approximate centre of Ukraine, labeled as such.
+if (state.centerName.startsWith('Україна')) {
+  pickCity('Київ').then(() => {
+    const lbl = $('#rlCenterLabel');
+    if (lbl && state.centerName === 'Київ') lbl.textContent = 'Центр: Київ (стартовий — можна змінити)';
+  }).catch(() => {});
+}
 setInterval(load, POLL_MS);
 setInterval(tickClock, 20000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfStale(); });
 window.addEventListener('focus', () => refreshIfStale());
 window.addEventListener('online', () => refreshIfStale(0));
 window.addEventListener('resize', () => { /* canvas auto-resizes each frame */ });
+
+async function loadCityLabels() {
+  try {
+    const raw = localStorage.getItem('radar-live-cities-v1');
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached?.ts && Date.now() - cached.ts < 30 * 86400000 && Array.isArray(cached.list) && cached.list.length) {
+        state.cityLabels = cached.list;
+        staticKey = '';
+        return;
+      }
+    }
+  } catch { /* ignore */ }
+  const list = [];
+  for (const name of CITY_LABEL_NAMES) {
+    try {
+      const rows = await searchUkrainianPlaces(name);
+      const r = rows.find(x => (x.settlement || '').toLowerCase() === name.toLowerCase()) || rows[0];
+      if (r && Number.isFinite(r.lat) && Number.isFinite(r.lon)) list.push({ name, lat: r.lat, lon: r.lon });
+    } catch { /* skip this city */ }
+    await new Promise(res => setTimeout(res, 350)); // be gentle with the free geocoder
+  }
+  if (list.length) {
+    state.cityLabels = list;
+    try { localStorage.setItem('radar-live-cities-v1', JSON.stringify({ ts: Date.now(), list })); } catch { /* ignore */ }
+    staticKey = '';
+  }
+}

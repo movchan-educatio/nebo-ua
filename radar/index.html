@@ -36,8 +36,8 @@
     <button data-goto="feedCard">Події</button>
     <button data-goto="threatTypes">Типи загроз</button>
     <button data-goto="sourcesCard">Джерела</button>
-    <button data-goto="aboutRadar">Про проєкт</button>
-    <button data-goto="faqRadar">FAQ</button>
+    <button data-href="./info/">Про проєкт</button>
+    <button data-href="./info/#faq">FAQ</button>
   </nav>
   <div class="rl-top-right">
     <div class="rl-clock" aria-live="off"><b id="rlClock">--:--</b><small id="rlUpdated">Оновлено —</small></div>
@@ -58,10 +58,17 @@
       </div>
     </div>
     <div class="rl-chips" id="rlPopular" aria-label="Популярні міста"></div>
+    <div class="rl-field" style="margin-top:8px">
+      <label for="rlOblast">Область</label>
+      <select class="rl-select" id="rlOblast">
+        <option value="">Оберіть область…</option>
+      </select>
+    </div>
     <div class="rl-btn-row" style="margin-top:8px">
       <button class="rl-btn" id="rlGeo" style="flex:1">Використати геолокацію</button>
     </div>
-    <p class="rl-muted" id="rlCenterLabel" style="margin:8px 0 0">Центр: Київ</p>
+    <p class="rl-muted" id="rlCenterLabel" style="margin:8px 0 0">Центр: Україна (приблизний)</p>
+    <p class="rl-muted" style="margin:2px 0 0;font-size:11px">Стартовий центр. Оберіть місто для точного спостереження.</p>
 
     <h3>Радіус спостереження</h3>
     <div class="rl-seg" id="rlRange" role="group" aria-label="Радіус, км">
@@ -71,14 +78,8 @@
     <h3>Фільтри загроз</h3>
     <div id="rlKindFilters"></div>
 
-    <h3>Додатково</h3>
-    <label class="rl-toggle"><input type="checkbox" id="rlOnlyNew">Тільки нові</label>
-    <label class="rl-toggle"><input type="checkbox" id="rlOnlyActive">Тільки активні</label>
-    <label class="rl-toggle"><input type="checkbox" id="rlOnlyCoords">Тільки з координатами</label>
-    <label class="rl-toggle"><input type="checkbox" id="rlContours" checked>Показувати контури</label>
-
     <h3>Звукові сповіщення</h3>
-    <label class="rl-toggle"><input type="checkbox" id="rlSound">Увімкнути звук</label>
+    <label class="rl-toggle switch"><input type="checkbox" id="rlSound">Увімкнути звук</label>
     <div class="rl-field" style="margin-bottom:6px">
       <label for="rlVolume">Гучність</label>
       <input class="rl-range" type="range" id="rlVolume" min="0" max="100" value="65">
@@ -137,7 +138,7 @@
   </div>
   <section class="rl-card" id="threatTypes">
     <h2>Типи повітряних загроз</h2>
-    <div class="rl-info-grid" style="grid-template-columns:repeat(3,1fr)">
+    <div class="rl-info-grid rl-threat-grid">
       <div class="rl-info-card"><h3>БпЛА / шахеди</h3><p>Ударні безпілотники, які можуть використовуватися для атак.</p></div>
       <div class="rl-info-card"><h3>Крилаті ракети</h3><p>Ракети великої дальності повітряного, морського або наземного базування.</p></div>
       <div class="rl-info-card"><h3>Балістичні ракети</h3><p>Високошвидкісні ракети з коротким часом підльоту.</p></div>
@@ -166,16 +167,27 @@
 
 <dialog id="rlSettings" class="rl-card rl-sheet" aria-label="Налаштування">
   <h2>Налаштування</h2>
-  <label class="rl-toggle"><input type="checkbox" id="rlSoundDlg">Звукові сповіщення</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSoundDlg">Звукові сповіщення</label>
   <div class="rl-field"><label for="rlVolumeDlg">Гучність</label><input class="rl-range" type="range" id="rlVolumeDlg" min="0" max="100" value="65"></div>
   <div class="rl-btn-row"><button class="rl-btn" id="rlTestSoundDlg" style="flex:1">Тест звуку</button>
   <button class="rl-btn primary" id="rlSettingsClose" style="flex:1">Готово</button></div>
+  <h3 style="margin-top:12px">Типи звуку</h3>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndUav" checked>БпЛА / шахеди</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndMissile" checked>Крилаті ракети</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndKab" checked>КАБ</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndAviation" checked>Авіація</label>
+  <h3 style="margin-top:12px">Відображення</h3>
+  <label class="rl-toggle"><input type="checkbox" id="rlOnlyNewDlg">Тільки нові</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlOnlyActiveDlg">Тільки активні</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlOnlyCoordsDlg">Тільки з координатами</label>
   <label class="rl-toggle"><input type="checkbox" id="rlContoursDlg" checked>Показувати контури</label>
-  <label class="rl-toggle"><input type="checkbox" id="rlUavDlg" checked>БпЛА / шахеди</label>
-  <label class="rl-toggle"><input type="checkbox" id="rlMissileDlg" checked>Крилаті ракети</label>
-  <label class="rl-toggle"><input type="checkbox" id="rlBallisticDlg" checked>Балістика</label>
-  <label class="rl-toggle"><input type="checkbox" id="rlKabDlg" checked>КАБ</label>
-  <label class="rl-toggle"><input type="checkbox" id="rlAviationDlg" checked>Авіація</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlAnimDlg" checked>Анімація сканування</label>
+  <h3 style="margin-top:12px">Фільтри загроз</h3>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlUavDlg" checked>БпЛА / шахеди</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlMissileDlg" checked>Крилаті ракети</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlBallisticDlg" checked>Балістика</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlKabDlg" checked>КАБ</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlAviationDlg" checked>Авіація</label>
 </dialog>
 
 <script type="module" src="./radar.js"></script>

@@ -112,7 +112,7 @@ export function sourceCards(health, nowMs = Date.now()) {
       }
       else { state = 'ONLINE'; label = 'Онлайн'; }
     }
-    return { ...d, state, label, updatedAt: h?.updatedAt || null, error: h?.error || null };
+    return { ...d, state, label, updatedAt: h?.updatedAt || null, error: h?.error || null, latencyMs: h?.latencyMs ?? null };
   });
 }
 

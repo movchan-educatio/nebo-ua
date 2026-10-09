@@ -98,3 +98,52 @@ export function rangeRings(rangeKm) {
   if (!Number.isFinite(rangeKm) || rangeKm <= 0) return [];
   return [0.25, 0.5, 0.75, 1].map(f => Math.round(rangeKm * f * 10) / 10);
 }
+
+// Screen-space clustering for overlapping markers (pure, tested).
+// Input: [{x, y, ...}] in px. Output: [{x, y, members:[...]}] where singles
+// have exactly 1 member. Centroid is the visual anchor ONLY — member
+// coordinates are never modified, so geography stays honest.
+export function clusterPoints(points, radiusPx = 34) {
+  const list = (points || []).slice();
+  if (radiusPx <= 0 || list.length < 2) return list.map(p => ({ x: p.x, y: p.y, members: [p] }));
+  const cell = Math.max(1, radiusPx);
+  const grid = new Map();
+  list.forEach((p, i) => {
+    const k = Math.floor(p.x / cell) + ':' + Math.floor(p.y / cell);
+    if (!grid.has(k)) grid.set(k, []);
+    grid.get(k).push(i);
+  });
+  const used = new Set();
+  const out = [];
+  for (let i = 0; i < list.length; i++) {
+    if (used.has(i)) continue;
+    used.add(i);
+    const a = list[i];
+    const members = [a];
+    const gx = Math.floor(a.x / cell), gy = Math.floor(a.y / cell);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) {
+        const arr = grid.get((gx + dx) + ':' + (gy + dy));
+        if (!arr) continue;
+        for (const j of arr) {
+          if (used.has(j)) continue;
+          const b = list[j];
+          if (Math.hypot(b.x - a.x, b.y - a.y) <= radiusPx) {
+            used.add(j);
+            members.push(b);
+          }
+        }
+      }
+    }
+    // Deterministic order: anchor first, then by id.
+    members.sort((m1, m2) => {
+      if (m1 === a) return -1;
+      if (m2 === a) return 1;
+      return String(m1.id ?? '') < String(m2.id ?? '') ? -1 : 1;
+    });
+    const cx = members.reduce((s, p) => s + p.x, 0) / members.length;
+    const cy = members.reduce((s, p) => s + p.y, 0) / members.length;
+    out.push({ x: cx, y: cy, members });
+  }
+  return out;
+}

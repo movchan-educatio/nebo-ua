@@ -71,6 +71,24 @@ test('radar.js uses real data services, no fake events', () => {
   assert.ok(js.includes('sweep') && js.includes('decorative'), 'sweep marked decorative');
 });
 
+test('radar info page: light design system, real content, SEO, no ads', () => {
+  assert.ok(existsSync(path.join(root, 'radar/info/index.html')), 'info page exists');
+  const h = read('radar/info/index.html');
+  const title = (h.match(/<title>([^<]+)<\/title>/) || [])[1] || '';
+  assert.ok(title.includes('РАДАР.LIVE'), 'info title brand');
+  const desc = (h.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
+  assert.ok(desc.length >= 50 && desc.length <= 200, `info description len ${desc.length}`);
+  assert.equal((h.match(/<h1[^>]*>/g) || []).length, 1, 'exactly one h1');
+  assert.ok(h.includes('rel="canonical" href="https://nebo-ua.vercel.app/radar/info/"'), 'canonical');
+  assert.ok(h.includes('FAQPage'), 'faq structured data');
+  assert.ok(h.includes('stylesheet" href="../radar.css"'), 'same design tokens');
+  assert.ok(!h.includes('adsbygoogle') && !h.includes('pagead2.'), 'no ads running');
+  assert.ok(h.includes('data-ad-enabled="false"'), 'ad slot disabled');
+  assert.ok(h.includes('../privacy/') && h.includes('../terms/') && h.includes('../contact/'), 'legal links reused, not duplicated');
+  assert.ok(h.includes('NEPTUN') && h.includes('MAPA') && h.includes('UkraineAlarm'), 'sources documented');
+  assert.ok(!/точне відстеження|гарантуємо/i.test(h), 'no false promises');
+});
+
 test('radar markers reuse the shared threat sprite (no emoji markers)', () => {
   const js = read('radar/radar.js');
   assert.ok(js.includes('threat-icons.svg'), 'shared sprite');
