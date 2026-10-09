@@ -220,6 +220,8 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); }
 .rl-source-mini b { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rl-source-mini .row { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-weight: 700; }
 .rl-source-mini small { display: block; color: var(--muted); font-size: 10.5px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.rl-tech { margin-top: 4px; font-size: 10.5px; color: var(--muted); }
+.rl-tech summary { cursor: pointer; font-weight: 600; }
 .rl-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 4px; }
 .rl-dot.online { background: var(--green); }
 .rl-dot.delayed { background: var(--yellow); }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { runDurablePipeline } from '../src/pipeline.js';
 import { mergeHealth, buildStateResponse } from '../src/index.js';
 import { fetchWithRetry } from '../src/sources.js';
+import { dispatchPush } from '../src/push.js';
 import { loadBundle } from '../src/store.js';
 import { testEnv, testKv, sourceRoutes, mockSources } from './helpers/runtime.js';
 
@@ -122,4 +123,55 @@ test('fetchWithRetry retries once with backoff after a transient failure', async
   const r2 = await fetchWithRetry('https://sources.invalid/x', { timeoutMs: 5000 }, 1);
   assert.equal(r2.ok, false);
   assert.equal(calls, 1, 'single attempt means no waiting');
+});
+
+// Push CPU cap: 12 new threats + 1 official alert with one open subscriber.
+// At most 8 sends are attempted; the official job is never the one capped
+// out; overflow is logged as skipped-cap (auditable, no silent loss).
+test('dispatchPush caps sends per cycle and prioritizes official alerts', async () => {
+  const env = testEnv();
+  env.VAPID_PUBLIC_KEY = 'x';
+  env.VAPID_PRIVATE_KEY = 'y';
+  env.VAPID_SUBJECT = 'mailto:test.invalid';
+  const now = new Date();
+  await env.nebo_journal.prepare(
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth, places, categories, quiet, oblast_norm, created_at, last_seen, failures)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`
+  ).bind('https://push.invalid/sub1', 'k', 'a', '[]', '{}', '{}', '', now.toISOString(), now.toISOString()).run();
+  const events = Array.from({ length: 12 }, (_, i) => ({
+    id: `t:${i}`, source: 'MAPA', category: 'uav', stale: false,
+    eventTime: new Date(now.getTime() - i * 60000).toISOString(),
+    region: 'R', district: null, settlement: null, lat: 49, lon: 31,
+  }));
+  const snapshot = {
+    events,
+    alerts: [{ id: 'off:1', official: true, region: 'R', district: 'D', stale: false, eventTime: now.toISOString() }],
+  };
+  const out = await dispatchPush(env, {
+    snapshot, prevIds: { threats: [], alerts: [] }, endedAlerts: [], now,
+  });
+  assert.ok(out.sent + out.failed <= 8, `at most 8 sends attempted, got sent=${out.sent} failed=${out.failed}`);
+  const logs = env.nebo_journal.sqlite.prepare('SELECT status, event_id FROM push_log').all();
+  const capped = logs.filter(r => r.status === 'skipped-cap');
+  assert.ok(capped.length > 0, 'overflow logged as skipped-cap');
+  assert.ok(!capped.some(r => r.event_id === 'off:1'), 'the official alert is prioritized, never capped out');
+});
+
+// Liveness journal survives a failed commit: checks are recorded before any
+// publish attempt, so a dead commit cannot create a liveness gap.
+test('checks are recorded even when the D1 commit fails', async () => {
+  const env = testEnv();
+  const prepare = env.nebo_journal.prepare.bind(env.nebo_journal);
+  env.nebo_journal.prepare = (sql) => {
+    if (String(sql).includes('INSERT INTO pipeline_state')) throw new Error('commit down');
+    return prepare(sql);
+  };
+  globalThis.fetch = mockSources(sourceRoutes());
+  await tick();
+  const snap = await runDurablePipeline(env);
+  assert.ok(snap && Array.isArray(snap.events), 'cycle still serves fresh content via KV');
+  const rows = env.nebo_journal.sqlite.prepare(
+    "SELECT count(1) AS n FROM checks WHERE ts >= datetime('now','-5 minutes')").get();
+  assert.ok(rows.n >= 3, `checks recorded despite failed commit, got ${rows.n}`);
+  env.nebo_journal.prepare = prepare;
 });

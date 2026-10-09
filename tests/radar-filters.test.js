@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   KIND_FILTERS, normalizeKind, isNew, isActive, isCompleted, hasCoords,
-  applyFeedFilters, radarEvents, countByKind,
+  applyFeedFilters, radarEvents, countByKind, statusBadge,
 } from '../radar/filters.js';
 
 const NOW = Date.parse('2026-10-09T12:00:00.000Z');
@@ -58,6 +58,19 @@ test('kind filter syncs feed and radar; radar drops region-only and area-only', 
 test('counts feed the filter toggles honestly', () => {
   const list = [ev({ id: 'a', kind: 'shahed' }), ev({ id: 'b', kind: 'missile' }), ev({ id: 'c', kind: 'kab' })];
   assert.deepEqual(countByKind(list), { uav: 1, missile: 1, ballistic: 0, kab: 1, aviation: 0, other: 0 });
+});
+
+test('statusBadge: honest per-event status with pipeline context', () => {
+  const fresh = { id: 'a', stale: false, eventTime: new Date(NOW - 2 * 60000).toISOString() };
+  const old = { id: 'b', stale: false, eventTime: new Date(NOW - 30 * 60000).toISOString() };
+  const ended = { id: 'c', stale: true, eventTime: new Date(NOW - 2 * 60000).toISOString() };
+  assert.deepEqual(statusBadge(fresh, { pipeStale: false, nowMs: NOW }), { text: 'Нова', live: true, title: '' });
+  assert.deepEqual(statusBadge(old, { pipeStale: false, nowMs: NOW }), { text: 'Активна', live: true, title: '' });
+  assert.deepEqual(statusBadge(ended, { pipeStale: false, nowMs: NOW }).text, 'Завершено');
+  const stalePipe = statusBadge(old, { pipeStale: true, nowMs: NOW });
+  assert.equal(stalePipe.text, 'Активна · оновлення затримується');
+  assert.equal(stalePipe.live, false, 'no green badge when confirmation is overdue');
+  assert.equal(statusBadge(fresh, { pipeStale: true, nowMs: NOW }).live, false);
 });
 
 test('hasCoords never treats area-only as plottable', () => {

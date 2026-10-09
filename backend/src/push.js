@@ -96,6 +96,14 @@ export async function logDeliveries(db, rows) {
 
 // Main dispatch: called once per pipeline with protected lists.
 // Returns {sent, failed, skipped} counts. Never throws.
+//
+// CPU SAFETY (Workers free plan = 10 ms/invocation): every actual send costs
+// elliptic-curve crypto (ECDH + ECDSA). During mass attacks dozens of new
+// tracks per cycle multiplied by subscribers killed cycles with exceededCpu,
+// which also prevented liveness checks from being recorded. Sends per cycle
+// are therefore hard-capped; overflow is logged as skipped-cap, never sent.
+// Priority: official start/end first, then newest threats.
+const MAX_PUSH_SENDS_PER_CYCLE = 8;
 export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = new Date() }) {
   const out = { sent: 0, failed: 0, skipped: 0 };
   try {
@@ -128,18 +136,31 @@ export async function dispatchPush(env, { snapshot, prevIds, endedAlerts, now = 
     const subs = await loadSubscriptions(env.nebo_journal);
     const logs = [];
     const ts = now.toISOString();
+    // Official signals first, then newest threats — so the cap below drops
+    // the least critical overflow, never an official alert.
+    const prio = (j) => j.category === 'officialStart' ? 0 : j.category === 'officialEnd' ? 1 : 2;
+    const tOf = (j) => new Date(j.event.eventTime || j.event.timestamp || 0).getTime() || 0;
+    jobs.sort((a, b) => prio(a) - prio(b) || tOf(b) - tOf(a));
+    let sendsUsed = 0;
     const concurrency = 20;
     for (let i = 0; i < subs.length; i += concurrency) {
       const batch = subs.slice(i, i + concurrency);
       await Promise.all(batch.map(async (sub) => {
+        // One hash per subscriber per cycle (not per job): correlation only.
+        const hash = await endpointHash(sub.endpoint);
         for (const job of jobs) {
           const reason = shouldDeliver(sub, job.event, job.category, { now, firstSeen: firstSeen.get(job.event.id) || null });
-          const hash = await endpointHash(sub.endpoint);
           if (reason) {
             out.skipped++;
             logs.push({ ts, endpoint_hash: hash, event_id: job.event.id, category: job.category, status: reason, attempts: 0, error: null, latency_ms: null });
             continue;
           }
+          if (sendsUsed >= MAX_PUSH_SENDS_PER_CYCLE) {
+            out.skipped++;
+            logs.push({ ts, endpoint_hash: hash, event_id: job.event.id, category: job.category, status: 'skipped-cap', attempts: 0, error: null, latency_ms: null });
+            continue;
+          }
+          sendsUsed++;
           const payload = buildPayload(job.kind, job.event);
           const res = await sendToSubscription(env, { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload);
           if (res.ok) out.sent++;

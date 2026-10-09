@@ -215,10 +215,9 @@ export async function runDurablePipeline(env) {
     if (!officialResult) await briefWait(officialPromise, 50);
     if (!officialResult) await publish(null, 0);
     const official = await officialPromise;
-    if (!superseded) await publish(official, 1);
-    // Checks reflect actually verified lanes even when this cycle lost the
-    // commit race: a superseded cycle still verified its sources, and the
-    // liveness journal must not develop a gap because of it.
+    // Liveness first: checks reflect VERIFIED lanes and must be recorded even
+    // if a later commit loses the race or the isolate dies during push
+    // crypto. A dead cycle must never create a liveness gap.
     try {
       await recordChecksBatch(env.nebo_journal, [
         { source: 'OFFICIAL', ok: official.ok && !official.disabled && !official.partial, latencyMs: official.latencyMs, error: official.error },
@@ -226,6 +225,7 @@ export async function runDurablePipeline(env) {
         { source: 'MAPA', ok: mapa.ok, latencyMs: mapa.latencyMs, error: mapa.error },
       ]);
     } catch { telemetry.checksError = true; }
+    if (!superseded) await publish(official, 1);
     if (superseded) {
       telemetry.outcome = 'superseded';
       try {

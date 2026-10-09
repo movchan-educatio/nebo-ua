@@ -43,6 +43,16 @@ export function hasCoords(event) {
   return Number.isFinite(Number(event?.lat)) && Number.isFinite(Number(event?.lon)) && !event?.areaOnly;
 }
 
+// Honest per-event badge: green "active/new" only with context. When the
+// pipeline itself is stale, the badge says so instead of implying a fresh
+// confirmation. Historical status is never rewritten — only annotated.
+export function statusBadge(event, { pipeStale = false, nowMs = Date.now() } = {}) {
+  if (isCompleted(event)) return { text: 'Завершено', live: false, title: '' };
+  if (isNew(event, nowMs) && !pipeStale) return { text: 'Нова', live: true, title: '' };
+  if (pipeStale) return { text: 'Активна · оновлення затримується', live: false, title: 'Останнє підтвердження прострочено' };
+  return { text: 'Активна', live: true, title: '' };
+}
+
 // Feed filtering (list): kinds + tabs + coords-only toggle.
 // The feed may show region-only reports as TEXT rows (level 3-4), but they
 // never become radar points (see geo.radarPoint gate).

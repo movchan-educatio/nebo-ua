@@ -11,7 +11,7 @@ import {
 } from './geo.js';
 import {
   KIND_FILTERS, normalizeKind, isNew, isActive, radarEvents, countByKind,
-  applyFeedFilters,
+  applyFeedFilters, statusBadge,
 } from './filters.js';
 
 const $ = (s) => document.querySelector(s);
@@ -447,8 +447,20 @@ function kindIcon(kind, color) {
   return `<svg style="color:${color}" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#${sym}"/></svg>`;
 }
 
+function pipeAgeMs() {
+  const t = Date.parse(state.snapshot?.pipelineCheckedAt || '');
+  return Number.isFinite(t) ? Math.max(0, Date.now() - t) : null;
+}
+function confirmAgeText() {
+  const age = pipeAgeMs();
+  if (age == null) return 'час перевірки невідомий';
+  if (age < 60000) return 'підтверджено щойно';
+  return `підтверджено ${Math.round(age / 60000)} хв тому`;
+}
+
 function renderFeed() {
   const list = feedEvents();
+  const pipeStale = (pipeAgeMs() ?? Infinity) > 5 * 60000;
   $('#rlFeedCount').textContent = list.filter(e => !e.stale).length;
   $$('#rlTabs .rl-tab').forEach(b => {
     b.setAttribute('aria-selected', String(b.dataset.tab === state.tab));
@@ -472,8 +484,11 @@ function renderFeed() {
     const d = (e.lat != null && e.lon != null && !e.areaOnly)
       ? `${formatDistanceKm(haversineKm(state.center[0], state.center[1], +e.lat, +e.lon))} · ${e.source || ''}`
       : `${esc(e.source || '')}`;
-    const st = e.stale || e.status === 'ended' ? '<span class="st">Завершено</span>'
-      : isNew(e) ? '<span class="st live">Нова</span>' : '<span class="st live">Активна</span>';
+    // Honest per-event status: green "active" only with context. When the
+    // pipeline itself is stale, the badge says so instead of implying a
+    // fresh confirmation.
+    const badge = statusBadge(e, { pipeStale });
+    const st = `<span class="${badge.live ? 'st live' : 'st'}"${badge.title ? ` title="${esc(badge.title)}"` : ''}>${esc(badge.text)}</span>`;
     return `<button class="rl-event" data-id="${esc(e.trackId ?? e.id ?? '')}" aria-current="${String((e.trackId ?? e.id) === state.selectedId)}">
       <time>${esc(fmtTime(e.eventTime || e.timestamp))}</time>${kindIcon(kind, color)}
       <span><b${kind === 'missile' || kind === 'ballistic' ? ' style="color:#D9342C"' : ''}>${esc(KIND_LABEL[kind])}</b><small>${esc(geoDesc(e))} · ${esc(d)}</small></span>${st}</button>`;
@@ -516,11 +531,19 @@ function renderSources() {
     if (!e) return 'Очікування';
     return e.length > 60 ? e.slice(0, 60) + '…' : e;
   };
-  $('#rlSources').innerHTML = `<div class="rl-source-grid">` + cards.map(c => `
+  $('#rlSources').innerHTML = `<div class="rl-source-grid">` + cards.map(c => {
+    // UkraineAlarm failures stay visible but human-readable: the raw HTTP
+    // status lives behind an expandable technical block, never as the headline.
+    const auxFail = c.key === 'OFFICIAL' && c.state === 'OFFLINE';
+    const sub = c.updatedAt ? 'Перевірено ' + esc(fmtTime(c.updatedAt))
+      : auxFail ? 'Джерело тимчасово недоступне' : esc(shortErr(c));
+    const tech = auxFail && c.error ? `<details class="rl-tech"><summary>Технічні деталі</summary><small>${esc(c.error)}</small></details>` : '';
+    return `
     <div class="rl-source-mini" title="${esc(c.error || c.label)}"><span class="rl-dot ${dot[c.state] || 'offline'}"></span>
     <b>${esc(c.name)}</b>
     <div class="row" style="color:${c.state === 'ONLINE' ? 'var(--green)' : c.state === 'OFFLINE' ? 'var(--red)' : 'var(--muted)'}">${esc(c.label)}</div>
-    <small>${c.updatedAt ? 'Перевірено ' + esc(fmtTime(c.updatedAt)) : esc(shortErr(c))}</small>${lat(c)}</div>`).join('') + `</div>`
+    <small>${sub}</small>${tech}${lat(c)}</div>`;
+  }).join('') + `</div>`
     + (snap ? `<p class="rl-muted">Зміна даних: ${snap.dataUpdatedAt ? esc(fmtTime(snap.dataUpdatedAt)) : '—'} · Публікація: ${snap.publishedAt ? esc(fmtTime(snap.publishedAt)) : '—'}</p>` : '');
   // header badge: honest liveness (primaries only)
   const age = state.lastSuccess ? Date.now() - state.lastSuccess.getTime() : null;
@@ -598,6 +621,7 @@ function openDetail(id) {
       <dt>Напрямок</dt><dd>${hasPos ? `на ${esc(compassUk(b))} (≈ ${Math.round(b)}°)` : 'недостовірний'}</dd>
       <dt>Рівень точності</dt><dd>${esc(accuracyText(e))}</dd>
       <dt>Статус</dt><dd>${e.stale || e.status === 'ended' ? 'Завершена' : 'Активна загроза'}</dd>
+      <dt>Актуальність</dt><dd>${(pipeAgeMs() ?? Infinity) > 5 * 60000 ? 'Потребує повторної перевірки (' + esc(confirmAgeText()) + ')' : esc(confirmAgeText())}</dd>
       <dt>Останнє підтвердження</dt><dd>${confirmed ? esc(fmtTime(confirmed)) : 'час не передано'}</dd>
     </dl>
     <div class="rl-warn">Координати є приблизними. Використовуйте інформацію з офіційних джерел для прийняття рішень.</div>
