@@ -317,7 +317,7 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   /* Centered titles/labels for the bottom block (mobile layout). */
   .stats-row .panel-head{justify-content:center;position:relative}
   .stats-row .panel-head .collapse-btn{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
-  .legend-strip .legend-title{text-align:center;color:#fff}
+  .legend-strip .legend-title{text-align:center;color:var(--text);font-size:17px;font-weight:700;letter-spacing:0}
   .dash-note{text-align:center;margin:10px 2px 14px}
   .map-toolbar{padding:8px 10px;gap:6px}
   .map-toolbar .seg button{padding:6px 10px;font-size:11px}
