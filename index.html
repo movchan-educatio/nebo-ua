@@ -1,88 +1,195 @@
-<!doctype html><html lang="uk"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#02070B"><meta name="description" content="НЕБО UA — онлайн-карта повітряних тривог і загроз в Україні: актуальні тривоги, БпЛА (шахеди), ракети, балістичні загрози, КАБ та авіаційна активність."><meta property="og:title" content="Карта повітряних тривог України онлайн — НЕБО UA"><meta property="og:description" content="НЕБО UA — онлайн-карта повітряних тривог і загроз в Україні: актуальні тривоги, БпЛА (шахеди), ракети, балістичні загрози, КАБ та авіаційна активність."><meta property="og:type" content="website"><meta property="og:url" content="https://nebo-ua.vercel.app/"><meta property="og:image" content="https://nebo-ua.vercel.app/assets/icons/icon-512.png"><meta property="og:locale" content="uk_UA"><meta name="twitter:card" content="summary"><meta name="twitter:title" content="Карта повітряних тривог України онлайн — НЕБО UA"><meta name="twitter:description" content="НЕБО UA — онлайн-карта повітряних тривог і загроз в Україні: БпЛА, ракети, КАБ та повітряні тривоги з відкритих джерел."><meta name="twitter:image" content="https://nebo-ua.vercel.app/assets/icons/icon-512.png"><!-- Google Search Console: вставити meta google-site-verification після отримання коду --><script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1051121820445401" crossorigin="anonymous"></script><link rel="canonical" href="https://nebo-ua.vercel.app/"><script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"НЕБО UA","alternateName":"Небо.UA","inLanguage":"uk","url":"https://nebo-ua.vercel.app/"},{"@type":"WebPage","name":"Карта повітряних тривог України онлайн — НЕБО UA","inLanguage":"uk","url":"https://nebo-ua.vercel.app/","description":"НЕБО UA — онлайн-карта повітряних тривог і загроз в Україні: актуальні тривоги, БпЛА (шахеди), ракети, балістичні загрози, КАБ та авіаційна активність.","isPartOf":{"@type":"WebSite","name":"НЕБО UA","url":"https://nebo-ua.vercel.app/"}}]}</script><link rel="preconnect" href="https://tiles.openfreemap.org"><link rel="preconnect" href="https://cdn.jsdelivr.net"><link rel="preconnect" href="https://check-ua-proxy.kykyyzka.workers.dev"><link rel="preconnect" href="https://nominatim.openstreetmap.org"><link rel="manifest" href="./manifest.webmanifest"><link rel="icon" type="image/x-icon" href="./favicon.ico"><link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png"><link rel="icon" type="image/png" sizes="48x48" href="./favicon-48x48.png"><link rel="icon" type="image/png" sizes="192x192" href="./favicon-192x192.png"><link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png"><link rel="stylesheet" href="./assets/vendor/leaflet/leaflet.css"><link rel="stylesheet" href="./assets/vendor/markercluster/MarkerCluster.css"><link rel="stylesheet" href="./assets/vendor/markercluster/MarkerCluster.Default.css"><link rel="stylesheet" href="./assets/css/styles.css?v20261008c"><link rel="stylesheet" href="./assets/css/dashboard.css?v20261009q"><title>Карта повітряних тривог України онлайн — НЕБО UA</title></head><body>
-<a class="skip" href="#mapPanel">До карти</a>
-<header class="topbar" role="banner">
-  <a class="brand" href="./" aria-label="Небо.UA — на карту"><img src="./assets/brand/logo-mark.svg" alt="Небо.UA"><span><b>НЕБО UA <span class="flag" aria-hidden="true"><i></i><u></u></span></b><small>Повітряні тривоги України</small></span></a>
-  <nav class="mainnav" aria-label="Розділи">
-    <button class="active" data-view="map"><svg><use href="./assets/brand/icons.svg#i-map"/></svg>Карта</button>
-    <button data-view="stats"><svg><use href="./assets/brand/icons.svg#i-list"/></svg>Статистика</button>
-    <button data-view="alerts"><svg><use href="./assets/brand/icons.svg#i-region"/></svg>Сповіщення<span class="nav-dot" id="navDot" hidden></span></button>
-    <button data-view="sources"><svg><use href="./assets/brand/icons.svg#i-layers"/></svg>Джерела</button>
-    <button data-view="about"><svg><use href="./assets/brand/icons.svg#i-region"/></svg>Про проєкт</button>
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#F3F5F7">
+<title>РАДАР.LIVE — моніторинг повітряних загроз України онлайн</title>
+<meta name="description" content="РАДАР.LIVE — онлайн-моніторинг повітряних загроз України: карта повітряних тривог, БпЛА і шахеди онлайн, ракети, балістика, КАБ та авіація з відкритих джерел NEPTUN і MAPA.">
+<link rel="canonical" href="https://nebo-ua.vercel.app/">
+<meta property="og:type" content="website">
+<meta property="og:locale" content="uk_UA">
+<meta property="og:url" content="https://nebo-ua.vercel.app/">
+<meta property="og:title" content="РАДАР.LIVE — моніторинг повітряних загроз України онлайн">
+<meta property="og:description" content="БпЛА, шахеди, ракети, балістика, КАБ та авіація онлайн: радар, стрічка подій і статуси джерел NEPTUN і MAPA.">
+<meta property="og:image" content="https://nebo-ua.vercel.app/assets/icons/icon-512.png">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="РАДАР.LIVE — моніторинг повітряних загроз України онлайн">
+<meta name="twitter:description" content="Радар повітряних загроз України: БпЛА, ракети, КАБ з відкритих джерел. Без вигаданих координат.">
+<meta name="twitter:image" content="https://nebo-ua.vercel.app/assets/icons/icon-512.png">
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/"},{"@type":"WebPage","name":"РАДАР.LIVE — моніторинг повітряних загроз України онлайн","inLanguage":"uk","url":"https://nebo-ua.vercel.app/","description":"Онлайн-радар повітряних загроз України: БпЛА, ракети, балістика, КАБ, авіація. Дані NEPTUN і MAPA."}]}</script>
+<link rel="icon" type="image/x-icon" href="./favicon.ico">
+<link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="stylesheet" href="./radar/radar.css">
+</head>
+<body>
+<a class="rl-sr" href="#radarCard">До радара</a>
+<header class="rl-topbar">
+  <a class="rl-brand" href="./" aria-label="РАДАР.LIVE — на радар">
+    <img src="./assets/brand/logo-mark.svg" alt="РАДАР.LIVE">
+    <span><b>РАДАР.<span>LIVE</span></b><small>Моніторинг повітряних загроз України</small></span>
+  </a>
+  <nav class="rl-nav" aria-label="Розділи">
+    <button class="active" data-goto="radarCard">Радар</button>
+    <button data-goto="feedCard">Події</button>
+    <button data-goto="threatTypes">Типи загроз</button>
+    <button data-goto="sourcesCard">Джерела</button>
+    <button data-href="./info/">Про проєкт</button>
+    <button data-href="./info/#faq">FAQ</button>
   </nav>
-  <button id="menuButton" class="icon-btn menu-btn" aria-expanded="false" aria-controls="topMenu" aria-label="Меню розділів"><svg><use href="./assets/brand/icons.svg#i-list"/></svg></button>
-  <div class="topbar-right">
-    <div class="clock" aria-live="off"><b id="kyivClock">--:--</b><small id="kyivDate">Київ</small></div>
-    <span id="sysStatus" class="sysok" role="status"><i></i><span class="txt">Всі системи працюють</span></span>
+  <div class="rl-top-right">
+    <div class="rl-clock" aria-live="off"><b id="rlClock">--:--</b><small id="rlUpdated">Оновлено —</small></div>
+    <span class="rl-live stale" id="rlLive" role="status">ПЕРЕВІРКА</span>
+    <button class="rl-icon-btn" id="rlSettingsBtn" aria-label="Налаштування"><svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-settings"/></svg></button>
   </div>
-  <nav id="topMenu" class="top-menu glass" aria-label="Меню розділів" hidden>
-    <a href="./">Карта</a><a href="./about/">Про НЕБО.UA</a><a href="./how-it-works/">Як працює</a><a href="./sources/">Джерела</a><a href="./safety/">Безпека</a><a href="./faq/">FAQ</a><span class="menu-sep"></span><a href="./privacy/">Privacy</a><a href="./terms/">Умови</a><a href="./contact/">Контакти</a>
-  </nav>
 </header>
-<div class="dash">
-  <main class="dash-main">
-    <section class="center-col">
-      <div id="mapPanel" class="panel glass map-panel" aria-label="Карта тривог">
-        <h1 id="mapTitle" class="sr-only">Карта повітряних тривог України онлайн</h1>
-        <div class="map-toolbar">
-          <label class="map-search"><svg><use href="./assets/brand/icons.svg#i-target"/></svg><input id="mapSearch" type="search" autocomplete="off" placeholder="Пошук області, міста або громади…"></label>
-        </div>
-        <div class="map-wrap">
-          <div id="map" aria-label="Інтерактивна карта України"></div>
-          <div class="search-results glass" id="searchResults" hidden></div>
-          <div class="map-side-ctl">
-            <button id="zoomIn" class="map-btn glass" aria-label="Збільшити">+</button>
-            <button id="zoomOut" class="map-btn glass" aria-label="Зменшити">−</button>
-            <button id="gpsButton" class="map-btn glass" aria-label="Моє положення"><svg><use href="./assets/brand/icons.svg#i-target"/></svg></button>
-            <button id="layerButton" class="map-btn glass" aria-label="Шари"><svg><use href="./assets/brand/icons.svg#i-layers"/></svg></button>
-          </div>
-          <div id="layerPanel" class="layer-panel glass" hidden></div>
-          <div class="map-updated"><i></i><span id="mapUpdated">Оновлено —</span></div>
-        </div>
+
+<main class="rl-main">
+  <h1 class="rl-sr">РАДАР.LIVE — моніторинг повітряних загроз України онлайн</h1>
+  <aside class="rl-card rl-controls" id="controlsCard" aria-label="Керування радаром">
+    <h2>Центр спостереження</h2>
+    <div class="rl-field">
+      <label for="rlCity">Місто</label>
+      <div class="rl-search-wrap">
+        <input class="rl-input" id="rlCity" type="search" autocomplete="off" placeholder="Знайти місто…">
+        <div class="rl-search-results" id="rlCityResults" hidden></div>
       </div>
-      <div class="stats-row">
-        <section class="panel glass" aria-label="Джерела даних">
-          <div class="panel-head"><h2>Джерела даних</h2></div>
-          <div id="srcList" class="src-list"><p class="micro">Отримуємо актуальні дані…</p></div>
-        </section>
-        <section class="panel glass" aria-label="Останні події">
-          <div class="panel-head"><h2>Останні події</h2></div>
-          <div id="eventList" class="event-list"><p class="micro">Очікування даних…</p></div>
-        </section>
+    </div>
+    <div class="rl-chips" id="rlPopular" aria-label="Популярні міста"></div>
+    <div class="rl-field" style="margin-top:8px">
+      <label for="rlOblast">Область</label>
+      <select class="rl-select" id="rlOblast">
+        <option value="">Оберіть область…</option>
+      </select>
+    </div>
+    <div class="rl-btn-row" style="margin-top:8px">
+      <button class="rl-btn" id="rlGeo" style="flex:1">Використати геолокацію</button>
+    </div>
+    <p class="rl-muted" id="rlCenterLabel" style="margin:8px 0 0">Центр: Україна (приблизний)</p>
+    <p class="rl-muted" style="margin:2px 0 0;font-size:11px">Стартовий центр. Оберіть місто для точного спостереження.</p>
+
+    <h3>Радіус спостереження</h3>
+    <div class="rl-seg" id="rlRange" role="group" aria-label="Радіус, км">
+      <button data-range="25">25</button><button data-range="50">50</button><button data-range="100">100</button><button data-range="200" aria-pressed="true">200</button><button data-range="300">300</button><button data-range="500">500</button>
+    </div>
+
+    <h3>Фільтри загроз</h3>
+    <div id="rlKindFilters"></div>
+
+    <h3>Звукові сповіщення</h3>
+    <label class="rl-toggle switch"><input type="checkbox" id="rlSound">Увімкнути звук</label>
+    <div class="rl-field" style="margin-bottom:6px">
+      <label for="rlVolume">Гучність</label>
+      <input class="rl-range" type="range" id="rlVolume" min="0" max="100" value="65">
+    </div>
+    <button class="rl-btn" id="rlTestSound" style="width:100%">Тест звуку</button>
+  </aside>
+
+  <section class="rl-card rl-radar-card" id="radarCard" aria-label="Радар">
+    <div class="rl-radar-screen"><canvas id="rlScope" aria-label="Радар повітряних загроз"></canvas></div>
+    <div class="rl-radar-legend" aria-label="Позначення">
+      <span><i style="background:#F5B82E"></i>БпЛА</span>
+      <span><i style="background:#EF3F36"></i>Крилата ракета</span>
+      <span><i style="background:#D9342C"></i>Балістика</span>
+      <span><i style="background:#ED8B36"></i>КАБ</span>
+      <span><i style="background:#4B80D9"></i>Авіація</span>
+    </div>
+    <p class="rl-muted rl-radar-note" id="rlRadarCount">Очікування даних…</p>
+    <div class="rl-contact-list" id="rlContacts" aria-live="polite"></div>
+  </section>
+
+  <div class="rl-feed-col" style="display:grid;gap:14px;align-content:start;min-width:0">
+    <section class="rl-card" id="feedCard" aria-label="Поточні повідомлення">
+      <h2>Поточні загрози <span class="rl-count" id="rlFeedCount">0</span></h2>
+      <div class="rl-tabs" role="tablist" aria-label="Фільтри подій" id="rlTabs">
+        <button class="rl-tab" role="tab" data-tab="all" aria-selected="true">Усі</button>
+        <button class="rl-tab" role="tab" data-tab="new" aria-selected="false">Нові</button>
+        <button class="rl-tab" role="tab" data-tab="active" aria-selected="false">Активні</button>
+        <button class="rl-tab" role="tab" data-tab="completed" aria-selected="false">Завершені</button>
       </div>
-      <div class="legend-strip glass" id="legendStrip" aria-label="Умовні позначення"></div>
-      <p class="micro dash-note">Онлайн-карта повітряних тривог України: офіційні сигнали тривоги та моніторинг повітряних загроз — БпЛА (шахеди), ракети, балістика, КАБ, авіація. Офіційні сигнали й моніторингові повідомлення відображаються окремо. орієнтуйтеся на офіційні сигнали. НЕБО.UA не замінює офіційні системи оповіщення.</p>
+      <div class="rl-feed" id="rlFeed"><p class="rl-empty">Очікування даних…</p></div>
     </section>
-    <aside class="right-col">
-      <section class="panel glass" aria-label="Поточні загрози">
-        <div class="panel-head"><h2>Поточні загрози <span class="count-badge" id="threatCount">0</span></h2></div>
-        <div id="threatList" class="threat-list"><p class="micro">Очікування даних…</p></div>
-      </section>
-      <section class="panel glass radar-mini" aria-label="Радар загроз">
-        <div class="panel-head center-title"><h2>Радар загроз</h2></div>
-        <div class="seg radar-ranges" id="radarRange" role="group" aria-label="Дальність, км" style="margin-bottom:10px">
-          <button data-range="1">1</button><button data-range="3">3</button><button data-range="5">5</button><button data-range="10">10</button><button data-range="25">25</button><button class="active" data-range="100">100</button>
-        </div>
-        <div class="radar-screen"><canvas id="scopeMini" aria-label="Радар-огляд"></canvas></div>
-        <p class="radar-note" id="radarCount">—</p>
-        <div id="radarContacts" class="radar-contacts" aria-live="polite"></div>
-        <p class="radar-note" id="radarNote">Радар показує лише цілі з підтвердженими координатами.</p>
-      </section>
-    </aside>
-  </main>
+
+    <section class="rl-card" id="sourcesCard" aria-label="Статус джерел">
+      <h2>Статус джерел</h2>
+      <div class="rl-sources" id="rlSources"><p class="rl-muted">Очікування даних…</p></div>
+    </section>
+
+    <section class="rl-card rl-detail" id="detailCard" aria-label="Детальна інформація про загрозу" hidden>
+      <button class="rl-detail-close" id="rlDetailClose" aria-label="Закрити деталі">×</button>
+      <div id="rlDetailBody"></div>
+    </section>
+  </div>
+</main>
+
+<div class="rl-info">
+  <section class="rl-card" id="aboutRadar">
+    <h2>Що таке РАДАР.LIVE</h2>
+    <p class="rl-muted" style="font-size:13.5px;color:var(--text)">Сучасний сервіс моніторингу повітряних загроз України. РАДАР.LIVE збирає та відображає інформацію про повітряні загрози з відкритих джерел: NEPTUN і MAPA. Сервіс допомагає швидко оцінити ситуацію у вашому регіоні — без вигаданих координат і вигаданих траєкторій.</p>
+  </section>
+  <div class="rl-ad-slot" data-ad-enabled="false" data-ad-zone="after-intro">Рекламне місце (вимкнено до налаштування)</div>
+  <div class="rl-info-grid">
+    <div class="rl-card rl-info-card"><h3>Реальні дані</h3><p>Підтверджена інформація з відкритих джерел.</p></div>
+    <div class="rl-card rl-info-card"><h3>Кілька джерел</h3><p>Незалежна перевірка даних NEPTUN і MAPA.</p></div>
+    <div class="rl-card rl-info-card"><h3>Зручний радар</h3><p>Візуалізація загроз у реальному часі.</p></div>
+    <div class="rl-card rl-info-card"><h3>Сповіщення</h3><p>Звукові та візуальні повідомлення.</p></div>
+  </div>
+  <section class="rl-card" id="threatTypes">
+    <h2>Типи повітряних загроз</h2>
+    <div class="rl-info-grid rl-threat-grid">
+      <div class="rl-info-card"><h3>БпЛА / шахеди</h3><p>Ударні безпілотники, які можуть використовуватися для атак.</p></div>
+      <div class="rl-info-card"><h3>Крилаті ракети</h3><p>Ракети великої дальності повітряного, морського або наземного базування.</p></div>
+      <div class="rl-info-card"><h3>Балістичні ракети</h3><p>Високошвидкісні ракети з коротким часом підльоту.</p></div>
+      <div class="rl-info-card"><h3>КАБ</h3><p>Керовані авіаційні бомби, що застосовуються з літаків.</p></div>
+      <div class="rl-info-card"><h3>Авіація</h3><p>Бойова авіація, яка може нести ракети, КАБ та інші засоби ураження.</p></div>
+      <div class="rl-info-card"><h3>Інші загрози</h3><p>Інші повідомлення про повітряну небезпеку, які не уточнено за типом.</p></div>
+    </div>
+  </section>
+  <section class="rl-card" id="faqRadar">
+    <h2>Часті запитання</h2>
+    <details><summary>Звідки дані?</summary><p class="rl-muted">З відкритих джерел NEPTUN і MAPA. Офіційні сигнали — UkraineAlarm (допоміжне джерело).</p></details>
+    <details><summary>Чому радар порожній?</summary><p class="rl-muted">Маркери з'являються лише для повідомлень із достатньо точними координатами. Повідомлення про області без координат показані лише у стрічці.</p></details>
+    <details><summary>Що означають статуси?</summary><p class="rl-muted">Активна — джерело ще відстежує загрозу. Завершена — джерело більше не відстежує її. Нове — зафіксовано за останні 10 хвилин.</p></details>
+    <details><summary>Чи замінює сервіс офіційні сповіщення?</summary><p class="rl-muted">Ні. орієнтуйтеся на офіційні сигнали повітряної тривоги.</p></details>
+    <p class="rl-muted">Докладніше: <a href="./about/">Про проєкт</a> · <a href="./how-it-works/">Як працює</a> · <a href="./sources/">Джерела</a> · <a href="./faq/">FAQ</a> · <a href="./privacy/">Конфіденційність</a> · <a href="./terms/">Умови</a> · <a href="./contact/">Контакти</a></p>
+  </section>
+  <div class="rl-ad-slot" data-ad-enabled="false" data-ad-zone="bottom">Рекламне місце (вимкнено до налаштування)</div>
 </div>
-<nav class="bottom-nav glass" aria-label="Головна навігація">
-  <button class="nav-item active" data-view="map"><svg><use href="./assets/brand/icons.svg#i-map"/></svg><span>Карта</span></button>
-  <button class="nav-item" data-view="alerts"><svg><use href="./assets/brand/icons.svg#i-region"/></svg><span>Сповіщення</span></button>
-  <button class="nav-item" data-view="sources"><svg><use href="./assets/brand/icons.svg#i-source"/></svg><span>Статус</span></button>
-  <button class="nav-collapse" id="navCollapse" aria-label="Сховати навігацію" aria-expanded="true">⌄</button>
+
+<nav class="rl-bottomnav" aria-label="Мобільна навігація">
+  <button data-goto="radarCard" aria-current="true"><svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-radar"/></svg>Радар</button>
+  <button data-goto="feedCard"><svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-list"/></svg>Події</button>
+  <button data-goto="sourcesCard"><svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-source"/></svg>Джерела</button>
+  <button id="rlMobileSettings"><svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-settings"/></svg>Налаштування</button>
 </nav>
-<button class="nav-reveal glass" id="navReveal" aria-label="Показати навігацію" hidden>⌃</button>
-<dialog id="detailSheet" class="bottom-sheet"><div class="sheet-handle"></div><button class="sheet-close" aria-label="Закрити"><svg><use href="./assets/brand/icons.svg#i-close"/></svg></button><div id="detailContent"></div></dialog>
-<dialog id="settingsDialog" class="settings-dialog"><button class="sheet-close" aria-label="Закрити"><svg><use href="./assets/brand/icons.svg#i-close"/></svg></button><span class="kicker">Небо.UA</span><h2>Налаштування</h2><div id="settingsBody"></div></dialog>
-<dialog id="reportDialog" class="prompt-dialog"><button class="sheet-close" data-report-close aria-label="Закрити"><svg><use href="./assets/brand/icons.svg#i-close"/></svg></button><span class="kicker">ЛОКАЛЬНА МІТКА</span><h2>Моя мітка</h2><form id="reportForm"><button type="button" data-report-close>Скасувати</button><button type="submit" class="primary">Зберегти</button></form></dialog>
-<dialog id="audioPrompt"><p>Увімкнути звукові сповіщення?</p><div class="prompt-actions"><button id="enableAudio" class="primary">Увімкнути</button><button id="laterAudio">Не зараз</button></div></dialog>
-<section id="quietScreen" class="quiet-screen" hidden><button id="exitQuiet" class="round-button" aria-label="Вийти з тихого режиму">×</button><time id="quietClock"></time><h2 id="quietRegion">Мій регіон</h2><small id="quietUpdated"></small></section>
-<script src="./assets/vendor/leaflet/leaflet.js"></script>
-<script src="./assets/vendor/markercluster/leaflet.markercluster.js"></script>
-<script type="module" src="./assets/js/dashboard.js?v20261009q"></script>
-</body></html>
+
+<dialog id="rlSettings" class="rl-card rl-sheet" aria-label="Налаштування">
+  <h2>Налаштування</h2>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSoundDlg">Звукові сповіщення</label>
+  <div class="rl-field"><label for="rlVolumeDlg">Гучність</label><input class="rl-range" type="range" id="rlVolumeDlg" min="0" max="100" value="65"></div>
+  <div class="rl-btn-row"><button class="rl-btn" id="rlTestSoundDlg" style="flex:1">Тест звуку</button>
+  <button class="rl-btn primary" id="rlSettingsClose" style="flex:1">Готово</button></div>
+  <h3 style="margin-top:12px">Типи звуку</h3>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndUav" checked>БпЛА / шахеди</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndMissile" checked>Крилаті ракети</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndKab" checked>КАБ</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlSndAviation" checked>Авіація</label>
+  <h3 style="margin-top:12px">Відображення</h3>
+  <label class="rl-toggle"><input type="checkbox" id="rlOnlyNewDlg">Тільки нові</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlOnlyActiveDlg">Тільки активні</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlOnlyCoordsDlg">Тільки з координатами</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlContoursDlg" checked>Показувати контури</label>
+  <label class="rl-toggle"><input type="checkbox" id="rlAnimDlg" checked>Анімація сканування</label>
+  <h3 style="margin-top:12px">Фільтри загроз</h3>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlUavDlg" checked>БпЛА / шахеди</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlMissileDlg" checked>Крилаті ракети</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlBallisticDlg" checked>Балістика</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlKabDlg" checked>КАБ</label>
+  <label class="rl-toggle switch"><input type="checkbox" id="rlAviationDlg" checked>Авіація</label>
+</dialog>
+
+<script type="module" src="./radar/radar.js"></script>
+</body>
+</html>

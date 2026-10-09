@@ -9,17 +9,24 @@ const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 const CANON = 'https://nebo-ua.vercel.app';
 const DIRS = ['about', 'how-it-works', 'sources', 'safety', 'faq', 'privacy', 'terms', 'contact'];
 
-test('home is a LIVE app again: map present, no article section', () => {
+test('home is the RADAR.LIVE app: scope, feed, sources, bottom nav, single H1', () => {
   const h = read('index.html');
-  assert.ok(h.includes('id="map"'), 'home has live map');
-  assert.ok(h.includes('id="scopeMini"'), 'home has compact radar');
-  assert.ok(h.includes('id="threatList"'), 'home has threats view');
-  assert.ok(h.includes('id="srcList"') || h.includes('sources-col'), 'home has sources panel');
-  assert.ok(h.includes('bottom-nav'), 'home has app bottom navigation');
+  assert.ok(h.includes('id="rlScope"'), 'home has radar canvas');
+  assert.ok(h.includes('id="rlFeed"'), 'home has events feed');
+  assert.ok(h.includes('id="rlSources"'), 'home has sources panel');
+  assert.ok(h.includes('rl-bottomnav'), 'home has mobile bottom navigation');
   assert.ok(!h.includes('seo-section'), 'no article section on home');
-  assert.ok(!h.includes('seo-faq'), 'no home FAQ accordion (lives on /faq/)');
+  assert.ok(!h.includes('seo-faq'), 'no home FAQ accordion (lives on /info/)');
   assert.ok((h.match(/<h1[\s>]/g) || []).length === 1, 'single H1');
-  assert.ok(h.includes('<h1 id="mapTitle" class="sr-only">Карта повітряних тривог України онлайн</h1>'), 'accessible H1, not display:none');
+  assert.ok(h.includes('РАДАР.LIVE — моніторинг повітряних загроз України онлайн'), 'accessible H1');
+});
+
+test('nebo archive keeps the classic dashboard intact', () => {
+  const h = read('nebo/index.html');
+  assert.ok(h.includes('id="map"'), 'archive has live map');
+  assert.ok(h.includes('id="scopeMini"'), 'archive has compact radar');
+  assert.ok(h.includes('id="threatList"'), 'archive has threats view');
+  assert.ok(h.includes('bottom-nav'), 'archive has app bottom navigation');
 });
 
 test('LIVE data architecture intact', () => {
@@ -56,8 +63,14 @@ test('content pages: no app chrome, document flow, unique SEO', () => {
 
 test('desktop header nav + active state on every page', () => {
   const h = read('index.html');
-  assert.ok(h.includes('class="mainnav"'), 'home has desktop section nav');
-  assert.ok(h.includes('id="menuButton"'), 'home has mobile menu button');
+  assert.ok(h.includes('class="rl-topbar"'), 'radar home has topbar');
+  assert.ok(h.includes('class="rl-nav"'), 'radar home has section nav');
+  for (const t of ['Радар', 'Події', 'Типи загроз', 'Джерела']) {
+    assert.ok(h.includes(t), `radar nav has ${t}`);
+  }
+  const nebo = read('nebo/index.html');
+  assert.ok(nebo.includes('class="mainnav"'), 'archive keeps desktop section nav');
+  assert.ok(nebo.includes('id="menuButton"'), 'archive keeps mobile menu button');
   for (const d of DIRS) {
     const p = read(`${d}/index.html`);
     assert.ok(p.includes('class="site-nav"'), `${d}: desktop nav`);
@@ -77,15 +90,21 @@ test('FAQ lives on /faq/ with matching schema', () => {
 
 test('internal linking: no orphan pages', () => {
   const h = read('index.html');
+  // Radar home links the info hub + classic info sections.
+  for (const d of ['info', 'about', 'sources', 'faq']) {
+    assert.ok(h.includes(`./${d}/`), `home links ${d}`);
+  }
   for (const d of DIRS) {
-    assert.ok(h.includes(`href="./${d}/"`), `home links ${d}`);
     const p = read(`${d}/index.html`);
     assert.ok(p.includes('href="../"'), `${d}: links back home`);
   }
+  assert.ok(read('info/index.html').includes('href="../"'), 'info: links back home');
+  assert.ok(read('nebo/index.html').includes('href="../"'), 'nebo archive: links back home');
   const sm = read('sitemap.xml');
-  assert.equal((sm.match(/<loc>/g) || []).length, 11, 'sitemap lists exactly 11 canonical URLs (9 + /radar/ + /radar/info.html)');
-  assert.ok(sm.includes(`<loc>${CANON}/radar/</loc>`), 'sitemap lists radar/');
-  assert.ok(sm.includes(`<loc>${CANON}/radar/info/</loc>`), 'sitemap lists radar/info/');
+  assert.equal((sm.match(/<loc>/g) || []).length, 11, 'sitemap lists exactly 11 canonical URLs (root + 8 sections + info/ + nebo/)');
+  assert.ok(sm.includes(`<loc>${CANON}/info/</loc>`), 'sitemap lists info/');
+  assert.ok(sm.includes(`<loc>${CANON}/nebo/</loc>`), 'sitemap lists nebo/ (archive)');
+  assert.ok(!sm.includes('/radar/'), 'no stale /radar/ URLs left');
   for (const d of DIRS) {
     assert.ok(sm.includes(`<loc>${CANON}/${d}/</loc>`), `sitemap lists ${d}`);
   }
@@ -99,12 +118,15 @@ test('layout safe-area: header in document flow, content offset, no overlap arch
   assert.ok(/\.site-header\{[^}]*position:sticky/.test(css) || /\.site-header\{position:sticky/.test(css), 'content header occupies document flow');
   assert.ok(css.includes('scroll-margin-top:calc(var(--header-h)'), 'anchors stop below header');
   assert.ok(css.includes('safe-area-inset-bottom'), 'iPhone safe area respected');
-  const h = read('index.html');
+  const h = read('nebo/index.html');
   const headerAt = h.indexOf('<header class="topbar"');
   const dashAt = h.indexOf('class="dash-main"');
   assert.ok(headerAt > 0 && headerAt < dashAt, 'DOM order: header before dashboard');
   assert.ok(h.includes('env(safe-area-inset-bottom)') || read('assets/css/dashboard.css').includes('env(safe-area-inset-bottom)'), 'dashboard respects iPhone safe area');
   assert.ok(!/\.seo-section/.test(read('assets/css/styles.css')), 'dead article CSS removed from app bundle');
+  const r = read('index.html');
+  assert.ok(r.includes('class="rl-topbar"'), 'radar home topbar present');
+  assert.ok(read('radar/radar.css').includes('safe-area-inset-bottom'), 'radar respects iPhone safe area');
 });
 
 test('right control rail: single axis, derived tops, no desktop overlap', () => {
@@ -123,9 +145,10 @@ test('right control rail: single axis, derived tops, no desktop overlap', () => 
 });
 
 test('AdSense untouched: single script, publisher intact', () => {
-  const h = read('index.html');
-  assert.equal((h.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length, 1, 'exactly one script');
+  const h = read('nebo/index.html');
+  assert.equal((h.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length, 1, 'exactly one script on nebo archive');
   assert.ok(h.includes('client=ca-pub-1051121820445401'), 'publisher untouched');
+  assert.ok(!read('index.html').includes('adsbygoogle'), 'radar home stays ad-free');
   assert.equal(read('ads.txt').trim(), 'google.com, pub-1051121820445401, DIRECT, f08c47fec0942fa0', 'ads.txt intact');
 });
 

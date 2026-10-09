@@ -56,6 +56,11 @@ function loadPrefs() {
     if (Array.isArray(p.kinds)) state.kinds = new Set(p.kinds.filter(k => KIND_FILTERS.includes(k)));
     if (state.kinds.size === 0) state.kinds = new Set(KIND_FILTERS);
     state.showContours = p.showContours !== false;
+    if (['all', 'new', 'active', 'completed'].includes(p.tab)) state.tab = p.tab;
+    state.onlyNew = p.onlyNew === true;
+    state.onlyActive = p.onlyActive === true;
+    state.onlyCoords = p.onlyCoords === true;
+    if (typeof p.animOn === 'boolean') state.animOn = p.animOn;
   } catch { /* ignore */ }
   try {
     const place = loadSelectedPlace();
@@ -69,6 +74,8 @@ function savePrefs() {
   try {
     localStorage.setItem('radar-live-prefs-v1', JSON.stringify({
       range: state.range, kinds: [...state.kinds], showContours: state.showContours,
+      tab: state.tab, onlyNew: state.onlyNew, onlyActive: state.onlyActive,
+      onlyCoords: state.onlyCoords, animOn: state.animOn,
     }));
   } catch { /* ignore */ }
 }
@@ -298,13 +305,25 @@ function drawFrame(t) {
     }
   }
 
-  // empty state (honest: no plottable coords, not "no threats")
+  // empty state: distinguish "no coords at all" from "stale pipeline" from
+  // "nothing inside this radius" — never "no threats".
   if (!pts.length) {
+    const evs = state.snapshot?.events || [];
+    const anyCoord = evs.some(e => e.lat != null && e.lon != null && !e.areaOnly);
+    const pipeT = Date.parse(state.snapshot?.pipelineCheckedAt || '');
+    const pipeStale = !Number.isFinite(pipeT) || Date.now() - pipeT > 5 * 60000;
+    const lines = !evs.length || !state.snapshot
+      ? ['Очікування даних…', '']
+      : pipeStale && anyCoord
+        ? ['Немає підтверджених цілей — останні дані застаріли', '']
+        : anyCoord
+          ? ['У цьому радіусі цілей немає', '']
+          : ['Немає повідомлень із достатньо точними координатами', 'для відображення на радарі'];
     ctx.fillStyle = '#64748B';
     ctx.font = `${12 * dpr}px system-ui`;
     ctx.textAlign = 'center';
-    ctx.fillText('Немає повідомлень із достатньо точними координатами', cx, cy + 26 * dpr);
-    ctx.fillText('для відображення на радарі', cx, cy + 42 * dpr);
+    ctx.fillText(lines[0], cx, cy + 26 * dpr);
+    if (lines[1]) ctx.fillText(lines[1], cx, cy + 42 * dpr);
   }
   canvas.setAttribute('aria-label', `Радар: ${pts.length} цілей у радіусі ${state.range} км від ${state.centerName}`);
 }
@@ -324,7 +343,6 @@ function visibleRadarEvents() {
   return radarEvents(events, {
     kinds: [...state.kinds],
     onlyNew: state.onlyNew,
-    onlyActive: state.onlyActive,
   }).filter(e => {
     const p = radarPoint(e, state.center, state.range, 400);
     return !!p;
@@ -502,8 +520,13 @@ function renderContacts() {
     return p ? { e, kind: normalizeKind(e), d: p.distKm, b: p.bearing } : null;
   }).filter(Boolean).sort((a, b) => a.d - b.d);
   const total = rows.length;
+  const pipeT = Date.parse(state.snapshot?.pipelineCheckedAt || '');
+  const pipeStale = state.snapshot ? (!Number.isFinite(pipeT) || Date.now() - pipeT > 5 * 60000) : false;
+  const anyStale = (state.snapshot?.events || []).some(e => e.stale || e.status === 'ended');
   $('#rlRadarCount').textContent = total
     ? `${total} ${total === 1 ? 'ціль' : total < 5 ? 'цілі' : 'цілей'} у радіусі ${state.range} км`
+    : !state.snapshot ? 'Очікування даних…'
+    : pipeStale && anyStale ? 'Підтверджених цілей немає (дані застаріли)'
     : 'Цілей у радіусі немає';
   const shown = rows.slice(0, 5);
   const box = $('#rlContacts');
@@ -711,6 +734,7 @@ function setupControls() {
     const b = e.target.closest('.rl-tab');
     if (!b) return;
     state.tab = b.dataset.tab;
+    savePrefs();
     renderFeed();
   });
   // extra filters + contours + sweep animation live in the settings dialog
@@ -719,10 +743,10 @@ function setupControls() {
   ];
   for (const [sel, key] of extra) {
     const el = $(sel);
-    if (el) { el.checked = !!state[key]; el.onchange = (e) => { state[key] = e.target.checked; renderFeed(); renderContacts(); }; }
+    if (el) { el.checked = !!state[key]; el.onchange = (e) => { state[key] = e.target.checked; savePrefs(); renderFeed(); renderContacts(); }; }
   }
   const animDlg = $('#rlAnimDlg');
-  if (animDlg) { animDlg.checked = state.animOn; animDlg.onchange = (e) => { state.animOn = e.target.checked; }; }
+  if (animDlg) { animDlg.checked = state.animOn; animDlg.onchange = (e) => { state.animOn = e.target.checked; savePrefs(); }; }
   // oblast select (real coords via Nominatim on choice — nothing hardcoded)
   const OBLASTS = ['Вінницька область', 'Волинська область', 'Дніпропетровська область', 'Донецька область', 'Житомирська область', 'Закарпатська область', 'Запорізька область', 'Івано-Франківська область', 'Київська область', 'Кіровоградська область', 'Луганська область', 'Львівська область', 'Миколаївська область', 'Одеська область', 'Полтавська область', 'Рівненська область', 'Сумська область', 'Тернопільська область', 'Харківська область', 'Херсонська область', 'Хмельницька область', 'Черкаська область', 'Чернівецька область', 'Чернігівська область', 'м. Київ'];
   const oblastSel = $('#rlOblast');

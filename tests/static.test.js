@@ -1,9 +1,9 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
 const read=p=>fs.readFileSync(new URL('../'+p,import.meta.url),'utf8');
-test('PWA metadata and relative paths',()=>{const m=JSON.parse(read('manifest.webmanifest'));assert.equal(m.name,'Небо.UA');assert.equal(m.display,'standalone');assert.equal(m.start_url,'./');assert.match(read('assets/js/app.js'),/serviceWorker\.register\('\.\/service-worker\.js'\)/)});
+test('PWA metadata and relative paths',()=>{const m=JSON.parse(read('manifest.webmanifest'));assert.equal(m.name,'РАДАР.LIVE');assert.equal(m.display,'standalone');assert.equal(m.start_url,'./');assert.match(read('assets/js/app.js'),/serviceWorker\.register\('\/service-worker\.js'\)/)});
 test('production source has no fake threat arrays',()=>{const all=['assets/js/app.js','services/threats.js'].map(read).join('\n');assert.doesNotMatch(all,/const\s+(drones|missiles)\s*=\s*\[/i)});
 test('service worker does not cache API',()=>assert.match(read('service-worker.js'),/includes\('\/api\/'\).*return/));
-test('required safety copy exists',()=>{const h=read('index.html');assert.match(h,/не замінює офіційні системи/);assert.match(h,/моніторингові повідомлення відображаються окремо/);assert.match(h,/орієнтуйтеся на офіційні сигнали/)})
+test('required safety copy exists',()=>{const nebo=read('nebo/index.html');assert.match(nebo,/не замінює офіційні системи/);assert.match(nebo,/моніторингові повідомлення відображаються окремо/);assert.match(nebo,/орієнтуйтеся на офіційні сигнали/);const info=read('info/index.html');assert.match(info,/офіційні сигнали/i)})
 test('region-only selection clears stale detailed location',()=>{const app=read('assets/js/app.js'),enhancements=read('assets/js/enhancements.js');assert.match(app,/if\(!preservePlace\)\{localStorage\.removeItem\('nebo-location'\)/);assert.match(enhancements,/preservePlace:true/)})
 test('fresh-only preference also filters the threat list',()=>assert.match(read('assets/js/app.js'),/function renderThreats\(\)\{const available=flowEvents\(\)/))
 test('district focus is absent until the user selects a region',()=>assert.match(read('assets/js/app.js'),/if\(!saved\|\|!names\.includes\(saved\)\)return''/))

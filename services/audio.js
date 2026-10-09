@@ -36,6 +36,6 @@ export class AudioAlerts{
   async enable(){this.save({enabled:true});await this.playFile('uav',.01)}
   playTypes(types){this.queue=this.queue.then(async()=>{for(const type of [...new Set(types)]){await this.playFile(type);await delay(180)}}).catch(()=>{})}
   async test(type){if(!AUDIO_TYPES.includes(type))return;this.onTestState(type);try{await this.playFile(type)}finally{setTimeout(()=>this.onTestState(null),900)}}
-  async playFile(type,volume=this.prefs.volume){const audio=new Audio(`./assets/audio/${type}.wav`);audio.volume=volume;await audio.play()}
+  async playFile(type,volume=this.prefs.volume){const audio=new Audio(`/assets/audio/${type}.wav`);audio.volume=volume;await audio.play()}
 }
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));

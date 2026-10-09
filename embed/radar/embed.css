@@ -1,4 +1,4 @@
-@import url("../radar.css");
+@import url("../../radar/radar.css");
 
 /* Compact embed mode: radar + minimal controls, no nav/feed duplication. */
 body { background: var(--surface); }

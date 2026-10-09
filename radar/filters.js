@@ -80,10 +80,12 @@ export function applyFeedFilters(events, { kinds = null, tab = 'all', onlyNew = 
 }
 
 // Radar points: same feed result, additionally gated to accuracy level 1-2
-// with real coordinates inside the selected radius. Returns the events that
-// may be plotted (geometry is computed by geo.radarPoint at render time).
-export function radarEvents(events, { kinds = null, onlyNew = false, onlyActive = false } = {}, nowMs = Date.now()) {
-  return applyFeedFilters(events, { kinds, tab: 'all', onlyNew, onlyActive, onlyWithCoords: true }, nowMs)
+// with real coordinates inside the selected radius AND currently active.
+// Stale/ended tracks are NEVER radar contacts: the scope shows live targets
+// only (they stay in the feed as Завершено). Returns the events that may be
+// plotted (geometry is computed by geo.radarPoint at render time).
+export function radarEvents(events, { kinds = null, onlyNew = false } = {}, nowMs = Date.now()) {
+  return applyFeedFilters(events, { kinds, tab: 'all', onlyNew, onlyActive: true, onlyWithCoords: true }, nowMs)
     .filter(e => accuracyLevel(e) <= 2);
 }
 

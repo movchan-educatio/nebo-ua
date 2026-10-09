@@ -8,20 +8,20 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p) => readFileSync(path.join(root, p), 'utf8');
 
 test('radar files exist', () => {
-  for (const f of ['radar/index.html', 'radar/radar.css', 'radar/radar.js', 'radar/geo.js', 'radar/filters.js']) {
+  for (const f of ['index.html', 'radar/radar.css', 'radar/radar.js', 'radar/geo.js', 'radar/filters.js', 'info/index.html', 'nebo/index.html', 'embed/radar/index.html']) {
     assert.ok(existsSync(path.join(root, f)), f);
   }
 });
 
 test('radar SEO: title, description, h1, canonical, OG, JSON-LD', () => {
-  const h = read('radar/index.html');
+  const h = read('index.html');
   const title = (h.match(/<title>([^<]+)<\/title>/) || [])[1] || '';
   assert.ok(title.includes('РАДАР.LIVE'), 'title brand');
   assert.ok(title.length <= 70, `title len ${title.length}`);
   const desc = (h.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
   assert.ok(desc.length >= 50 && desc.length <= 200, `description len ${desc.length}`);
   assert.equal((h.match(/<h1[^>]*>/g) || []).length, 1, 'exactly one h1');
-  assert.ok(h.includes('rel="canonical" href="https://nebo-ua.vercel.app/radar/"'), 'canonical');
+  assert.ok(h.includes('rel="canonical" href="https://nebo-ua.vercel.app/"'), 'root canonical');
   assert.ok(h.includes('og:title') && h.includes('og:image'), 'opengraph');
   assert.ok(h.includes('"@type":"WebSite"') && h.includes('"@type":"WebPage"'), 'json-ld');
   assert.ok(h.includes('rel="icon"') && h.includes('rel="manifest"'), 'favicon+manifest');
@@ -29,7 +29,7 @@ test('radar SEO: title, description, h1, canonical, OG, JSON-LD', () => {
 });
 
 test('radar ads: no auto ads, slots disabled and off the radar', () => {
-  const h = read('radar/index.html');
+  const h = read('index.html');
   assert.ok(!h.includes('adsbygoogle'), 'no adsense script');
   assert.ok(!h.includes('pagead2.'), 'no pagead');
   const slots = [...h.matchAll(/<div class="rl-ad-slot"([^>]*)>/g)].map(m => m[1]);
@@ -40,7 +40,7 @@ test('radar ads: no auto ads, slots disabled and off the radar', () => {
 });
 
 test('radar markup: ranges, tabs, filters, bottom nav, settings, a11y', () => {
-  const h = read('radar/index.html');
+  const h = read('index.html');
   for (const r of ['25', '50', '100', '200', '300', '500']) assert.ok(h.includes(`data-range="${r}"`), `range ${r}`);
   for (const t of ['all', 'new', 'active', 'completed']) assert.ok(h.includes(`data-tab="${t}"`), `tab ${t}`);
   assert.ok(h.includes('id="rlScope"'), 'canvas');
@@ -55,9 +55,9 @@ test('radar markup: ranges, tabs, filters, bottom nav, settings, a11y', () => {
 });
 
 test('radar info: honest copy, no tracking promises, links to info pages', () => {
-  const h = read('radar/index.html');
+  const h = read('index.html');
   assert.ok(h.includes('без вигаданих координат'), 'honesty note');
-  assert.ok(h.includes('../about/') && h.includes('../sources/') && h.includes('../faq/'), 'info links');
+  assert.ok(h.includes('./about/') && h.includes('./sources/') && h.includes('./faq/'), 'info links');
   assert.ok(!/точне відстеження|гарантуємо перехоплення/i.test(h), 'no false promises');
 });
 
@@ -72,16 +72,16 @@ test('radar.js uses real data services, no fake events', () => {
 });
 
 test('radar info page: light design system, real content, SEO, no ads', () => {
-  assert.ok(existsSync(path.join(root, 'radar/info/index.html')), 'info page exists');
-  const h = read('radar/info/index.html');
+  assert.ok(existsSync(path.join(root, 'info/index.html')), 'info page exists');
+  const h = read('info/index.html');
   const title = (h.match(/<title>([^<]+)<\/title>/) || [])[1] || '';
   assert.ok(title.includes('РАДАР.LIVE'), 'info title brand');
   const desc = (h.match(/<meta name="description" content="([^"]*)"/) || [])[1] || '';
   assert.ok(desc.length >= 50 && desc.length <= 200, `info description len ${desc.length}`);
   assert.equal((h.match(/<h1[^>]*>/g) || []).length, 1, 'exactly one h1');
-  assert.ok(h.includes('rel="canonical" href="https://nebo-ua.vercel.app/radar/info/"'), 'canonical');
+  assert.ok(h.includes('rel="canonical" href="https://nebo-ua.vercel.app/info/"'), 'canonical');
   assert.ok(h.includes('FAQPage'), 'faq structured data');
-  assert.ok(h.includes('stylesheet" href="../radar.css"'), 'same design tokens');
+  assert.ok(h.includes('stylesheet" href="../radar/radar.css"'), 'same design tokens');
   assert.ok(!h.includes('adsbygoogle') && !h.includes('pagead2.'), 'no ads running');
   assert.ok(h.includes('data-ad-enabled="false"'), 'ad slot disabled');
   assert.ok(h.includes('../privacy/') && h.includes('../terms/') && h.includes('../contact/'), 'legal links reused, not duplicated');
@@ -92,7 +92,7 @@ test('radar info page: light design system, real content, SEO, no ads', () => {
 test('radar markers reuse the shared threat sprite (no emoji markers)', () => {
   const js = read('radar/radar.js');
   assert.ok(js.includes('threat-icons.svg'), 'shared sprite');
-  const html = read('radar/index.html');
+  const html = read('index.html');
   const legend = html.slice(html.indexOf('rl-radar-legend'), html.indexOf('rl-radar-legend') + 800);
   assert.ok(!/[\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/u.test(legend), 'no emoji in legend');
 });

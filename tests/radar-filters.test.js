@@ -73,6 +73,19 @@ test('statusBadge: honest per-event status with pipeline context', () => {
   assert.equal(statusBadge(fresh, { pipeStale: true, nowMs: NOW }).live, false);
 });
 
+test('radarEvents never plots stale or ended tracks, whatever the filters', () => {
+  const now = NOW;
+  const list = [
+    { id: 'fresh', kind: 'uav', lat: 49, lon: 31, stale: false, eventTime: new Date(now - 60000).toISOString() },
+    { id: 'stale', kind: 'uav', lat: 49, lon: 31, stale: true, eventTime: new Date(now - 60000).toISOString() },
+    { id: 'ended', kind: 'missile', lat: 49, lon: 31, stale: false, status: 'ended', eventTime: new Date(now - 60000).toISOString() },
+  ];
+  const ids = radarEvents(list, {}, now).map(e => e.id);
+  assert.deepEqual(ids, ['fresh']);
+  // even with every permissive option on, stale stays out of the scope
+  const ids2 = radarEvents(list, { kinds: ['uav', 'missile'], onlyNew: false }, now).map(e => e.id);
+  assert.deepEqual(ids2, ['fresh']);
+});
 test('hasCoords never treats area-only as plottable', () => {
   assert.equal(hasCoords(ev({ id: 'a', lat: 49, lon: 31 })), true);
   assert.equal(hasCoords(ev({ id: 'b', lat: 49, lon: 31, areaOnly: true })), false);

@@ -40,7 +40,7 @@ test('index head: canonical, title, description, lang, viewport, icons', () => {
   assert.ok(!h.includes('movchan-educatio.github.io/nebo-ua'), 'no mirror canonical left');
   assert.ok(!h.includes('localhost'), 'no localhost in head');
   const title = h.match(/<title>([^<]+)<\/title>/)[1];
-  assert.ok(/небо[ .]?ua/i.test(title) && title.includes('Україн'), `natural title: ${title}`);
+  assert.ok(/радар\.live/i.test(title) && title.includes('Україн'), `natural title: ${title}`);
   assert.ok(title.length <= 120, 'title not stuffed');
   const desc = h.match(/name="description" content="([^"]+)"/)[1];
   assert.ok(desc.length >= 40 && desc.length <= 300, 'description length sane');
@@ -96,11 +96,13 @@ test('info pages exist, canonical, honest, with disclaimer', () => {
 
 test('AdSense: real publisher ID, single script, valid ads.txt, no fakes', () => {
   const PUB = 'ca-pub-1051121820445401';
-  const head = read('index.html');
+  // The script lives on the archived НЕБО page; radar surfaces stay ad-free
+  // until an explicit, approved rollout.
+  const head = read('nebo/index.html');
   const count = (head.match(/pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/g) || []).length;
-  assert.equal(count, 1, 'exactly one AdSense script in <head>');
+  assert.equal(count, 1, 'exactly one AdSense script in nebo <head>');
   assert.ok(head.includes(`client=${PUB}`), 'correct publisher ID');
-  for (const f of ['about/index.html', 'how-it-works/index.html', 'sources/index.html', 'safety/index.html', 'faq/index.html', 'privacy/index.html', 'terms/index.html', 'contact/index.html', '404.html', 'widget/index.html']) {
+  for (const f of ['index.html', 'info/index.html', 'embed/radar/index.html', 'about/index.html', 'how-it-works/index.html', 'sources/index.html', 'safety/index.html', 'faq/index.html', 'privacy/index.html', 'terms/index.html', 'contact/index.html', '404.html', 'widget/index.html']) {
     assert.ok(!read(f).includes('adsbygoogle'), `${f}: no duplicate script`);
     assert.ok(!read(f).includes('ca-pub-'), `${f}: no publisher ID copy`);
   }

@@ -198,7 +198,7 @@ test('scope renders the shared SVG silhouettes, rings follow selected range', as
 
 test('radar labels are honest (no legacy "Приціл" wording)', async () => {
   const html = await readFile('index.html', 'utf8');
-  assert.ok(html.includes('Радар загроз'), 'radar panel title present');
+  assert.ok(html.includes('Радар повітряних загроз'), 'radar canvas label present');
   assert.ok(!html.includes('Приціл'), 'legacy Приціл label gone');
 });
 
@@ -211,10 +211,10 @@ test('HUD copy is radar-style, no logbook wording or debug counts', async () => 
   assert.ok(body.includes('flow-compact'), 'mobile gets a 2-row compact line');
 });
 
-test('radar is the right-column panel only (no separate mode window)', async () => {
+test('radar is the central card (no separate mode window)', async () => {
   const html = await readFile('index.html', 'utf8');
-  assert.ok(html.includes('id="scopeMini"'), 'compact radar canvas present');
-  assert.ok(html.includes('id="radarCount"') || html.includes('підтвердженими координатами'), 'honest data note present');
+  assert.ok(html.includes('id="rlScope"'), 'radar canvas present');
+  assert.ok(html.includes('Немає повідомлень із достатньо точними координатами') || html.includes('id="rlRadarCount"'), 'honest data note present');
   assert.ok(html.includes('data-range="100"'), 'range presets present');
   const dash = await readFile('assets/js/dashboard.js', 'utf8');
   assert.ok(!dash.includes('openRadarBig'), 'no separate expanded radar window');

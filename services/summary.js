@@ -69,7 +69,7 @@ export function kindShortLabel(kind) {
  * generic БПЛА). Sub-line: rendered point targets + raions in alert.
  * Technical "stale hidden" counts are NOT shown to regular users.
  */
-const THREAT_SPRITE = './assets/brand/threat-icons.svg';
+const THREAT_SPRITE = '/assets/brand/threat-icons.svg';
 // HUD icon colors mirror the shared threat palette (assets/js/map.js META).
 const KIND_COLOR = { uav: '#FFC43D', shahed: '#FF7B4D', missile: '#FF4D67', kab: '#FF806B', fpv: '#FF9F43', explosion: '#FF6A00' };
 export function flowSummaryHTML(stats, raionCount) {

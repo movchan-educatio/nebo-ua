@@ -86,7 +86,7 @@ function updateNavDot(snap) {
   } catch { /* badge best effort */ }
 }
 function setupViews() {
-  const handlers = { map: scrollMap, radar: scrollRadar, stats: showStats, history: showHistory, alerts: showAlerts, sources: showSources, about: () => location.assign('./about/') };  const onNav = (v) => {
+  const handlers = { map: scrollMap, radar: scrollRadar, stats: showStats, history: showHistory, alerts: showAlerts, sources: showSources, about: () => location.assign('/about/') };  const onNav = (v) => {
     $$('.mainnav button, .bottom-nav .nav-item').forEach(b => b.classList.toggle('active', b.dataset.view === v));
     (handlers[v] || scrollMap)();
   };
@@ -119,9 +119,9 @@ function scrollRadar() {
 
 // ── Sources panel ─────────────────────────────────────────────────────────
 const SRC_ICON = {
-  ua: '<svg><use href="./assets/brand/icons.svg#i-region"/></svg>',
-  nep: '<svg><use href="./assets/brand/threat-icons.svg#recon"/></svg>',
-  mapa: '<svg><use href="./assets/brand/icons.svg#i-map"/></svg>',
+  ua: '<svg><use href="/assets/brand/icons.svg#i-region"/></svg>',
+  nep: '<svg><use href="/assets/brand/threat-icons.svg#recon"/></svg>',
+  mapa: '<svg><use href="/assets/brand/icons.svg#i-map"/></svg>',
 };
 function renderSources(health) {
   const cards = sourceCards(health);
@@ -142,7 +142,7 @@ function renderSources(health) {
 // ── Threats feed ──────────────────────────────────────────────────────────
 function threatIcon(kind) {
   const v = getThreatVisual({ kind });
-  return `<svg style="color:${v.color || '#8ca4b3'}"><use href="./assets/brand/threat-icons.svg#${v.icon || 'other'}"/></svg>`;
+  return `<svg style="color:${v.color || '#8ca4b3'}"><use href="/assets/brand/threat-icons.svg#${v.icon || 'other'}"/></svg>`;
 }
 function durStr(t) {
   const ms = Date.now() - new Date(t).getTime();
@@ -288,7 +288,7 @@ function renderLegend() {
     + territory.map(([c, t]) => `<span class="row"><i style="background:${c}"></i>${t}</span>`).join('')
     + kinds.map(k => {
       const v = getThreatVisual(k);
-      return `<span class="row lg"><svg style="color:${v.color};fill:${v.color};stroke:${v.color}"><use href="./assets/brand/threat-icons.svg#${v.icon}"/></svg>${KIND_LABEL[k]}</span>`;
+      return `<span class="row lg"><svg style="color:${v.color};fill:${v.color};stroke:${v.color}"><use href="/assets/brand/threat-icons.svg#${v.icon}"/></svg>${KIND_LABEL[k]}</span>`;
     }).join('');
 }
 function updateMiniRadar() {
@@ -710,7 +710,7 @@ function showSources() {
   const cards = sourceCards(state.snapshot?.health);
   openSheet(`<span class="kicker">ДЖЕРЕЛА ДАНИХ</span><h2>Статуси</h2>
     ${cards.map(c => `<div class="event-row"><span><b>${esc(c.name)}</b><br><small class="micro">${esc(c.sub)} · ${c.updatedAt ? 'перевірено ' + esc(clock(c.updatedAt)) : esc(c.error || 'очікування')}</small></span><span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'OFFLINE' ? 'off' : c.state === 'IDLE' ? 'idle' : 'warn'}" style="margin-left:auto">${esc(c.label)}</span></div>`).join('')}
-    <p class="micro">Офіційні тривоги — <a href="https://www.ukrainealarm.com/" target="_blank" rel="noopener" class="top-links-link">UkraineAlarm</a> (ключ лише на сервері). НЕБО.UA не є його партнером. Моніторинг цілей — NEPTUN і MAPA. <a href="./sources/" class="top-links-link">Розгорнута сторінка&nbsp;джерел&nbsp;›</a></p>`);
+    <p class="micro">Офіційні тривоги — <a href="https://www.ukrainealarm.com/" target="_blank" rel="noopener" class="top-links-link">UkraineAlarm</a> (ключ лише на сервері). НЕБО.UA не є його партнером. Моніторинг цілей — NEPTUN і MAPA. <a href="/sources/" class="top-links-link">Розгорнута сторінка&nbsp;джерел&nbsp;›</a></p>`);
 }
 
 // ── Data loop ─────────────────────────────────────────────────────────────
@@ -951,7 +951,7 @@ function setupDialogs() {
 }
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./service-worker.js').catch(() => {});
+    navigator.serviceWorker.register('/service-worker.js').catch(() => {});
   });
 }
 tickClock();

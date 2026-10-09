@@ -266,6 +266,19 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); }
 .rl-doc summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .rl-doc .rl-muted { color: var(--muted); }
 
+/* ── FAQ accordions (custom chevron, no browser-default triangles) ── */
+.rl-card details { border-top: 1px solid var(--line); padding: 10px 2px; }
+.rl-card details:last-of-type { border-bottom: 1px solid var(--line); }
+.rl-card summary { cursor: pointer; font-weight: 700; font-size: 13.5px; list-style: none; display: flex; align-items: center; gap: 9px; }
+.rl-card summary::-webkit-details-marker { display: none; }
+.rl-card summary::before {
+  content: ""; width: 7px; height: 7px; flex: none;
+  border-right: 2px solid var(--red); border-bottom: 2px solid var(--red);
+  transform: rotate(-45deg); transition: transform 0.15s ease;
+}
+.rl-card details[open] summary::before { transform: rotate(45deg); }
+.rl-card details > p, .rl-card details > div { margin: 8px 0 4px 16px; }
+
 /* ── Bottom nav (mobile) ── */
 .rl-bottomnav {
   position: fixed; z-index: 100; left: 50%; transform: translateX(-50%);

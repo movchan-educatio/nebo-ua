@@ -8,11 +8,11 @@ import { sourceCards, systemBadge } from '../../services/overview.js';
 import {
   haversineKm, bearingDeg, projectRadar, formatDistanceKm, formatBearing,
   compassUk, accuracyLevel, radarPoint, rangeRings, clusterPoints,
-} from '../geo.js';
+} from '../../radar/geo.js';
 import {
   KIND_LABEL, KIND_COLOR, KIND_SYMBOL, normalizeKind, isNew,
   radarEvents, statusBadge,
-} from '../filters.js';
+} from '../../radar/filters.js';
 
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
-Disallow: /radar/embed/
+Disallow: /embed/radar/
 Sitemap: https://nebo-ua.vercel.app/sitemap.xml

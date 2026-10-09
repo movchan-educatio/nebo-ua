@@ -119,15 +119,18 @@ test('marker eligibility: exact+fresh renders; stale/area/report do not', () => 
   assert.equal(flowStats([stale], { onlyFresh: false }).exactTotal, 1, 'stale renders when filter is off');
 });
 
-// ── Radar ranges: presets 1/3/5/10/25/100 + ring sets ────────────────────────
-test('range presets are exactly 1/3/5/10/25/100', () => {
+// ── Radar ranges: legacy nebo presets 1/3/5/10/25/100 stay on /nebo/;
+// the radar home uses 25/50/100/200/300/500 ──────────────────────────
+test('range presets: nebo archive keeps 1/3/5/10/25/100, radar home uses 25..500', () => {
   assert.deepEqual(RANGE_PRESETS, [1, 3, 5, 10, 25, 100]);
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const nebo = fs.readFileSync(path.join(root, 'nebo/index.html'), 'utf8');
   for (const r of [1, 3, 5, 10, 25, 100]) {
-    assert.ok(html.includes(`data-range="${r}"`), `preset button ${r} km exists`);
+    assert.ok(nebo.includes(`data-range="${r}"`), `nebo preset button ${r} km exists`);
   }
-  assert.ok(!html.includes('data-range="50"'), 'old 50 km preset removed');
-  assert.ok(!html.includes('data-range="1500"'), 'old 1500 km preset removed');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  for (const r of [25, 50, 100, 200, 300, 500]) {
+    assert.ok(html.includes(`data-range="${r}"`), `radar preset button ${r} km exists`);
+  }
 });
 
 test('rangeRings: logical ring sets per range', () => {
