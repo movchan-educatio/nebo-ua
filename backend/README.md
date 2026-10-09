@@ -1,5 +1,13 @@
 # Backend-агрегатор Небо.UA (Етап 2)
 
+**Оновлення 2026-10-09:** конфігурація тепер використовує `SYNC_STATE_STORE="d1"`.
+Перед оновленням існуючого Worker потрібна адитивна міграція
+`migrations/0001_pipeline_state.sql`. Snapshot, попередній стан та версія
+UkraineAlarm публікуються одним атомарним записом D1; KV — резервна копія.
+Актуальні результати перевірки, контракт часу й порядок тестового та
+production deployment: [звіт](../docs/SYNC_FAVICON_REPORT.md) і
+[інструкція](../docs/SYNC_FAVICON_DEPLOY.md). Production ще не оновлювався.
+
 Cloudflare Worker, який раз на хвилину (cron) сам опитує NEPTUN і MAPA,
 веде журнал подій, міряє доступність джерел і віддає фронтенду один
 готовий зріз `GET /v1/state`. Браузер більше не ходить по джерелах напряму.
@@ -67,7 +75,10 @@ curl https://<your-worker>.workers.dev/v1/state | head -c 500
 curl https://<your-worker>.workers.dev/v1/metrics
 ```
 
-## Liveness-контракт `/v1/state` (STATE TIME ≠ PIPELINE HEALTH)
+## Попередній KV-контракт `/v1/state` (лише аварійний режим без `SYNC_STATE_STORE="d1"`)
+
+Наведене нижче описує старий writer. У режимі D1 свіжі `checks` **не**
+накладаються на старий KV snapshot; точний чинний контракт наведено у звіті.
 
 Поля часу мають різну семантику — не плутати їх:
 
