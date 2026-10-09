@@ -39,14 +39,14 @@ const reduced = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 function ensureSprites() {
   if (ensureSprites.done) return;
   ensureSprites.done = true;
-  fetch('../../assets/brand/threat-icons.svg').then(r => r.text()).then(txt => {
+  fetch('../../assets/threats/sprite.svg').then(r => r.text()).then(txt => {
     for (const [sym, color] of [['shahed', KIND_COLOR.uav], ['uav', KIND_COLOR.uav], ['missile', KIND_COLOR.missile], ['ballistic', KIND_COLOR.ballistic], ['kab', KIND_COLOR.kab], ['aircraft', KIND_COLOR.aviation], ['other', KIND_COLOR.other]]) {
       const m = txt.match(new RegExp(`<symbol id="${sym}" viewBox="([^"]+)">([\\s\\S]*?)</symbol>`));
       if (!m) continue;
       const img = new Image();
       img.decoding = 'async';
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${m[1]}" width="64" height="64" color="${color}">${m[2]}</svg>`);
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${m[1]}" width="128" height="128">${m[2]}</svg>`);
       spriteImgs.set(sym, img);
     }
   }).catch(() => {});
@@ -255,7 +255,7 @@ function renderAll() {
     : (state.snapshot ? 'Цілей у радіусі немає' : 'Очікування даних…');
   $('#emContacts').innerHTML = evs.slice(0, 3).map(p => `
     <button class="rl-contact" data-id="${esc(p.e.trackId ?? p.e.id ?? '')}">
-    <svg style="color:${KIND_COLOR[p.kind]}" aria-hidden="true"><use href="../../assets/brand/threat-icons.svg#${KIND_SYMBOL[p.kind] || 'other'}"/></svg>
+    <svg style="color:${KIND_COLOR[p.kind]}" aria-hidden="true"><use href="../../assets/threats/sprite.svg#${KIND_SYMBOL[p.kind] || 'other'}"/></svg>
     <span>${esc(KIND_LABEL[p.kind])}</span>
     <time>${esc(formatDistanceKm(p.d))} · ${esc(formatBearing(p.b))}</time></button>`).join('');
   $('#emContacts').querySelectorAll('.rl-contact').forEach(b => b.onclick = () => openDetail(b.dataset.id));
@@ -307,7 +307,7 @@ function openClusterList(members) {
   $('#emDetailBody').innerHTML = `<p style="margin:0 0 6px"><b>Поруч ${rows.length} повідомлень</b> — координати не зміщено:</p>` +
     rows.map(({ e, kind, d }) => `
     <button class="rl-contact" data-id="${esc(e.trackId ?? e.id ?? '')}">
-    <svg style="color:${KIND_COLOR[kind]}" aria-hidden="true"><use href="../../assets/brand/threat-icons.svg#${KIND_SYMBOL[kind] || 'other'}"/></svg>
+    <svg style="color:${KIND_COLOR[kind]}" aria-hidden="true"><use href="../../assets/threats/sprite.svg#${KIND_SYMBOL[kind] || 'other'}"/></svg>
     <span>${esc(KIND_LABEL[kind])}</span>
     <time>${Number.isFinite(d) ? esc(formatDistanceKm(d)) : '—'}</time></button>`).join('');
   $('#emDetail').hidden = false;

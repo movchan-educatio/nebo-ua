@@ -11,6 +11,10 @@ import {
   compassUk, accuracyLevel, radarPoint, rangeRings, clusterPoints,
 } from './geo.js';
 import {
+  makeFix, planTransition, interpolateFix, tweenProgress, headingFor,
+} from './motion.js';
+import { shouldShowHeading } from '../services/threatClassify.js';
+import {
   KIND_FILTERS, KIND_LABEL, KIND_COLOR, KIND_SYMBOL, normalizeKind, isNew, isActive, radarEvents, countByKind,
   applyFeedFilters, statusBadge,
 } from './filters.js';
@@ -85,25 +89,49 @@ function savePrefs() {
 const canvas = $('#rlScope');
 const ctx = canvas.getContext('2d');
 const spriteImgs = new Map();
+// Last CONFIRMED fix per stable track id. Bounded and pruned every frame, so a
+// vanished track can never accumulate memory.
+const lastFix = new Map();
+// Transitions currently gliding between two confirmed fixes.
+const liveMoves = new Map();
+// Track ids seen this frame; everything else is pruned below.
+let seenTrackIds = null;
 let sweepDeg = 0, lastFrame = 0, rafId = 0, scopeActive = false;
+const FIX_HISTORY_MAX = 400;
+
+// Reconcile the confirmed-fix store against the frames we actually draw.
+function rememberFix(event) {
+  const fix = makeFix(event);
+  if (!fix) return null;
+  const prev = lastFix.get(fix.id);
+  if (prev && prev.atMs >= fix.atMs) return prev;      // never move backwards
+  lastFix.set(fix.id, fix);
+  return prev || null;
+}
+function pruneFixes() {
+  if (!seenTrackIds) return;
+  if (lastFix.size <= FIX_HISTORY_MAX) return;
+  for (const id of lastFix.keys()) {
+    if (seenTrackIds.has(id)) continue;
+    lastFix.delete(id);
+    liveMoves.delete(id);
+  }
+}
 const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function ensureSprites() {
   if (ensureSprites.done) return;
   ensureSprites.done = true;
-  fetch('../assets/brand/threat-icons.svg').then(r => r.text()).then(txt => {
-    for (const [sym, color] of [
-      ['shahed', KIND_COLOR.uav], ['uav', KIND_COLOR.uav],
-      ['missile', KIND_COLOR.missile], ['ballistic', KIND_COLOR.ballistic],
-      ['kab', KIND_COLOR.kab], ['aircraft', KIND_COLOR.aviation], ['other', KIND_COLOR.other],
-    ]) {
+  fetch('../assets/threats/sprite.svg').then(r => r.text()).then(txt => {
+    for (const sym of ['shahed', 'uav', 'missile', 'ballistic', 'kab', 'aircraft', 'other']) {
       const m = txt.match(new RegExp(`<symbol id="${sym}" viewBox="([^"]+)">([\\s\\S]*?)</symbol>`));
       if (!m) continue;
       const img = new Image();
       img.decoding = 'async';
-      // Bake the kind color via currentColor so glyphs read on the light disc.
+      // V5 artwork is self-coloured (fill + dark outline), rendered at 4x the
+      // largest on-screen size so it stays crisp when rotated.
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
-        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${m[1]}" width="64" height="64" color="${color}">${m[2]}</svg>`);
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${m[1]}" width="128" height="128">${m[2]}</svg>`);
       spriteImgs.set(sym, img);
     }
   }).catch(() => {});
@@ -242,6 +270,13 @@ function glyphSymbol(kind, e) {
 function drawFrame(t) {
   if (!scopeActive) return;
   rafId = requestAnimationFrame(drawFrame);
+  // No motion work at all while the tab is hidden: requestAnimationFrame is
+  // already throttled, but we also drop any in-flight glide so a marker never
+  // reappears mid-path when the user comes back.
+  if (typeof document !== 'undefined' && document.hidden) {
+    liveMoves.clear();
+    return;
+  }
   const dt = Math.min(100, t - (lastFrame || t));
   lastFrame = t;
   const animate = state.animOn && !reducedMotion();
@@ -275,6 +310,8 @@ function drawFrame(t) {
   // Premium sizes: desktop 23px, mobile 20px, selected ring 27px equivalent.
   const sPx = (cssW < 420 ? 20 : 23) * dpr;
   const now = performance.now();
+  const wall = Date.now();
+  seenTrackIds = new Set();
   for (const c of clusters) {
     if (c.members.length === 1) {
       const p = c.members[0].data;
@@ -284,29 +321,82 @@ function drawFrame(t) {
         const k = Math.min(1, (now - born) / 300);
         scale = 0.6 + 0.4 * k;
       }
+
+      // ── V5 motion ──────────────────────────────────────────────────────
+      // Reconcile the track's confirmed fixes. A glide is only ever started
+      // between two fixes of the SAME track that both passed every guard in
+      // planTransition(); otherwise the marker simply sits on the confirmed
+      // coordinate. No prediction, no continuation, no orbit.
+      const fix = makeFix(p.e);
+      if (fix) {
+        seenTrackIds.add(fix.id);
+        const prevFix = rememberFix(p.e);
+        const plan = (prevFix && animate && !reducedMotion())
+          ? planTransition(prevFix, fix, { nowMs: wall })
+          : null;
+        if (plan) liveMoves.set(fix.id, { plan, fromFix: prevFix });
+        else {
+          // No legal transition (new track, stale, no prior fix, or a data jump):
+          // any in-flight glide ends here and the marker sits exactly on the
+          // confirmed coordinate from this frame on.
+          liveMoves.delete(fix.id);
+        }
+      }
+      const move = fix ? liveMoves.get(fix.id) : null;
+      let drawX = c.x, drawY = c.y;
+      let turnFrom = null, t = 1;
+      if (move && fix) {
+        t = tweenProgress(move.plan, wall);
+        if (t < 1 && move.fromFix) {
+          // Glide in project space between the two CONFIRMED fixes.
+          const a = projectRadar(move.fromFix.lat, move.fromFix.lon, state.center, state.range, cssW);
+          const b = projectRadar(fix.lat, fix.lon, state.center, state.range, cssW);
+          if (a && b) {
+            const ip = interpolateFix(a, b, t);
+            drawX = ip.x * dpr; drawY = ip.y * dpr;
+          }
+          turnFrom = move.fromFix.heading;
+        } else if (t >= 1) {
+          // Transition finished: the marker rests exactly on the new confirmed
+          // fix and stays there until new data arrives.
+          liveMoves.delete(fix.id);
+        }
+      }
+
       const img = spriteImgs.get(glyphSymbol(p.kind, p.e));
-      // Soft colour halo under the glyph so it reads over both the light map
-      // fill and the contours. Decorative only — no coordinate implication.
       const halo = KIND_COLOR[p.kind] || KIND_COLOR.other;
       ctx.save();
       ctx.globalAlpha = 0.16;
       ctx.fillStyle = halo;
-      ctx.beginPath(); ctx.arc(c.x, c.y, sPx * 0.78 * scale, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(drawX, drawY, sPx * 0.78 * scale, 0, 7); ctx.fill();
       ctx.globalAlpha = 0.3;
-      ctx.beginPath(); ctx.arc(c.x, c.y, sPx * 0.6 * scale, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(drawX, drawY, sPx * 0.6 * scale, 0, 7); ctx.fill();
       ctx.restore();
+
       if (img && img.complete && img.naturalWidth) {
-        ctx.drawImage(img, c.x - (sPx / 2) * scale, c.y - (sPx / 2) * scale, sPx * scale, sPx * scale);
+        // Orientation comes ONLY from the source heading. headingFor returns
+        // null when the source has no heading, in which case the glyph stays
+        // neutral (north-up) instead of guessing a direction.
+        // An unidentified contact is never rotated: its marker is a neutral
+        // plate, and a spinning plate would imply a direction we do not have.
+        const rotatable = p.kind !== 'other';
+        const rawHeading = rotatable && shouldShowHeading(p.e) ? Number(p.e.heading) : null;
+        const deg = headingFor(rotatable ? turnFrom : null, rawHeading, t);
+        ctx.save();
+        ctx.translate(drawX, drawY);
+        if (deg != null) ctx.rotate((deg * Math.PI) / 180);
+        ctx.drawImage(img, (-sPx / 2) * scale, (-sPx / 2) * scale, sPx * scale, sPx * scale);
+        ctx.restore();
       } else {
         ctx.fillStyle = halo;
-        ctx.beginPath(); ctx.arc(c.x, c.y, 4 * dpr * scale, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(drawX, drawY, 4 * dpr * scale, 0, 7); ctx.fill();
       }
       if (p.id != null && String(p.id) === String(state.selectedId)) {
         // Selected: soft white halo + red ring (26–28px visual weight).
         ctx.strokeStyle = '#FFFFFF'; ctx.lineWidth = 4 * dpr;
-        ctx.beginPath(); ctx.arc(c.x, c.y, sPx / 2 + 4 * dpr, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(drawX, drawY, sPx / 2 + 4 * dpr, 0, 7); ctx.stroke();
         ctx.strokeStyle = '#EF3F36'; ctx.lineWidth = 2 * dpr;
-        ctx.beginPath(); ctx.arc(c.x, c.y, sPx / 2 + 4 * dpr, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(drawX, drawY, sPx / 2 + 4 * dpr, 0, 7); ctx.stroke();
       }
     } else {
       // compact cluster badge with honest count; tap opens the member list
@@ -344,6 +434,7 @@ function drawFrame(t) {
     ctx.fillText(lines[0], cx, cy + 26 * dpr);
     if (lines[1]) ctx.fillText(lines[1], cx, cy + 42 * dpr);
   }
+  pruneFixes();
   canvas.setAttribute('aria-label', `Радар: ${pts.length} цілей у радіусі ${state.range} км від ${state.centerName}`);
 }
 
@@ -471,6 +562,27 @@ function fmtTime(t) {
   if (!Number.isFinite(d.getTime())) return '—';
   return d.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
 }
+// Movement heading straight from the source. Returns null when the source did
+// not report one — that is a different statement from "flying north".
+function sourceHeading(e) {
+  if (!shouldShowHeading(e)) return null;
+  const h = Number(e.heading);
+  if (!Number.isFinite(h)) return null;
+  return ((h % 360) + 360) % 360;
+}
+const COMPASS16 = ['Пн', 'ПнСх', 'Сх', 'ПдСх', 'Пд', 'ПдЗх', 'Зх', 'ПнЗх'];
+function fmtHeading(e) {
+  const h = sourceHeading(e);
+  if (h === null) return 'невідомий (джерело не передало)';
+  return `${COMPASS16[Math.round(h / 22.5) % 8]} · ${Math.round(h)}°`;
+}
+// Speed only when the source reported a plausible value.
+function fmtSpeed(e) {
+  const v = Number(e.speed);
+  if (!Number.isFinite(v) || v <= 0 || v > 12_000) return 'невідома (джерело не передало)';
+  return `${Math.round(v)} км/год`;
+}
+
 function fmtFullTime(t) {
   if (!t) return '—';
   const d = new Date(t);
@@ -565,7 +677,7 @@ function geoDesc(e) {
 }
 function kindIcon(kind, color) {
   const sym = KIND_SYMBOL[kind] || 'other';
-  return `<svg class="rl-ev-ico" style="color:${color}" aria-hidden="true"><use href="../assets/brand/threat-icons.svg#${sym}"/></svg>`;
+  return `<svg class="rl-ev-ico" style="color:${color}" aria-hidden="true"><use href="../assets/threats/sprite.svg#${sym}"/></svg>`;
 }
 
 function pipeAgeMs() {
@@ -755,6 +867,8 @@ function openDetail(id) {
       <dt>Можливе місцезнаходження</dt><dd>${esc(geoDesc(e))}</dd>
       <dt>Відстань від центру</dt><dd>${hasPos ? esc(formatDistanceKm(d)) : 'невідома (немає координат)'}</dd>
       <dt>Напрямок</dt><dd>${hasPos ? `на ${esc(compassUk(b))} (≈ ${Math.round(b)}°)` : 'недостовірний'}</dd>
+      <dt>Напрямок руху</dt><dd>${esc(fmtHeading(e))}</dd>
+      <dt>Швидкість</dt><dd>${esc(fmtSpeed(e))}</dd>
       <dt>Рівень точності</dt><dd>${esc(accuracyText(e))}</dd>
       <dt>Статус</dt><dd class="${e.stale || e.status === 'ended' ? '' : 'ok'}">${e.stale || e.status === 'ended' ? 'Завершена' : 'Активна загроза'}</dd>
       <dt>Актуальність</dt><dd>${(pipeAgeMs() ?? Infinity) > 5 * 60000 ? 'Потребує повторної перевірки (' + esc(confirmAgeText()) + ')' : esc(confirmAgeText())}</dd>
@@ -1096,7 +1210,9 @@ if (state.centerName.startsWith('Україна')) {
 }
 setInterval(load, POLL_MS);
 setInterval(tickClock, 20000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfStale(); });
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { liveMoves.clear(); lastFix.clear(); refreshIfStale(); }
+});
 window.addEventListener('focus', () => refreshIfStale());
 window.addEventListener('online', () => refreshIfStale(0));
 window.addEventListener('resize', () => { /* canvas auto-resizes each frame */ });

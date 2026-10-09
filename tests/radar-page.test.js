@@ -91,7 +91,7 @@ test('radar info page: light design system, real content, SEO, no ads', () => {
 
 test('radar markers reuse the shared threat sprite (no emoji markers)', () => {
   const js = read('radar/radar.js');
-  assert.ok(js.includes('threat-icons.svg'), 'shared sprite');
+  assert.ok(js.includes('assets/threats/sprite.svg'), 'shared V5 sprite');
   const html = read('index.html');
   const legend = html.slice(html.indexOf('rl-radar-legend'), html.indexOf('rl-radar-legend') + 800);
   assert.ok(!/[\u{1F600}-\u{1F64F}\u{1F680}-\u{1F6FF}]/u.test(legend), 'no emoji in legend');
