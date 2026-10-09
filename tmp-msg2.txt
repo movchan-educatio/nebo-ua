@@ -1,0 +1,35 @@
+Pipeline: bound push CPU, and never lose liveness to it (NOT DEPLOYED)
+
+The cron pipeline degraded from 60 cycles/hour to zero on 2026-10-09 and left
+the site on "ДАНІ ЗАСТАРІЛІ". Diagnosis: dispatchPush ran BEFORE
+recordChecksBatch, so an isolate killed mid-push (exceededCpu, per the existing
+comment in push.js) left no liveness trace at all.
+
+push.js
+- MAX_PUSH_JOBS_PER_CYCLE = 24. `jobs` was unbounded: during a mass alert
+  hundreds of new tracks were fanned out over every subscriber. Official
+  alerts are sorted to the front BEFORE the cap, so a raid start/end is never
+  what gets dropped; overflow is counted in `jobsDropped` and logged.
+- Relevance misses (skipped-place / skipped-old) no longer write one D1 row
+  per (subscriber x unrelated event). 2026-10-09 produced 9300 such rows, all
+  batch-inserted in one statement every cycle. They now collapse into one
+  aggregate row per reason per cycle.
+- skipped-cap keeps its individual row: that is a deliberate decision and must
+  stay auditable (existing test enforces this).
+- firstSeenMap IN(...) capped 500 -> 32 placeholders.
+- The per-cycle `DELETE FROM push_log WHERE ts < -30 days` is gone; the table
+  is bounded by the aggregate rewrite and was never the bottleneck.
+
+pipeline.js
+- Monitoring liveness (NEPTUN/MAPA) is now recorded IMMEDIATELY after the
+  monitoring lanes return, BEFORE any publish or push crypto. An isolate that
+  dies later still leaves a check row, so "no data" can never again be silent.
+- OFFICIAL is recorded separately once its lane settles.
+
+backend/test/stability.test.js pins all of this:
+- structural: checks are written before the first publish
+- behavioural: 400 events x 3 subscribers stay bounded and are aggregated
+- behavioural: a journal that throws on push_log cannot break the cycle
+
+NOT DEPLOYED — awaiting explicit permission for backend changes.
+Tests: 561 pass, including 134 backend tests.

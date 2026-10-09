@@ -3,6 +3,7 @@
 // Geometry: ./geo.js. Filters: ./filters.js. City search: services/locations.js.
 import { fetchAll, shouldPoll, POLL_MS } from '../services/data.js';
 import { searchUkrainianPlaces, loadSelectedPlace, saveSelectedPlace } from '../services/locations.js';
+import { findLocalPlace, searchLocalPlaces } from '../services/ukraine-places.js';
 import { sourceCards, systemBadge } from '../services/overview.js';
 import { classifyThreat } from '../services/threatClassify.js';
 import {
@@ -897,9 +898,16 @@ function setupControls() {
     const my = ++seq;
     if (q.length < 2) { box.hidden = true; return; }
     deb = setTimeout(async () => {
+      const local = searchLocalPlaces(q, 6);
       let rows = [];
-      try { rows = await searchUkrainianPlaces(q); } catch { rows = []; }
+      // Local hits answer instantly; the network only tops up the list.
+      if (local.length < 6) {
+        try { rows = await searchUkrainianPlaces(q); } catch { rows = []; }
+      }
       if (my !== seq) return;
+      const seenP = new Set(local.map(x => String(x.settlement || x.oblast || '').toLowerCase()));
+      rows = rows.filter(x => !seenP.has(String(x.settlement || x.oblast || '').toLowerCase()));
+      rows = [...local, ...rows].slice(0, 8);
       if (!rows.length) {
         box.innerHTML = `<p class="rl-muted" style="padding:10px 12px">Нічого не знайдено</p>`;
         box.hidden = false;
@@ -1031,7 +1039,13 @@ function syncExtraDlg() {
   }
 }
 
+// Resolution order: the local verified directory answers first, so the scope
+// NEVER waits on (or depends on) an external geocoder. Nominatim is only a
+// fallback for a free-text place that is not in the directory — and a failing
+// geocoder can no longer leave the radar without a centre.
 async function pickCity(name) {
+  const local = findLocalPlace(name);
+  if (local) { setCenter(local); return; }
   try {
     const rows = await searchUkrainianPlaces(name);
     const r = rows.find(x => (x.settlement || '').toLowerCase() === name.toLowerCase()) || rows[0];
@@ -1058,6 +1072,10 @@ loadPrefs();
 const bootLabel = $('#rlCenterLabel');
 if (bootLabel) bootLabel.textContent = 'Центр: ' + state.centerName + (state.centerName === 'Україна' ? ' (приблизний)' : '');
 setupControls();
+// Render the filter panel immediately: it must exist even when the data
+// backend is unreachable, otherwise the controls vanish during an outage.
+renderKindFilters();
+renderSources();
 loadContours();
 loadCityLabels();
 startScope();
@@ -1065,10 +1083,16 @@ load(true);
 // Default center: resolve Kyiv honestly via Nominatim (cached). Until then
 // the fallback is the approximate centre of Ukraine, labeled as such.
 if (state.centerName.startsWith('Україна')) {
-  pickCity('Київ').then(() => {
+  // Київ is a verified local coordinate: the first paint already has a real
+  // centre. No geocoder call is needed to boot the radar.
+  const kyiv = findLocalPlace('Київ');
+  if (kyiv) {
+    setCenter(kyiv, false);
     const lbl = $('#rlCenterLabel');
-    if (lbl && state.centerName === 'Київ') lbl.textContent = 'Центр: Київ (стартовий — можна змінити)';
-  }).catch(() => {});
+    if (lbl) lbl.textContent = 'Центр: Київ (стартовий — можна змінити)';
+  } else {
+    pickCity('Київ').catch(() => {});
+  }
 }
 setInterval(load, POLL_MS);
 setInterval(tickClock, 20000);
@@ -1090,7 +1114,15 @@ async function loadCityLabels() {
     }
   } catch { /* ignore */ }
   const list = [];
+  const missing = [];
   for (const name of CITY_LABEL_NAMES) {
+    // Verified local coordinates: instant, offline, no rate limit.
+    const local = findLocalPlace(name);
+    if (local) { list.push({ name, lat: local.lat, lon: local.lon }); continue; }
+    missing.push(name);
+  }
+  // Only names the local directory does not know fall back to the geocoder.
+  for (const name of missing) {
     try {
       const rows = await searchUkrainianPlaces(name);
       const r = rows.find(x => (x.settlement || '').toLowerCase() === name.toLowerCase()) || rows[0];

@@ -66,7 +66,7 @@ test('index head: OpenGraph, Twitter, structured data', () => {
 });
 
 test('info pages exist, canonical, honest, with disclaimer', () => {
-  for (const [d, label] of [['about', 'Про НЕБО.UA'], ['how-it-works', 'Як працює'], ['sources', 'Джерела'], ['safety', 'Безпека'], ['faq', 'Часті запитання'], ['privacy', 'Конфіденційність'], ['terms', 'Умови'], ['contact', 'Контакти']]) {
+  for (const [d, label] of [['about', 'Про РАДАР.LIVE'], ['how-it-works', 'Як працює'], ['sources', 'Джерела'], ['safety', 'Безпека'], ['faq', 'Часті запитання'], ['privacy', 'Конфіденційність'], ['terms', 'Умови'], ['contact', 'Контакти']]) {
     const f = `${d}/index.html`;
     const h = read(f);
     assert.ok(h.includes('<html lang="uk"'), `${f}: lang uk`);
