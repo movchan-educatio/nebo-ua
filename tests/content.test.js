@@ -83,7 +83,8 @@ test('internal linking: no orphan pages', () => {
     assert.ok(p.includes('href="../"'), `${d}: links back home`);
   }
   const sm = read('sitemap.xml');
-  assert.equal((sm.match(/<loc>/g) || []).length, 9, 'sitemap lists exactly 9 canonical URLs');
+  assert.equal((sm.match(/<loc>/g) || []).length, 10, 'sitemap lists exactly 10 canonical URLs (9 + /radar/)');
+  assert.ok(sm.includes(`<loc>${CANON}/radar/</loc>`), 'sitemap lists radar/');
   for (const d of DIRS) {
     assert.ok(sm.includes(`<loc>${CANON}/${d}/</loc>`), `sitemap lists ${d}`);
   }
