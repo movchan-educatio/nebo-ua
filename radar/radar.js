@@ -10,7 +10,7 @@ import {
   compassUk, accuracyLevel, radarPoint, rangeRings, clusterPoints,
 } from './geo.js';
 import {
-  KIND_FILTERS, normalizeKind, isNew, isActive, radarEvents, countByKind,
+  KIND_FILTERS, KIND_LABEL, KIND_COLOR, KIND_SYMBOL, normalizeKind, isNew, isActive, radarEvents, countByKind,
   applyFeedFilters, statusBadge,
 } from './filters.js';
 
@@ -19,9 +19,6 @@ const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 const RANGES = [25, 50, 100, 200, 300, 500];
-const KIND_LABEL = { uav: 'БпЛА', missile: 'Крилата ракета', ballistic: 'Балістика', kab: 'КАБ', aviation: 'Авіація', other: 'Інше' };
-const KIND_COLOR = { uav: '#D99A00', missile: '#EF3F36', ballistic: '#D9342C', kab: '#ED8B36', aviation: '#4B80D9', other: '#657184' };
-const KIND_SYMBOL = { uav: 'uav', missile: 'missile', ballistic: 'ballistic', kab: 'kab', aviation: 'aircraft', other: 'other' };
 const POPULAR = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
 
 const state = {

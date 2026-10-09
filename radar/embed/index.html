@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="robots" content="noindex">
+<title>РАДАР.LIVE — вбудований радар</title>
+<meta name="description" content="Компактний вбудований радар повітряних загроз України: маркери, радіус, статуси джерел. Повна версія — РАДАР.LIVE.">
+<link rel="icon" type="image/x-icon" href="../../favicon.ico">
+<link rel="stylesheet" href="./embed.css">
+</head>
+<body>
+<main class="rl-embed" aria-label="Вбудований радар">
+  <div class="rl-embed-head">
+    <img src="../../assets/brand/logo-mark.svg" alt="" aria-hidden="true">
+    <b>РАДАР.<span>LIVE</span></b>
+    <span class="rl-live stale" id="emLive" role="status">ПЕРЕВІРКА</span>
+    <time id="emUpdated">—</time>
+    <a class="rl-embed-full" href="../" target="_blank" rel="noopener">Повна версія ↗</a>
+  </div>
+  <div class="rl-embed-screen"><canvas id="emScope" aria-label="Радар повітряних загроз"></canvas></div>
+  <div class="rl-embed-controls">
+    <div class="rl-embed-search">
+      <input class="rl-input" id="emCity" type="search" autocomplete="off" placeholder="Центр: Київ — знайти місто…">
+      <div class="rl-embed-results" id="emCityResults" hidden></div>
+    </div>
+    <div class="rl-seg" id="emRange" role="group" aria-label="Радіус, км">
+      <button data-range="25">25</button><button data-range="50">50</button><button data-range="100">100</button><button data-range="200" aria-pressed="true">200</button><button data-range="300">300</button><button data-range="500">500</button>
+    </div>
+  </div>
+  <div class="rl-embed-legend" aria-label="Позначення">
+    <span><i style="background:#D99A00"></i>БпЛА</span>
+    <span><i style="background:#EF3F36"></i>Ракета</span>
+    <span><i style="background:#D9342C"></i>Балістика</span>
+    <span><i style="background:#ED8B36"></i>КАБ</span>
+    <span><i style="background:#4B80D9"></i>Авіація</span>
+  </div>
+  <p class="rl-embed-count" id="emCount" aria-live="polite">Очікування даних…</p>
+  <div class="rl-contact-list" id="emContacts"></div>
+  <section class="rl-card rl-embed-detail" id="emDetail" hidden aria-label="Деталі загрози">
+    <button class="rl-detail-close" id="emDetailClose" aria-label="Закрити деталі">×</button>
+    <div id="emDetailBody"></div>
+  </section>
+  <div class="rl-embed-srcs" id="emSources" aria-label="Статус джерел"></div>
+</main>
+<script type="module" src="./embed.js"></script>
+</body>
+</html>
