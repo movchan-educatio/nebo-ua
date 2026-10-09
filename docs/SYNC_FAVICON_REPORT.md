@@ -233,6 +233,26 @@ Google може обробляти зміни кілька днів/тижнів
 
 ## Офіційні довідкові джерела
 
+### Перевірка після збереження гілки
+
+GitHub підтвердив feature HEAD `75918c5f0ca865d112482eb8f96d357186231a6f`
+для трьох початкових комітів; `master` залишився на `da810a8`.
+Перенесені через GitHub дерева файлів побайтово збігаються з перевіреним
+локальним checkout. Звичайний shell push не мав credentials, тому
+використано вже підключений GitHub із наданими правами репозиторію.
+
+Статус GitHub від Vercel для цього HEAD — `success`, «Deployment has
+completed». Посилання на результат:
+[Vercel deployment](https://vercel.com/movchan-educatio1/nebo-ua/3Gt1qdydny9dft19hT2RJZRfVik8).
+Однак `get_deployment` повернув **403: немає доступу до scope
+`movchan-educatio1`**; Vercel CLI в середовищі відсутній. Отже, deployment
+hostname/target та реальний HTTP іконок у цьому preview незалежно не
+перевірено. Це окрема перешкода доступу Vercel, не результат перевірки API
+UkraineAlarm. Для завершення потрібне підключення з доступом до цієї команди
+або перевірка preview власником. Нового ручного Vercel deploy не виконувалося.
+
+### Документація платформ
+
 - [Google: favicon у Search](https://developers.google.com/search/docs/appearance/favicon-in-search).
 - [Cloudflare: KV consistency](https://developers.cloudflare.com/kv/concepts/how-kv-works/).
 - [Cloudflare: D1 limits](https://developers.cloudflare.com/d1/platform/limits/).
