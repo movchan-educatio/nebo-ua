@@ -710,8 +710,18 @@ function showSources() {
 }
 
 // ── Data loop ─────────────────────────────────────────────────────────────
-async function load() {
-  if (!shouldPoll()) return;
+async function load(force = false) {
+  if (state.loading) return; // never overlap fetches (poll vs focus refresh)
+  if (!force && !shouldPoll({
+    hidden: document.hidden,
+    autoRefresh: true,
+    loading: state.loading,
+    lastStart: state.lastLoadStart || 0,
+    nowMs: Date.now(),
+    intervalMs: POLL_MS,
+  })) return;
+  state.lastLoadStart = Date.now();
+  state.loading = true;
   try {
     const snap = await fetchAll(new AbortController().signal);
     state.snapshot = snap;
@@ -733,7 +743,16 @@ async function load() {
     const el = $('#sysStatus');
     el.className = 'sysok bad';
     el.querySelector('.txt').textContent = 'Немає з’єднання';
+  } finally {
+    state.loading = false;
   }
+}
+// The radar and map must be live the moment the operator looks at them:
+// returning to the tab refreshes immediately if the last data is ≠ older
+// than a few seconds (the poll interval alone would add visible lag).
+function refreshIfStale(maxAgeMs = 5000) {
+  const t = state.lastSuccess ? state.lastSuccess.getTime() : 0;
+  if (Date.now() - t > maxAgeMs) load(true);
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
@@ -943,6 +962,9 @@ setupSearch();
 setupSegs();
 load();
 setInterval(load, POLL_MS);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshIfStale(); });
+window.addEventListener('focus', () => refreshIfStale());
+window.addEventListener('online', () => refreshIfStale(0));
 loadRegionsDir();
 // Radar/map centre: ask for the operator's position on boot (silently — no
 // map jump). Falls back to the selected place, then to Ukraine's centre.

@@ -2,7 +2,7 @@ import{fetchAlerts}from'./alerts.js';import{fetchThreats}from'./threats.js';impo
 export async function fetchAll(signal){if(DATA_MODE==='aggregator'){try{return await fetchAggregated(signal)}catch(e){console.warn('Aggregator unavailable, falling back to direct fetch',e)}}const receivedAt=new Date(),tasks=await Promise.allSettled([fetchAlerts(signal),fetchThreats(signal),fetchMapa(signal)]);const health={OFFICIAL:healthItem(tasks[0]),NEPTUN:healthItem(tasks[1],tasks[1].status==='fulfilled'&&tasks[1].value.stale),MAPA:healthItem(tasks[2])};const alerts=tasks[0].status==='fulfilled'?tasks[0].value.map(x=>normalizeAlert(x,receivedAt)).filter(Boolean):[];const neptun=tasks[1].status==='fulfilled'?tasks[1].value.threats.map(x=>normalizeNeptun(x,receivedAt)).filter(Boolean):[];const mapa=tasks[2].status==='fulfilled'?tasks[2].value.events:[];const events=[...neptun,...mapa].map(e=>({...e,stale:e.stale||!isFresh(e)}));const correlated=correlate(events);const fused=fuse(correlated);return{alerts,events:fused,rawEvents:events,health,disagreement:detectDisagreement(events,health),receivedAt};}
 function healthItem(r,delayed=false){return r.status==='fulfilled'?{status:delayed?'delayed':'online',updatedAt:new Date(),error:delayed?'Джерело позначило потік як застарілий':null}:{status:'offline',updatedAt:null,error:r.reason?.message||'Недоступно'}}
 export function getOfficialAlert(snapshot,region){return snapshot.alerts.filter(a=>a.region===region)}
-export const POLL_MS=45000;
+export const POLL_MS=20000;
 export function shouldPoll({hidden=false,autoRefresh=true,loading=false,lastStart=0,nowMs=Date.now(),intervalMs=POLL_MS}={}){
   if(hidden||!autoRefresh||loading)return false;
   return nowMs-lastStart>=intervalMs;
