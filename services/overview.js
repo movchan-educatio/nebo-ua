@@ -91,7 +91,7 @@ export function matchTerritory(query, oblastNames = [], dirRegions = [], limit =
 // Source cards view-model from /v1/state health. ONLINE/DEGRADED/OFFLINE/
 // STALE/IDLE map explicitly: delayed flag => DEGRADED (data old but real);
 // missing updatedAt on online => STALE (unconfirmed freshness).
-export function sourceCards(health) {
+export function sourceCards(health, nowMs = Date.now()) {
   const defs = [
     { key: 'OFFICIAL', name: 'UkraineAlarm API', sub: 'Офіційні дані тривог', ico: 'ua' },
     { key: 'NEPTUN', name: 'NEPTUN', sub: 'Рух цілей (БПЛА, ракети)', ico: 'nep' },
@@ -105,6 +105,9 @@ export function sourceCards(health) {
       else if (h.status === 'offline') { state = 'OFFLINE'; label = 'Офлайн'; }
       else if (h.delayed) { state = 'DEGRADED'; label = 'Застарілі дані'; }
       else if (!h.updatedAt) { state = 'STALE'; label = 'Не підтверджено'; }
+      else if (!Number.isFinite(Date.parse(h.updatedAt)) || nowMs - Date.parse(h.updatedAt) > 3 * 60000) {
+        state = 'STALE'; label = 'Перевірка затримується';
+      }
       else { state = 'ONLINE'; label = 'Онлайн'; }
     }
     return { ...d, state, label, updatedAt: h?.updatedAt || null, error: h?.error || null };
@@ -116,6 +119,9 @@ export function systemBadge(cards, pipelineAgeMs) {
   if (!cards.length) return { level: 'bad', text: 'Немає даних' };
   if (cards.every(c => c.state === 'OFFLINE' || c.state === 'IDLE')) return { level: 'bad', text: 'Системи недоступні' };
   if (pipelineAgeMs != null && pipelineAgeMs > 30 * 60000) return { level: 'bad', text: 'Дані застарілі' };
+  if (pipelineAgeMs != null && pipelineAgeMs > 3 * 60000 || cards.some(c => c.state === 'STALE')) {
+    return { level: 'warn', text: 'Перевірка затримується' };
+  }
   if (cards.some(c => c.state === 'OFFLINE') || cards.some(c => c.state === 'DEGRADED')) {
     return { level: 'warn', text: 'Часткові дані' };
   }

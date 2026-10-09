@@ -425,7 +425,8 @@ test('uaGet: 429/500/invalid-JSON/missing-key', async () => {
     await assert.rejects(uaGet(env, '/x'), (e) => {
       assert.equal(e.status, 403);
       assert.match(e.message, /HTTP 403/);
-      assert.match(e.message, /WAF/, '403 classified as edge filter, not key rejection');
+      assert.match(e.message, /постачальник API/, '403 cause requires provider evidence');
+      assert.doesNotMatch(e.message, /Схоже на WAF|ключ відхилено/, 'do not diagnose a key or WAF from status alone');
       assert.equal(e.rayId, null, 'missing ray stays null, never faked');
       return true;
     });

@@ -1,6 +1,34 @@
 import{fetchAlerts}from'./alerts.js';import{fetchThreats}from'./threats.js';import{fetchMapa}from'./mapa.js';import{fetchAggregated}from'./aggregator.js';import{DATA_MODE}from'./config.js';import{normalizeAlert,normalizeNeptun,isFresh}from'./normalize.js';import{correlate,fuse,detectDisagreement}from'./correlation.js';
-export async function fetchAll(signal){if(DATA_MODE==='aggregator'){try{return await fetchAggregated(signal)}catch(e){console.warn('Aggregator unavailable, falling back to direct fetch',e)}}const receivedAt=new Date(),tasks=await Promise.allSettled([fetchAlerts(signal),fetchThreats(signal),fetchMapa(signal)]);const health={OFFICIAL:healthItem(tasks[0]),NEPTUN:healthItem(tasks[1],tasks[1].status==='fulfilled'&&tasks[1].value.stale),MAPA:healthItem(tasks[2])};const alerts=tasks[0].status==='fulfilled'?tasks[0].value.map(x=>normalizeAlert(x,receivedAt)).filter(Boolean):[];const neptun=tasks[1].status==='fulfilled'?tasks[1].value.threats.map(x=>normalizeNeptun(x,receivedAt)).filter(Boolean):[];const mapa=tasks[2].status==='fulfilled'?tasks[2].value.events:[];const events=[...neptun,...mapa].map(e=>({...e,stale:e.stale||!isFresh(e)}));const correlated=correlate(events);const fused=fuse(correlated);return{alerts,events:fused,rawEvents:events,health,disagreement:detectDisagreement(events,health),receivedAt};}
-function healthItem(r,delayed=false){return r.status==='fulfilled'?{status:delayed?'delayed':'online',updatedAt:new Date(),error:delayed?'Джерело позначило потік як застарілий':null}:{status:'offline',updatedAt:null,error:r.reason?.message||'Недоступно'}}
+export async function fetchAll(signal) {
+  if (DATA_MODE === 'aggregator') {
+    try { return await fetchAggregated(signal); }
+    catch (e) { console.warn('Aggregator unavailable, falling back to direct fetch', e); }
+  }
+  const tasks = await Promise.allSettled([fetchAlerts(signal), fetchThreats(signal), fetchMapa(signal)]);
+  if (tasks.every(r => r.status === 'rejected')) throw new Error('Усі джерела тимчасово недоступні');
+  const checkedAt = new Date();
+  const health = {
+    OFFICIAL: { status: 'offline', updatedAt: null, error: 'Офіційний статус тимчасово недоступний' },
+    NEPTUN: { ...healthItem(tasks[1], tasks[1].status === 'fulfilled' && tasks[1].value.stale, checkedAt),
+      alertsStatus: tasks[0].status === 'fulfilled' ? 'online' : 'offline' },
+    MAPA: healthItem(tasks[2], false, checkedAt),
+  };
+  const alerts = tasks[0].status === 'fulfilled' ? tasks[0].value.map(x => normalizeAlert(x, checkedAt)).filter(Boolean) : [];
+  const neptun = tasks[1].status === 'fulfilled' ? tasks[1].value.threats.map(x => normalizeNeptun(x, checkedAt)).filter(Boolean) : [];
+  const mapa = tasks[2].status === 'fulfilled' ? tasks[2].value.events : [];
+  const events = [...neptun, ...mapa].map(e => ({ ...e, stale: e.stale || !isFresh(e) }));
+  const fused = fuse(correlate(events));
+  const receivedAt = health.NEPTUN.lastSuccessAt || health.MAPA.lastSuccessAt || null;
+  return { alerts, events: fused, rawEvents: events, health, disagreement: detectDisagreement(events, health),
+    receivedAt, directFallback: true, degraded: true };
+}
+function healthItem(result, delayed, checkedAt) {
+  const ok = result.status === 'fulfilled';
+  const lastSuccessAt = ok && !delayed ? checkedAt : null;
+  return { status: ok ? 'online' : 'offline', checkedAt, updatedAt: lastSuccessAt, lastSuccessAt,
+    ...(delayed ? { delayed: true } : {}),
+    error: ok ? (delayed ? 'Джерело позначило потік як застарілий' : null) : result.reason?.message || 'Недоступно' };
+}
 export function getOfficialAlert(snapshot,region){return snapshot.alerts.filter(a=>a.region===region)}
 export const POLL_MS=20000;
 export function shouldPoll({hidden=false,autoRefresh=true,loading=false,lastStart=0,nowMs=Date.now(),intervalMs=POLL_MS}={}){

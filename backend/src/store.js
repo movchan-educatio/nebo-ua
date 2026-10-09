@@ -7,11 +7,11 @@ const PREV_KEY = 'v1:prev-actives';
 // BEFORE: saveState() did 2 unconditional PUTs every 1-min cron = 2880/day.
 // AFTER: one coalesced bundle key, fingerprint-gated writes, throttled
 // threat persistence, immediate alert writes, rare heartbeat.
-// Calm day ~= 72/day (20-min heartbeat), worst case ~= 480/day (throttle-
-// dominated churn), both far below the free quota. Consumer freshness does
-// NOT depend on the heartbeat: GET /v1/state derives pipelineCheckedAt
-// from the D1 checks table on the read path (0 KV writes), so a calm
-// snapshot never looks OFFLINE just because its content did not change.
+// Calm day ~= 72/day (20-min heartbeat); threat-only churn ~= 480/day.
+// Alerts/health bypass the throttle, so these are estimates, not hard caps.
+// The durable pipeline publishes live state atomically in D1. This gate
+// applies only to its recovery checkpoint, never to consumer freshness.
+// The legacy writer/read route remains available for emergency rollback.
 export const BUNDLE_KEY = LATEST_KEY;
 export const LATEST_TTL_S = 3600; // 1h: bounds dead-worker staleness; clients detect age via pipelineCheckedAt/health
 export const WRITE_THROTTLE_MS = 180000; // positional/track churn persists at most every 3 min
@@ -47,6 +47,7 @@ export function meaningfulFp(alerts, threats, health) {
   const a = [...(alerts || [])].sort(byId).map(x => ({
     id: x.id, official: !!x.official, source: x.source || null,
     category: x.category || null, kind: x.kind || null,
+    stale: !!x.stale,
     region: x.region || null, district: x.district || null,
     level: x.level || null, eventTime: isoOrNull(x.eventTime || x.timestamp),
   }));
@@ -117,8 +118,9 @@ export async function loadBundle(kv) {
 // saveBundle: ONE PUT per logical state change (coalesced snapshot + prev).
 // dataUpdatedAt is persisted top-level (not only inside snapshot) so the
 // reloaded bundle keeps the same contract as the in-memory one.
-export async function saveBundle(kv, { snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt }) {
-  await kv.put(BUNDLE_KEY, JSON.stringify({ v: 1, snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt: dataUpdatedAt || snapshot?.dataUpdatedAt || null }), { expirationTtl: LATEST_TTL_S });
+export async function saveBundle(kv, { snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt, officialItems, officialActionIndex, startedAt }) {
+  await kv.put(BUNDLE_KEY, JSON.stringify({ v: 1, snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt: dataUpdatedAt || snapshot?.dataUpdatedAt || null,
+    officialItems, officialActionIndex, startedAt }), { expirationTtl: LATEST_TTL_S });
 }
 
 // Journal upsert optimization:
@@ -252,10 +254,11 @@ export async function recordChecksBatch(db, checks) {
 
 export async function sourceMetrics(db, sources) {
   const out = {};
+  const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString();
   for (const name of sources) {
     const rows = await db.prepare(
-      `SELECT ok, latency_ms, error, ts FROM checks WHERE source=? ORDER BY ts DESC LIMIT 2880`
-    ).bind(name).all();
+      `SELECT ok, latency_ms, error, ts FROM checks WHERE source=? AND ts>=? ORDER BY ts DESC LIMIT 2880`
+    ).bind(name, since).all();
     const list = rows?.results || [];
     const oks = list.filter(r => r.ok === 1);
     const lats = oks.map(r => r.latency_ms).filter(Number.isFinite);

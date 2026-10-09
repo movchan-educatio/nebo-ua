@@ -23,6 +23,14 @@ CREATE TABLE IF NOT EXISTS checks (
 );
 CREATE INDEX IF NOT EXISTS idx_checks_source_ts ON checks(source, ts);
 
+-- One atomic current snapshot, including source versions and grace counters.
+-- Used when SYNC_STATE_STORE=d1. KV remains the fallback checkpoint.
+CREATE TABLE IF NOT EXISTS pipeline_state (
+  id INTEGER PRIMARY KEY CHECK (id=1),
+  started_at INTEGER NOT NULL,
+  bundle TEXT NOT NULL
+);
+
 -- UkraineAlarm v3 sync state (version gate + 429 backoff). Tiny key/value
 -- store, written only on change: lastActionIndex when the upstream version
 -- moves, notBefore while honoring server-sent Retry-After.

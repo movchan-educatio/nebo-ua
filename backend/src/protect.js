@@ -9,7 +9,7 @@
 //
 // prev: { alerts: [{... alertRecord, misses}], threats: [...] } | null
 // fresh: { alerts: [...], threats: [...] } freshly normalized records
-export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3) {
+export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3, successfulSources = null) {
   const prev = new Map((prevAlerts || []).map(a => [a.id, a]));
   const seen = new Set();
   const active = [];
@@ -20,6 +20,10 @@ export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3) {
   }
   for (const [id, p] of prev) {
     if (seen.has(id)) continue;
+    if (successfulSources && !successfulSources.has(sourceKey(p))) {
+      active.push({ ...p, stale: true });
+      continue;
+    }
     const misses = (p.misses || 0) + 1;
     if (misses >= missLimit) {
       ended.push({ ...p, misses });
@@ -30,7 +34,7 @@ export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3) {
   return { active, ended };
 }
 
-export function protectThreats(prevThreats, freshThreats, missLimit = 3) {
+export function protectThreats(prevThreats, freshThreats, missLimit = 3, successfulSources = null) {
   const prev = new Map((prevThreats || []).map(e => [e.id, e]));
   const seen = new Set();
   const active = [];
@@ -41,6 +45,10 @@ export function protectThreats(prevThreats, freshThreats, missLimit = 3) {
   }
   for (const [id, p] of prev) {
     if (seen.has(id)) continue;
+    if (successfulSources && !successfulSources.has(sourceKey(p))) {
+      active.push({ ...p, stale: true });
+      continue;
+    }
     const misses = (p.misses || 0) + 1;
     if (misses >= missLimit) {
       ended.push({ ...p, misses });
@@ -49,4 +57,8 @@ export function protectThreats(prevThreats, freshThreats, missLimit = 3) {
     }
   }
   return { active, ended };
+}
+
+function sourceKey(record) {
+  return String(record.source || '').startsWith('NEPTUN') ? 'NEPTUN' : record.source;
 }

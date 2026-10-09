@@ -14,6 +14,9 @@ compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
+# Apply migrations/0001_pipeline_state.sql before enabling this writer.
+# Uses the existing D1 database; no new paid service or production secret.
+SYNC_STATE_STORE = "d1"
 # Optional official alerts endpoint (generic JSON, see README). Leave empty to disable.
 OFFICIAL_API_URL = ""
 NEPTUN_ALERTS_URL = "https://neptun.in.ua/api/v1/alerts"

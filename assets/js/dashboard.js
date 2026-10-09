@@ -3,6 +3,7 @@
 // overview.js (pure view-models), assets/js/map.js (GIS, untouched),
 // assets/js/scope.js (radar, untouched). No invented data anywhere.
 import { fetchAll, shouldPoll, POLL_MS } from '../../services/data.js';
+import { mergeSnapshot } from '../../services/snapshot.js';
 import { createStore, syncStore, selectTrails } from '../../services/tracks.js';
 import { createSituationMap, getThreatVisual } from './map.js';
 import { createScope, haversineKm, bearingDeg } from './scope.js';
@@ -125,12 +126,13 @@ const SRC_ICON = {
 function renderSources(health) {
   const cards = sourceCards(health);
   $('#srcList').innerHTML = cards.map(c => `
-    <div class="src-card"><span class="src-ico ${c.ico}">${SRC_ICON[c.ico]}</span>
+    <div class="src-card" title="${esc(c.error || '')}"><span class="src-ico ${c.ico}">${SRC_ICON[c.ico]}</span>
     <span><b>${esc(c.name)}</b><small>${esc(c.sub)}</small>
-    <time>${c.updatedAt ? 'Оновлено ' + esc(clock(c.updatedAt)) : (c.error ? esc(c.error) : 'Очікування')}</time></span>
+    <time>${c.updatedAt ? (c.state === 'OFFLINE' ? 'Успішно перевірено ' : 'Перевірено ') + esc(clock(c.updatedAt)) : (c.error ? esc(c.error) : 'Очікування')}</time></span>
     <span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'DEGRADED' || c.state === 'STALE' ? 'warn' : c.state === 'OFFLINE' ? 'off' : 'idle'}">${esc(c.label)}</span></div>`).join('');
   const age = state.lastSuccess ? Date.now() - state.lastSuccess.getTime() : null;
-  const badge = systemBadge(cards, age);
+  const badge = state.snapshot?.degraded
+    ? { level: 'warn', text: 'Оновлення тимчасово затримуються' } : systemBadge(cards, age);
   const el = $('#sysStatus');
   el.className = 'sysok' + (badge.level === 'ok' ? '' : badge.level === 'warn' ? ' warn' : ' bad');
   el.querySelector('.txt').textContent = badge.text;
@@ -177,7 +179,9 @@ function renderStats(alerts, events) {
   $('#eventList').innerHTML = items.length ? items.map(i => `
     <div class="event-row"><time>${i.t ? esc(clock(i.t)) : '—'}</time>${threatIcon(i.icon)}<span>${esc(i.text)}</span></div>`).join('')
     : '<p class="micro">Подій поки немає.</p>';
-  $('#mapUpdated').textContent = 'Оновлено ' + (state.lastSuccess ? new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(state.lastSuccess) : '—');
+  $('#mapUpdated').textContent = 'Перевірено ' + (state.lastSuccess ? new Intl.DateTimeFormat('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(state.lastSuccess) : '—');
+  $('#mapUpdated').title = state.snapshot?.dataUpdatedAt
+    ? 'Остання зміна даних: ' + clock(state.snapshot.dataUpdatedAt) : 'Час останньої зміни даних невідомий';
 }
 
 // ── Map ───────────────────────────────────────────────────────────────────
@@ -705,7 +709,7 @@ function showAlerts() {
 function showSources() {
   const cards = sourceCards(state.snapshot?.health);
   openSheet(`<span class="kicker">ДЖЕРЕЛА ДАНИХ</span><h2>Статуси</h2>
-    ${cards.map(c => `<div class="event-row"><span><b>${esc(c.name)}</b><br><small class="micro">${esc(c.sub)} · ${c.updatedAt ? 'оновлено ' + esc(clock(c.updatedAt)) : esc(c.error || 'очікування')}</small></span><span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'OFFLINE' ? 'off' : c.state === 'IDLE' ? 'idle' : 'warn'}" style="margin-left:auto">${esc(c.label)}</span></div>`).join('')}
+    ${cards.map(c => `<div class="event-row"><span><b>${esc(c.name)}</b><br><small class="micro">${esc(c.sub)} · ${c.updatedAt ? 'перевірено ' + esc(clock(c.updatedAt)) : esc(c.error || 'очікування')}</small></span><span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'OFFLINE' ? 'off' : c.state === 'IDLE' ? 'idle' : 'warn'}" style="margin-left:auto">${esc(c.label)}</span></div>`).join('')}
     <p class="micro">Офіційні тривоги — <a href="https://www.ukrainealarm.com/" target="_blank" rel="noopener" class="top-links-link">UkraineAlarm</a> (ключ лише на сервері). НЕБО.UA не є його партнером. Моніторинг цілей — NEPTUN і MAPA. <a href="./sources/" class="top-links-link">Розгорнута сторінка&nbsp;джерел&nbsp;›</a></p>`);
 }
 
@@ -723,9 +727,9 @@ async function load(force = false) {
   state.lastLoadStart = Date.now();
   state.loading = true;
   try {
-    const snap = await fetchAll(new AbortController().signal);
+    const snap = mergeSnapshot(state.snapshot, await fetchAll(new AbortController().signal));
     state.snapshot = snap;
-    state.lastSuccess = snap.receivedAt instanceof Date ? snap.receivedAt : new Date(snap.receivedAt);
+    state.lastSuccess = snap.receivedAt ? new Date(snap.receivedAt) : null;
     try { syncStore(state.tracks, snap.events); } catch { /* ignore */ }
     try { state.audio.process(snap, ''); } catch { /* ignore */ }
     try {
@@ -740,6 +744,7 @@ async function load(force = false) {
     try { mapUI.map.invalidateSize(false); mapUI.fitUkraine(); } catch { /* ignore */ }
     updateNavDot(snap);
   } catch {
+    renderSources(state.snapshot?.health);
     const el = $('#sysStatus');
     el.className = 'sysok bad';
     el.querySelector('.txt').textContent = 'Немає з’єднання';

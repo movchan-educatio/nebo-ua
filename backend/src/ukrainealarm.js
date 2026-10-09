@@ -87,11 +87,16 @@ export function uaBase(env) {
 
 // Single choke point for all upstream calls. Throws UAHttpError on HTTP
 // errors (with .status / .retryAfterMs) or Error('Некоректний JSON').
-async function uaFetch(env, path, { timeoutMs = 9000 } = {}) {
+async function uaFetch(env, path, { timeoutMs = 9000, signal } = {}) {
   const key = env.UKRAINEALARM_API_KEY;
   if (!key) throw new UAHttpError(0, 'UkraineAlarm key not configured');
   const ctrl = new AbortController();
+  const abort = () => ctrl.abort(signal.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(() => ctrl.abort(new DOMException('Timeout', 'AbortError')), timeoutMs);
+  const started = Date.now();
+  let status = null;
   try {
     const res = await fetch(uaBase(env) + path, {
       signal: ctrl.signal,
@@ -101,20 +106,23 @@ async function uaFetch(env, path, { timeoutMs = 9000 } = {}) {
         Authorization: authHeaderValue(key, env.UKRAINEALARM_AUTH_SCHEME),
       },
     });
+    status = res.status;
     const text = await res.text();
     return { res, text };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', abort);
+    // One row per actual HTTP attempt, including public history calls.
+    // Do not log headers, query strings, response bodies or credentials.
+    console.log(JSON.stringify({ upstream: 'UkraineAlarm', path: path.split('?')[0], status, durationMs: Date.now() - started }));
   }
 }
 
 function uaCheckStatus(res) {
   // Safe diagnostic headers only (names + non-sensitive values).
   // Never logged/stored: Authorization, Cookie, Set-Cookie, bodies.
-  // content-type discriminates by CONFIRMED sign: a Cloudflare challenge
-  // page is text/html ("Just a moment..."), a real API rejection is
-  // application/json. text/html on 401/403 means the request never
-  // reached key validation at all.
+  // Content type and ray ID are diagnostics, not proof of the origin of
+  // the rejection or validity of the key. Only provider logs can confirm it.
   const safeHeader = (name) => {
     try {
       return res.headers?.get?.(name) || null;
@@ -134,15 +142,12 @@ function uaCheckStatus(res) {
       : null;
     throw new UAHttpError(429, 'UkraineAlarm: перевищено ліміт запитів', parseRetryAfterMs(h) ?? 60_000, rayId);
   }
-  // 401 vs 403 are deliberately distinct: 401 means the key itself was
-  // rejected; 403 from this edge has been observed intermittently for
-  // valid keys (bot-mitigation sampling), so conflating them would
-  // misdirect the investigation. No retries, no scheme guessing here.
+  // Keep 401 and 403 distinct without guessing their root cause.
   if (res.status === 401) {
-    throw new UAHttpError(401, `UkraineAlarm: ключ відхилено (HTTP 401)${raySuffix}${edgeMark}. Перевірте секрет UKRAINEALARM_API_KEY.`, null, rayId);
+    throw new UAHttpError(401, `UkraineAlarm: запит не авторизовано (HTTP 401)${raySuffix}${edgeMark}. Причину має підтвердити постачальник API.`, null, rayId);
   }
   if (res.status === 403) {
-    throw new UAHttpError(403, `UkraineAlarm: доступ відхилено edge-сервером (HTTP 403)${raySuffix}${edgeMark}. Схоже на WAF/фільтр, а не на невалідний ключ.`, null, rayId);
+    throw new UAHttpError(403, `UkraineAlarm: доступ заборонено (HTTP 403)${raySuffix}${edgeMark}. Причину має підтвердити постачальник API.`, null, rayId);
   }
   if (!res.ok) throw new UAHttpError(res.status, `UkraineAlarm: HTTP ${res.status}${raySuffix}${edgeMark}`, null, rayId);
   return { rayId, edgeMark };
@@ -436,17 +441,17 @@ export async function getRegionsTree(env) {
   }
 }
 
-export async function refreshRegionsTree(env, maxAgeExceeded) {
+export async function refreshRegionsTree(env, maxAgeExceeded, opts) {
   const cached = await getRegionsTree(env);
   if (!maxAgeExceeded && cached.states.length && !cached.stale) {
     return { ...cached, refreshed: false };
   }
-  const data = await uaGet(env, '/api/v3/regions');
+  const data = await uaGet(env, '/api/v3/regions', opts);
   const tree = parseRegions(data);
   const byId = buildRegionIndex(tree.states);
   const hash = hashRegionIndex(byId);
   let written = false;
-  if (hash !== cached.hash) {
+  if (hash !== cached.hash || cached.stale) {
     try {
       await env.NEBO_STATE.put(
         UA_REGIONS_KV_KEY,
@@ -466,7 +471,7 @@ export async function refreshRegionsTree(env, maxAgeExceeded) {
 // the pipeline then re-affirms previous OFFICIAL records (version equality
 // IS verification of the set; no new timestamps are fabricated).
 // Never throws for upstream problems (honest { ok:false }).
-export async function fetchOfficialUkraineAlarm(env) {
+export async function fetchOfficialUkraineAlarm(env, opts = {}) {
   const started = Date.now();
   if (!env.UKRAINEALARM_API_KEY) {
     return { ok: true, disabled: true, items: [], latencyMs: 0, error: null };
@@ -477,10 +482,11 @@ export async function fetchOfficialUkraineAlarm(env) {
   });
   try {
     const sync = await getUASync(env.nebo_journal);
+    opts.signal?.throwIfAborted();
     if (Date.now() < sync.notBefore) {
       return fail('UkraineAlarm: пауза після 429 (поважаємо Retry-After)');
     }
-    const { data: statusRaw, text: statusText } = await uaGetRaw(env, '/api/v3/alerts/status');
+    const { data: statusRaw, text: statusText } = await uaGetRaw(env, '/api/v3/alerts/status', opts);
     // Exact digits first (int64-safe); validated parse as fallback.
     const remoteIndex = exactActionIndex(statusText) ?? (() => {
       try {
@@ -490,21 +496,25 @@ export async function fetchOfficialUkraineAlarm(env) {
         throw new Error('Некоректний JSON');
       }
     })();
-    if (!shouldFetchFull(sync.lastActionIndex, remoteIndex)) {
+    // The durable pipeline supplies the version stored atomically WITH its
+    // official data. A fetched-but-unpublished version must never carry an
+    // older snapshot. The legacy adapter contract remains for rollback.
+    const storedIndex = Object.hasOwn(opts, 'publishedIndex') ? opts.publishedIndex : sync.lastActionIndex;
+    if (!shouldFetchFull(storedIndex, remoteIndex)) {
       return {
         ok: true, disabled: false, items: [], carried: true,
         latencyMs: Date.now() - started, error: null,
-        lastActionIndex: sync.lastActionIndex,
+        lastActionIndex: storedIndex,
       };
     }
-    const alertsRaw = await uaGet(env, '/api/v3/alerts');
+    const alertsRaw = await uaGet(env, '/api/v3/alerts', opts);
     // Regions tree outage must not kill oblast-level officials (State items
     // need no tree) and must not fabricate parents: non-State items are
     // skipped until the tree is back.
     let byId = new Map();
     let statesOnly = false;
     try {
-      const regions = await refreshRegionsTree(env, false);
+      const regions = await refreshRegionsTree(env, false, opts);
       byId = regions.byId || buildRegionIndex(regions.states || []);
     } catch {
       statesOnly = true;
@@ -514,11 +524,15 @@ export async function fetchOfficialUkraineAlarm(env) {
       if (statesOnly && parsed.regionType !== 'State') continue;
       items.push(...mapAlertRegion(parsed, byId));
     }
-    if (remoteIndex != null) await setUASync(env.nebo_journal, { lastActionIndex: remoteIndex });
+    opts.signal?.throwIfAborted();
+    if (remoteIndex != null && !statesOnly && !Object.hasOwn(opts, 'publishedIndex')) {
+      await setUASync(env.nebo_journal, { lastActionIndex: remoteIndex });
+    }
     return {
       ok: true, disabled: false, items,
       latencyMs: Date.now() - started, error: null,
-      lastActionIndex: remoteIndex,
+      lastActionIndex: statesOnly ? null : remoteIndex,
+      ...(statesOnly ? { partial: true, delayed: true } : {}),
     };
   } catch (e) {
     if (e instanceof UAHttpError && e.status === 429) {
