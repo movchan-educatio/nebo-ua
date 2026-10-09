@@ -216,7 +216,6 @@ function renderLayerPanel() {
   const p = $('#layerPanel');
   const rows = [
     ['satellite', 'Супутник'], ['relief', 'Рельєф'], ['monitoring', 'Моніторинг'], ['alerts', 'Тривоги'],
-    ['shapes', 'Межі'],
   ];
   p.innerHTML = `<div class="layer-head"><span>Шари карти</span><button type="button" class="layer-close" data-close-layers aria-label="Закрити панель шарів">×</button></div>`
     + rows.map(([k, n]) => {
@@ -655,17 +654,50 @@ async function showHistory(oblast = null, district = null) {
 }
 function showAlerts() {
   const p = state.notifier.prefs || {};
+  const supported = typeof window !== 'undefined' && 'Notification' in window;
+  let place = null;
+  try { place = loadSelectedPlace(); } catch { /* ignore */ }
+  const perm = supported ? Notification.permission : 'unsupported';
+  const isIOS = typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const standalone = (() => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch { return false; } })();
+  const statusText = !supported ? 'Недоступно на цьому пристрої.'
+    : (isIOS && !standalone) ? 'На iPhone сповіщення працюють лише після «Додати на екран Домівки».'
+    : perm === 'granted' ? 'Дозвіл надано.'
+    : perm === 'denied' ? 'Дозвіл відхилено в налаштуваннях браузера.'
+    : 'Дозвіл ще не запитано.';
+  const placeHint = place
+    ? `<p class="micro">Місце: ${esc([place.settlement, place.raion, place.oblast].filter(Boolean).join(' · '))}</p>`
+    : `<p class="micro">Місце не вибране — сповіщення про загрози для вашого району не надходитимуть.</p>`;
   openSheet(`<span class="kicker">СПОВІЩЕННЯ</span><h2>Керування</h2>
-    <label style="display:flex;justify-content:space-between;gap:10px;padding:10px 0">Сповіщення на пристрої<input id="ntfOn" type="checkbox" ${p.enabled ? 'checked' : ''}></label>
+    <label style="display:flex;justify-content:space-between;gap:10px;padding:10px 0">Сповіщення на пристрої<input id="ntfOn" type="checkbox" ${p.enabled && supported ? 'checked' : ''}${supported ? '' : ' disabled'}></label>
+    <p class="micro" id="ntfStatus">${esc(statusText)}</p>
+    ${placeHint}
     <label style="display:flex;justify-content:space-between;gap:10px;padding:10px 0">Офіційна тривога<input data-ntf="officialStart" type="checkbox" ${p.officialStart !== false ? 'checked' : ''}></label>
     <label style="display:flex;justify-content:space-between;gap:10px;padding:10px 0">Відбій<input data-ntf="officialEnd" type="checkbox" ${p.officialEnd !== false ? 'checked' : ''}></label>
     <label style="display:flex;justify-content:space-between;gap:10px;padding:10px 0">БПЛА<input data-ntf="uav" type="checkbox" ${p.uav !== false ? 'checked' : ''}></label>
     <label style="display:flex;justify-content:space-between;gap:10px;padding:10px 0">Ракети<input data-ntf="missile" type="checkbox" ${p.missile !== false ? 'checked' : ''}></label>
     <p class="micro">Фонові push — у налаштуваннях пристрою після підписки. Відбій через помилку мережі не надсилається; дублікати з двох джерел об'єднуються.</p>
     <div class="terr-actions"><button class="btn-ghost" id="audioBtn">Звукові сповіщення</button></div>`);
+  const statusEl = $('#ntfStatus');
   $('#ntfOn').onchange = async (e) => {
-    if (e.target.checked) { try { await state.notifier.enable(); } catch { /* denied */ } }
-    else state.notifier.save({ enabled: false });
+    if (e.target.checked) {
+      try {
+        const res = await state.notifier.enable();
+        if (res === 'granted') { if (statusEl) statusEl.textContent = 'Дозвіл надано.'; }
+        else {
+          e.target.checked = false;
+          if (statusEl) statusEl.textContent = res === 'unsupported' ? 'Недоступно на цьому пристрої.'
+            : (isIOS && !standalone) ? 'На iPhone сповіщення працюють лише після «Додати на екран Домівки».'
+            : 'Дозвіл не надано — увімкніть його в налаштуваннях браузера.';
+        }
+      } catch {
+        e.target.checked = false;
+        if (statusEl) statusEl.textContent = 'Не вдалося увімкнути сповіщення на цьому пристрої.';
+      }
+    } else {
+      state.notifier.save({ enabled: false });
+      if (statusEl) statusEl.textContent = 'Сповіщення вимкнено.';
+    }
   };
   document.querySelectorAll('[data-ntf]').forEach(i => i.onchange = () => state.notifier.save({ [i.dataset.ntf]: i.checked }));
   $('#audioBtn').onclick = () => { const d = $('#audioPrompt'); if (typeof d.showModal === 'function' && !d.open) d.showModal(); };
@@ -686,7 +718,10 @@ async function load() {
     state.lastSuccess = snap.receivedAt instanceof Date ? snap.receivedAt : new Date(snap.receivedAt);
     try { syncStore(state.tracks, snap.events); } catch { /* ignore */ }
     try { state.audio.process(snap, ''); } catch { /* ignore */ }
-    try { state.notifier.process(snap, null); } catch { /* ignore */ }
+    try {
+      const place = (() => { try { return loadSelectedPlace(); } catch { return null; } })();
+      state.notifier.process(snap, place);
+    } catch { /* ignore */ }
     renderSources(snap.health);
     renderThreats(snap.events);
     renderStats(snap.alerts, snap.events);
@@ -874,6 +909,9 @@ function setupMenu() {
 function setupDialogs() {
   $$('dialog .sheet-close').forEach(b => b.onclick = () => b.closest('dialog').close());
   $$('[data-report-close]').forEach(b => b.onclick = () => $('#reportDialog').close());
+  // Tap on the backdrop (outside the card) closes the dialog — expected on
+  // phones where the × may be off-screen while the keyboard is open.
+  $$('dialog').forEach(d => d.addEventListener('click', (e) => { if (e.target === d) d.close(); }));
   const en = $('#enableAudio'), la = $('#laterAudio');
   if (en) en.onclick = async () => { try { await state.audio.enable(); } catch { /* denied */ } $('#audioPrompt').close(); };
   if (la) la.onclick = () => $('#audioPrompt').close();

@@ -173,6 +173,7 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .legend-strip .row{display:flex;align-items:center;gap:9px}
 .legend-strip i{width:15px;height:15px;border-radius:4px}
 .legend-strip .row.lg svg{width:24px;height:24px;fill:currentColor;stroke:currentColor;stroke-width:1.4;flex:none}
+.dash-note{margin:4px 2px 0}
 
 /* ── Leaflet markers: kind colors, outlined glyphs, labels ── */
 .threat-marker{color:var(--c,#B8C5D1);width:44px;height:44px}
@@ -239,7 +240,12 @@ svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke
 .sysok{box-shadow:none}
 .pill.on{box-shadow:none}
 .live-tag{box-shadow:none}
-dialog{border:1px solid var(--line);background:linear-gradient(160deg,#0d1824,#060d14);color:var(--text);border-radius:18px;padding:22px;max-width:min(92vw,480px);width:min(92vw,420px);text-align:center}
+dialog{border:1px solid var(--line);background:linear-gradient(160deg,#0d1824,#060d14);color:var(--text);border-radius:18px;padding:22px;max-width:min(92vw,480px);width:min(92vw,420px);text-align:center;max-height:min(88dvh,760px);overflow:auto}
+/* Smooth open: every window fades/scales in from the centre. */
+dialog[open]{animation:dialogIn .22s ease-out}
+dialog[open]::backdrop{animation:backdropIn .22s ease-out}
+@keyframes dialogIn{from{opacity:0;transform:translateY(10px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes backdropIn{from{opacity:0}to{opacity:1}}
 dialog::backdrop{background:#01040980}
 dialog p{color:var(--muted);line-height:1.55;margin:0 0 16px;font-size:14px}
 dialog h2{margin:6px 0 12px}
@@ -258,7 +264,7 @@ dialog .toggle-row input{width:20px;height:20px;accent-color:var(--cyan)}
 dialog .sheet-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--text);cursor:pointer;padding:0}
 dialog .info-links{display:flex;flex-wrap:wrap;gap:6px 14px;justify-content:center;margin:4px 0 12px}
 dialog .info-links a{color:var(--blue);font-size:13px}
-.bottom-sheet{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--bottomnav-h) + 12px);width:min(94vw,520px);margin:0}
+.bottom-sheet{position:fixed;inset:0;margin:auto;transform:none;width:min(94vw,520px);max-height:min(86dvh,760px);overflow:auto}
 .sheet-close{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:none;color:var(--text);cursor:pointer}
 
 /* bottom nav (mobile) */
@@ -308,6 +314,11 @@ dialog .info-links a{color:var(--blue);font-size:13px}
   .radar-contacts .radar-empty{display:none}
   /* Mobile: wrap compactly — the desktop grid would fall to a single column. */
   .legend-strip .legend-body{display:flex;flex-wrap:wrap;gap:10px 14px;justify-content:flex-start}
+  /* Centered titles/labels for the bottom block (mobile layout). */
+  .stats-row .panel-head{justify-content:center;position:relative}
+  .stats-row .panel-head .collapse-btn{position:absolute;right:0;top:50%;transform:translateY(-50%);margin:0}
+  .legend-strip .legend-title{text-align:center;color:#fff}
+  .dash-note{text-align:center;margin:10px 2px 14px}
   .map-toolbar{padding:8px 10px;gap:6px}
   .map-toolbar .seg button{padding:6px 10px;font-size:11px}
   .map-search{height:36px}
