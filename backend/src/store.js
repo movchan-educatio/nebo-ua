@@ -159,48 +159,56 @@ export async function loadLatest(kv) {
 
 // Smart upsert: only write if item is new or status changed.
 // Active items that stay active don't need last_seen updates every minute.
+// D1 limits bound parameters per statement (100), so everything is chunked:
+// the SELECT ... IN (...) and per-chunk batches stay well under the limit.
+const JOURNAL_CHUNK = 80;
 export async function journalUpsert(db, items, nowIso, staleMark) {
   if (!items.length) return;
+  for (let i = 0; i < items.length; i += JOURNAL_CHUNK) {
+    const slice = items.slice(i, i + JOURNAL_CHUNK);
 
-  // Fetch existing journal entries for these IDs in one query
-  const ids = items.map(e => e.id);
-  const placeholders = ids.map(() => '?').join(',');
-  const existingRows = await db.prepare(
-    `SELECT id, last_seen, status FROM journal WHERE id IN (${placeholders})`
-  ).bind(...ids).all();
-  const existing = new Map((existingRows?.results || []).map(r => [r.id, r]));
+    // Fetch existing journal entries for these IDs in one query
+    const ids = slice.map(e => e.id);
+    const placeholders = ids.map(() => '?').join(',');
+    const existingRows = await db.prepare(
+      `SELECT id, last_seen, status FROM journal WHERE id IN (${placeholders})`
+    ).bind(...ids).all();
+    const existing = new Map((existingRows?.results || []).map(r => [r.id, r]));
 
-  const stmt = db.prepare(
-    `INSERT INTO journal (id, kind, source, category, region, district, first_seen, last_seen, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET last_seen=excluded.last_seen, status=excluded.status`
-  );
+    const stmt = db.prepare(
+      `INSERT INTO journal (id, kind, source, category, region, district, first_seen, last_seen, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET last_seen=excluded.last_seen, status=excluded.status`
+    );
 
-  const batch = [];
-  for (const e of items) {
-    const ex = existing.get(e.id);
-    const desiredStatus = staleMark || 'active';
-    const isNew = !ex;
-    const statusChanged = ex && ex.status !== desiredStatus;
+    const batch = [];
+    for (const e of slice) {
+      const ex = existing.get(e.id);
+      const desiredStatus = staleMark || 'active';
+      const isNew = !ex;
+      const statusChanged = ex && ex.status !== desiredStatus;
 
-    if (isNew || statusChanged) {
-      batch.push(stmt.bind(
-        e.id, e.official ? 'alert' : 'threat', e.source, e.category || null,
-        e.region || null, e.district || null,
-        ex?.first_seen || nowIso,  // preserve original first_seen
-        nowIso,
-        desiredStatus
-      ));
+      if (isNew || statusChanged) {
+        batch.push(stmt.bind(
+          e.id, e.official ? 'alert' : 'threat', e.source, e.category || null,
+          e.region || null, e.district || null,
+          ex?.first_seen || nowIso,  // preserve original first_seen
+          nowIso,
+          desiredStatus
+        ));
+      }
     }
-  }
 
-  if (batch.length) await db.batch(batch);
+    if (batch.length) await db.batch(batch);
+  }
 }
 
 export async function journalEnd(db, items, nowIso) {
   if (!items.length) return;
   const stmt = db.prepare(`UPDATE journal SET ended_at=?, status='ended' WHERE id=? AND status!='ended'`);
-  await db.batch(items.map(e => stmt.bind(nowIso, e.id)));
+  for (let i = 0; i < items.length; i += 90) {
+    await db.batch(items.slice(i, i + 90).map(e => stmt.bind(nowIso, e.id)));
+  }
 }
 
 // Optimized check recording:

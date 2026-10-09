@@ -118,7 +118,10 @@ export function normalizeMapa(raw, receivedAt = new Date()) {
   if (!validCoord(lat, lon)) return null;
   const ts = unix(raw.last_seen || raw.first_seen);
   const trail = Array.isArray(raw.trail)
-    ? raw.trail.slice(-20).map(p => ({ lon: num(p[0]), lat: num(p[1]), timestamp: unix(p[2]) && unix(p[2]).toISOString() })).filter(p => validCoord(p.lat, p.lon) && p.timestamp)
+    ? raw.trail.slice(-20).map(p => {
+        const t = unix(p[2]);
+        return { lon: num(p[0]), lat: num(p[1]), timestamp: t ? t.toISOString() : null };
+      }).filter(p => validCoord(p.lat, p.lon) && p.timestamp)
     : [];
   return base({
     id: `mapa:${raw.id}`,
@@ -194,7 +197,9 @@ export function freshnessMinutes(category) {
 
 export function isFreshEvent(category, eventTime, nowMs = Date.now()) {
   if (!eventTime) return false;
-  const t = new Date(eventTime).getTime();
+  // Date.parse (string fast path) instead of allocating a Date per event —
+  // this runs for every event on every pipeline cycle.
+  const t = typeof eventTime === 'string' ? Date.parse(eventTime) : new Date(eventTime).getTime();
   if (!Number.isFinite(t)) return false;
   return nowMs - t <= freshnessMinutes(category) * 60000;
 }
