@@ -179,6 +179,12 @@ function staticCacheKey(cssSize, dpr) {
     state.center[0].toFixed(3), state.center[1].toFixed(3), state.centerName,
     state.showContours ? 1 : 0, state.contourStatus, (state.contours || []).length,
     (state.cityLabels || []).length,
+    // Empty and non-empty rasters reserve different space, so the cached layer
+    // has to be rebuilt when that flips. The reserved band only exists once a
+    // snapshot is in hand — city labels arrive from the local cache before the
+    // first fetch does, and without this they would be cached unreserved and
+    // stay that way.
+    hasPlottedTargets(cssSize) ? 1 : 0, state.snapshot ? 1 : 0,
   ].join('|');
 }
 
@@ -257,10 +263,22 @@ function rebuildStatic(W, H, dpr, cssSize) {
   if (state.cityLabels?.length) {
     c.font = `${10 * dpr}px Inter, system-ui, sans-serif`;
     c.textAlign = 'center';
+    // The empty-state message owns a band of the disc. A geocoded label that
+    // would land in it is dropped, because a city name struck through by a
+    // sentence reads as a rendering fault rather than as an empty radar.
+    const evs = state.snapshot?.events || [];
+    const anyCoord = evs.some(e => e.lat != null && e.lon != null && !e.areaOnly);
+    const pipeT = Date.parse(state.snapshot?.pipelineCheckedAt || '');
+    const reserve = anyCoord || !state.snapshot ? null : emptyStateBox(cx, cy, R, dpr, emptyStateLines(state.snapshot, false, false));
     for (const city of state.cityLabels) {
       const p = projectRadar(city.lat, city.lon, state.center, state.range, cssSize);
       if (!p || !p.inside) continue;
       if (Math.hypot(p.x * dpr - cx, p.y * dpr - cy) < 20 * dpr) continue;
+      if (reserve) {
+        const w = c.measureText(city.name).width + 8 * dpr;
+        const labelBox = { x: p.x * dpr - w / 2, y: p.y * dpr - 13 * dpr, w, h: 15 * dpr };
+        if (overlaps(labelBox, reserve)) continue;
+      }
       c.fillStyle = 'rgba(100,116,139,0.85)';
       c.fillText(city.name, p.x * dpr, p.y * dpr - 4 * dpr);
     }
@@ -282,6 +300,39 @@ function rebuildStatic(W, H, dpr, cssSize) {
   c.fillStyle = '#14263D';
   c.fillText(state.centerName, cx, cy + 19 * dpr);
   c.restore();
+}
+
+// Empty-state copy. The three cases are genuinely different to a reader, so
+// none of them is collapsed into "everything is calm":
+//   no data at all / the pipeline is stale / the radius simply holds nothing.
+// The last case also fires when messages exist but none carry coordinates
+// precise enough to plot, which is not the same as there being no messages.
+export function emptyStateLines(snapshot, anyCoord, pipeStale) {
+  const evs = snapshot?.events || [];
+  if (!evs.length || !snapshot) return ['Очікування даних…', ''];
+  if (pipeStale && anyCoord) return ['Немає підтверджених цілей — останні дані застаріли', ''];
+  if (anyCoord) return ['У цьому радіусі цілей немає', ''];
+  return ['Немає повідомлень із достатньо точними координатами', 'для відображення на радарі'];
+}
+
+// Whether the radar currently plots anything. Mirrors the draw path exactly —
+// same filter, same range test — so the cached layer reserves space only when
+// the empty-state message will really be painted.
+function hasPlottedTargets(cssSize) {
+  return visibleRadarEvents().some(e => radarPoint(e, state.center, state.range, cssSize));
+}
+
+// The message sits below the centre name, clear of it and of the scale labels
+// above, and its box is returned so nothing else may be painted into it.
+export function emptyStateBox(cx, cy, R, dpr, lines) {
+  const width = Math.max(...lines.filter(Boolean).map(l => l.length)) * 6.4 * dpr;
+  const h = lines.filter(Boolean).length * 16 * dpr;
+  const y = cy + 34 * dpr - h / 2 + 12 * dpr;
+  return { x: cx - width / 2, y, w: width, h: h + 10 * dpr };
+}
+
+export function overlaps(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
 function glyphSymbol(kind, e) {
@@ -443,18 +494,19 @@ function drawFrame(t) {
     const anyCoord = evs.some(e => e.lat != null && e.lon != null && !e.areaOnly);
     const pipeT = Date.parse(state.snapshot?.pipelineCheckedAt || '');
     const pipeStale = !Number.isFinite(pipeT) || Date.now() - pipeT > 5 * 60000;
-    const lines = !evs.length || !state.snapshot
-      ? ['Очікування даних…', '']
-      : pipeStale && anyCoord
-        ? ['Немає підтверджених цілей — останні дані застаріли', '']
-        : anyCoord
-          ? ['У цьому радіусі цілей немає', '']
-          : ['Немає повідомлень із достатньо точними координатами', 'для відображення на радарі'];
+    const lines = emptyStateLines(state.snapshot, anyCoord, pipeStale);
+    const box = emptyStateBox(cx, cy, R, dpr, lines);
+    // A soft plate keeps the sentence readable over rings and contours even if
+    // the avoidance below ever misses something.
+    ctx.fillStyle = 'rgba(251,250,247,0.92)';
+    ctx.beginPath();
+    ctx.roundRect(box.x - 10 * dpr, box.y - 2 * dpr, box.w + 20 * dpr, box.h + 8 * dpr, 10 * dpr);
+    ctx.fill();
     ctx.fillStyle = '#64748B';
     ctx.font = `${12 * dpr}px Inter, system-ui, sans-serif`;
     ctx.textAlign = 'center';
-    ctx.fillText(lines[0], cx, cy + 26 * dpr);
-    if (lines[1]) ctx.fillText(lines[1], cx, cy + 42 * dpr);
+    ctx.fillText(lines[0], cx, box.y + 13 * dpr);
+    if (lines[1]) ctx.fillText(lines[1], cx, box.y + 29 * dpr);
   }
   pruneFixes();
   canvas.setAttribute('aria-label', `Радар: ${pts.length} цілей у радіусі ${state.range} км від ${state.centerName}`);

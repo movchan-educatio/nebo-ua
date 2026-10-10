@@ -144,6 +144,44 @@ test('the minimap cannot take over the panel', () => {
   assert.match(css, /\.rl-minimap\s*\{[^}]*max-width:\s*\d+px/, 'the minimap is capped');
 });
 
+// ── The empty radar must not stack text on text ──────────────────────────
+test('the empty-state message owns a band the radar keeps clear', () => {
+  // Drawn at the centre, it sat on the centre name and under any geocoded city
+  // label — the reported collision.
+  assert.match(radar, /export function emptyStateBox/, 'the band is computed, not guessed');
+  assert.match(radar, /export function overlaps/, 'a shared collision test exists');
+  assert.match(radar, /emptyStateBox\(cx, cy, R, dpr, emptyStateLines\(/,
+    'the cached layer reserves the same band the message is drawn into');
+  // The message is no longer placed on the centre name.
+  const draw = radar.slice(radar.lastIndexOf('if (!pts.length)'));
+  assert.doesNotMatch(draw.slice(0, 600), /cy \+ 26 \* dpr/, 'not on top of the centre name');
+  assert.match(draw, /roundRect/, 'it has a backing plate');
+});
+
+test('city labels are dropped rather than struck through by the message', () => {
+  const block = radar.slice(radar.indexOf('// city labels'), radar.indexOf('// Cardinal points'));
+  assert.match(block, /overlaps\(labelBox, reserve\)/, 'a colliding label is skipped');
+  assert.match(block, /continue;/, 'and the loop actually skips it');
+});
+
+test('the cached layer is rebuilt when the reserved band appears', () => {
+  // City labels load from local cache before the first fetch, so the first
+  // cached layer has no snapshot to reserve space against. Without this in the
+  // key it would never be rebuilt and the labels would stay painted.
+  const keyFn = radar.slice(radar.indexOf('function staticCacheKey'), radar.indexOf('function rebuildStatic'));
+  assert.match(keyFn, /hasPlottedTargets\(/, 'key follows the empty/non-empty flip');
+  assert.match(keyFn, /state\.snapshot \? 1 : 0/, 'key follows the first snapshot arriving');
+});
+
+test('the empty radar never claims everything is calm', () => {
+  // Three genuinely different situations, none of them "no threats".
+  assert.match(radar, /Очікування даних/, 'no data yet');
+  assert.match(radar, /Немає підтверджених цілей — останні дані застаріли/, 'stale pipeline');
+  assert.match(radar, /У цьому радіусі цілей немає/, 'nothing inside the radius');
+  assert.match(radar, /Немає повідомлень із достатньо точними координатами/, 'no precise coordinates');
+  assert.doesNotMatch(radar, /все спокійно|немає загроз|безпечно/i, 'never an unverified all-clear');
+});
+
 test('the mobile sheet has a backdrop and dismisses on tap', () => {
   assert.ok(html.includes('id="rlSheetScrim"'), 'the backdrop exists in the markup');
   assert.ok(html.includes('id="rlSheetScrim" hidden'), 'it ships hidden');
