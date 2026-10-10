@@ -30,6 +30,17 @@ export const UA_REGIONS_TTL_S = 7 * 24 * 3600;
 export const UA_REGIONS_MAX_AGE_MS = 24 * 3600_000;
 export const UA_BACKOFF_CAP_MS = 15 * 60_000;
 
+// Endpoint -> stable short name, so telemetry groups cleanly.
+export const UA_ENDPOINTS = {
+  status: '/api/v3/alerts/status',
+  alerts: '/api/v3/alerts',
+  regions: '/api/v3/regions',
+  history: '/api/v3/alerts/regionHistory',
+};
+const ENDPOINT_NAMES = Object.fromEntries(
+  Object.entries(UA_ENDPOINTS).map(([k, v]) => [v, k]),
+);
+
 // Client identification (NOT evasion): automated clients SHOULD identify
 // themselves. A missing User-Agent is a textbook bot signal for edge
 // filters and can raise challenge rates without any request ever reaching
@@ -57,6 +68,75 @@ export function isAirRaid(type) {
 export function authHeaderValue(key, scheme) {
   const s = (scheme || '').trim();
   return s ? `${s} ${key}` : key;
+}
+
+// ── Safe diagnostics ───────────────────────────────────────────────────────
+// The key itself is NEVER logged, stored, returned or tested. What is safe:
+//   - whether one is configured at all
+//   - its length and whether it carries stray whitespace or non-ASCII
+//     characters (both point at a paste accident, and neither narrows a
+//     high-entropy credential in any useful way)
+//   - a truncated HMAC-SHA256 fingerprint, so the operator can prove that the
+//     Worker holds the key THEY think it holds, by running
+//     `node tools/ua-fingerprint.mjs <key>` locally and comparing.
+// The pepper is a public constant in this repository. That is deliberate: the
+// fingerprint must be reproducible by the key holder. A truncated HMAC of a
+// high-entropy key is not reversible; it identifies, it does not disclose.
+export const UA_FP_PEPPER = 'nebo-ua/ua-key-fingerprint/v1';
+
+let _fpCache;
+export async function keyFingerprint(key, pepper = UA_FP_PEPPER) {
+  if (!key) return null;
+  // The pepper is part of the cache identity: caching on the key alone would
+  // silently return a stale fingerprint after the pepper ever changes.
+  if (_fpCache && _fpCache.key === key && _fpCache.pepper === pepper) return _fpCache.fp;
+  const enc = new TextEncoder();
+  let fp;
+  try {
+    const cryptoKey = await crypto.subtle.importKey('raw', enc.encode(pepper), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const sig = await crypto.subtle.sign('HMAC', cryptoKey, enc.encode(key));
+    fp = [...new Uint8Array(sig)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    fp = 'unavailable';
+  }
+  _fpCache = { key, pepper, fp };
+  return fp;
+}
+
+/**
+ * Describe the configured credential WITHOUT revealing it.
+ * `scheme` comes from wrangler.toml (a plain var), not from the secret.
+ */
+export function describeKey(key, scheme) {
+  const s = (scheme || '').trim();
+  if (!key) return { present: false, scheme: s || '(none)' };
+  const str = String(key);
+  return {
+    present: true,
+    scheme: s || '(none)',
+    length: str.length,
+    trimmedLength: str.trim().length,
+    surroundingWhitespace: str !== str.trim(),
+    whitespaceCount: (str.match(/\s/g) || []).length,
+    nonAsciiCount: [...str].filter((c) => c.charCodeAt(0) > 126).length,
+  };
+}
+
+/**
+ * Classify an upstream response so a 401 is never reported as if it were a
+ * rate limit, and a Cloudflare bot challenge is never reported as a
+ * credential problem. 403 with a non-JSON content type is an edge block.
+ */
+export function classifyUaResponse(status, contentType) {
+  if (status == null) return 'network';
+  if (status >= 200 && status < 300) return 'ok';
+  if (status === 401) return 'auth_rejected';
+  if (status === 403) return contentType && !/json/i.test(contentType) ? 'edge_blocked' : 'forbidden';
+  if (status === 404) return 'endpoint_missing';
+  if (status === 408 || status === 504) return 'timeout';
+  if (status === 429) return 'rate_limited';
+  if (status >= 500) return 'upstream_error';
+  return 'http_' + status;
 }
 
 export class UAHttpError extends Error {
@@ -97,6 +177,7 @@ async function uaFetch(env, path, { timeoutMs = 9000, signal } = {}) {
   const timer = setTimeout(() => ctrl.abort(new DOMException('Timeout', 'AbortError')), timeoutMs);
   const started = Date.now();
   let status = null;
+  let uaContentType = null;
   try {
     const res = await fetch(uaBase(env) + path, {
       signal: ctrl.signal,
@@ -107,14 +188,26 @@ async function uaFetch(env, path, { timeoutMs = 9000, signal } = {}) {
       },
     });
     status = res.status;
+    uaContentType = res.headers?.get?.('content-type') || null;
     const text = await res.text();
     return { res, text };
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', abort);
-    // One row per actual HTTP attempt, including public history calls.
-    // Do not log headers, query strings, response bodies or credentials.
-    console.log(JSON.stringify({ upstream: 'UkraineAlarm', path: path.split('?')[0], status, durationMs: Date.now() - started }));
+    // One row per actual HTTP attempt, including public history calls. Both
+    // endpoints run through this single choke point, so each row carries the
+    // SAME scheme and key fingerprint — that is what proves the two endpoints
+    // are configured identically at runtime, not an assumption in a comment.
+    // Never logged: the key, the header value, query strings, bodies, cookies.
+    console.log(JSON.stringify({
+      upstream: 'UkraineAlarm',
+      endpoint: ENDPOINT_NAMES[path.split('?')[0]] || path.split('?')[0],
+      status,
+      class: classifyUaResponse(status, uaContentType),
+      durationMs: Date.now() - started,
+      scheme: (env.UKRAINEALARM_AUTH_SCHEME || '').trim() || '(none)',
+      keyFp: await keyFingerprint(key),
+    }));
   }
 }
 
@@ -480,6 +573,14 @@ export async function fetchOfficialUkraineAlarm(env, opts = {}) {
     ok: false, disabled: false, items: [],
     latencyMs: Date.now() - started, error,
   });
+  // Credential shape, once per cycle, never the credential itself.
+  console.log(JSON.stringify({
+    upstream: 'UkraineAlarm',
+    event: 'auth-config',
+    ...describeKey(env.UKRAINEALARM_API_KEY, env.UKRAINEALARM_AUTH_SCHEME),
+    base: uaBase(env),
+    keyFp: await keyFingerprint(env.UKRAINEALARM_API_KEY),
+  }));
   try {
     const sync = await getUASync(env.nebo_journal);
     opts.signal?.throwIfAborted();
@@ -538,6 +639,15 @@ export async function fetchOfficialUkraineAlarm(env, opts = {}) {
     if (e instanceof UAHttpError && e.status === 429) {
       await setUASync(env.nebo_journal, { notBefore: Date.now() + (e.retryAfterMs ?? 60_000) });
     }
+    // A classified failure is what the source panel shows; the raw message is
+    // kept for the operator, the class is what gets compared across cycles.
+    console.log(JSON.stringify({
+      upstream: 'UkraineAlarm',
+      event: 'cycle-failed',
+      class: e instanceof UAHttpError ? classifyUaResponse(e.status, null) : 'error',
+      status: e instanceof UAHttpError ? e.status : null,
+      message: String(e?.message || e).slice(0, 200),
+    }));
     return fail(String(e?.message || e));
   }
 }
