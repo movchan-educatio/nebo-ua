@@ -289,11 +289,22 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
   display: grid; place-items: center;
   padding: 16px 22px;
 }
-.rl-radar-screen {
+/* One box, sized exactly like the disc, that the cardinal labels are measured
+   against. They used to be pinned to the card instead, so while the disc stayed
+   capped at 640px they drifted out to the far edges of the viewport — 67px of
+   dead space at 1440, 261px at 1920. A label 12px tall, adrift from what it
+   names, reads as decoration for the card rather than as a direction.
+   Holding the disc's size here also removes the duplication below: every media
+   query used to restate the same expression against a different element. */
+.rl-compass {
   position: relative;
+  --rl-cw-gap: 7px;
   width: min(100%, 640px, calc(68vh - 32px));
   aspect-ratio: 1 / 1;
-  margin: 0 auto;
+}
+.rl-radar-screen {
+  position: relative;
+  width: 100%; height: 100%;
   border-radius: 50%;
   overflow: hidden;
   background: #FBFAF7;
@@ -305,15 +316,16 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
   display: block;
   aspect-ratio: 1 / 1;
 }
-/* Cardinal points sit OUTSIDE the disc, on the bounding box. */
+/* Cardinal points sit just OUTSIDE the disc, measured from its edge rather than
+   from its centre, so all four keep the same clearance at every screen size. */
 .rl-cw {
   position: absolute; font-size: 12px; font-weight: 700; color: var(--red);
-  pointer-events: none; user-select: none; line-height: 1;
+  pointer-events: none; user-select: none; line-height: 1; white-space: nowrap;
 }
-.rl-cw-n { top: 0; left: 50%; transform: translateX(-50%); }
-.rl-cw-s { bottom: 0; left: 50%; transform: translateX(-50%); }
-.rl-cw-w { left: 0; top: 50%; transform: translateY(-50%); }
-.rl-cw-e { right: 0; top: 50%; transform: translateY(-50%); }
+.rl-cw-n { bottom: calc(100% + var(--rl-cw-gap)); left: 50%; transform: translateX(-50%); }
+.rl-cw-s { top: calc(100% + var(--rl-cw-gap)); left: 50%; transform: translateX(-50%); }
+.rl-cw-w { right: calc(100% + var(--rl-cw-gap)); top: 50%; transform: translateY(-50%); }
+.rl-cw-e { left: calc(100% + var(--rl-cw-gap)); top: 50%; transform: translateY(-50%); }
 /* Map load state. Inline-flex + auto height: this must never reserve space
    when hidden, or it would reintroduce a gap under the radar. */
 .rl-map-state {
@@ -759,7 +771,7 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
   .rl-info { padding: 0 14px 28px; }
   .rl-nav button { padding: 7px 10px; font-size: 11px; }
   .rl-radar-wrap { padding: 14px 20px; }
-  .rl-radar-screen { width: min(100%, 620px, calc(66vh - 28px)); }
+  .rl-compass { width: min(100%, 620px, calc(66vh - 28px)); }
 }
 @media (max-width: 1180px) {
   .rl-nav { display: none; }
@@ -825,7 +837,7 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
   .rl-live { padding: 6px 10px; font-size: 10px; }
   .rl-icon-btn { width: 38px; height: 38px; }
   .rl-bottomnav { display: flex; left: 8px; right: 8px; transform: none; width: auto; }
-  .rl-radar-screen { width: min(100%, calc(100vw - 48px)); }
+  .rl-compass { width: min(100%, calc(100vw - 48px)); }
   .rl-feed { max-height: none; overflow: visible; }
   .rl-info-grid, .rl-doc-feats { grid-template-columns: 1fr; }
   .rl-threat-grid { grid-template-columns: 1fr; }
@@ -848,7 +860,7 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
   /* Horizontal padding must clear the Зх/Сх labels so they never touch the disc. */
   .rl-radar-wrap { padding: 13px 18px; }
   .rl-cw { font-size: 11px; }
-  .rl-radar-screen { width: min(100%, calc(100vw - 44px)); }
+  .rl-compass { width: min(100%, calc(100vw - 44px)); }
   .rl-radar-legend { font-size: 11.5px; gap: 6px 12px; }
   .rl-radar-legend svg { width: 18px; height: 18px; }
   .rl-event { grid-template-columns: 40px 22px minmax(0, 1fr) auto; }

@@ -19,15 +19,43 @@ function ruleBlock(css, selector) {
 
 test('radar screen is a square box with round clipping', () => {
   const css = read('radar/radar.css');
+  // The square is owned by .rl-compass, whose box the cardinal labels are also
+  // measured against; the screen fills it. The guarantee under test is that the
+  // disc is a true circle sized by width, so it is checked where that decision
+  // now lives.
+  const compass = ruleBlock(css, '.rl-compass');
   const screen = ruleBlock(css, '.rl-radar-screen');
-  assert.ok(/aspect-ratio\s*:\s*1(\s*\/\s*1)?/.test(screen), 'aspect-ratio 1/1 keeps width == height');
+  assert.ok(/aspect-ratio\s*:\s*1(\s*\/\s*1)?/.test(compass), 'aspect-ratio 1/1 keeps width == height');
+  assert.ok(/width\s*:\s*min\(/.test(compass), 'width uses min() so the square fits viewport + vh');
+  // Never constrain height alone: that breaks aspect-ratio into an oval.
+  assert.ok(!/max-height\s*:/.test(compass), 'no max-height on the radar box (width-driven square only)');
+  assert.ok(/width\s*:\s*100%/.test(screen) && /height\s*:\s*100%/.test(screen), 'the screen fills the square exactly');
+  assert.ok(!/max-height\s*:/.test(screen), 'and never constrains its own height');
   assert.ok(/border-radius\s*:\s*50%/.test(screen), '50% radius clips to a disc');
   assert.ok(/overflow\s*:\s*hidden/.test(screen), 'overflow hidden keeps the disc clean');
-  // Never constrain height alone: that breaks aspect-ratio into an oval.
-  assert.ok(!/max-height\s*:/.test(screen), 'no max-height on the radar box (width-driven square only)');
-  assert.ok(/width\s*:\s*min\(/.test(screen), 'width uses min() so the square fits viewport + vh');
   const canvas = ruleBlock(css, '.rl-radar-screen canvas');
   assert.ok(/width\s*:\s*100%/.test(canvas) && /height\s*:\s*100%/.test(canvas), 'canvas fills the square 1:1');
+});
+
+test('compass labels are measured from the disc, not from the card', () => {
+  // Pinned to the card they drifted to the edges of the viewport while the disc
+  // stayed capped at 640px: 67px adrift at 1440, 261px at 1920. A direction
+  // label that far from what it names stops being a reading of the instrument.
+  const css = read('radar/radar.css');
+  const html = read('index.html');
+  assert.ok(/\.rl-compass\s*\{[^}]*position:\s*relative/.test(css), 'the compass box is the positioning context');
+  for (const dir of ['n', 's', 'w', 'e']) {
+    const r = ruleBlock(css, '.rl-cw-' + dir);
+    // Every label is offset by the disc's own size, so all four keep one gap.
+    assert.ok(/100%\s*\+\s*var\(--rl-cw-gap\)/.test(r), `${dir} is placed relative to the disc edge`);
+  }
+  // The labels must live inside that box, alongside the disc — not as siblings
+  // of it, which is what put them a screen-width away.
+  const wrap = html.slice(html.indexOf('class="rl-radar-wrap"'), html.indexOf('class="rl-radar-wrap"') + 600);
+  assert.ok(/class="rl-compass"/.test(wrap), 'the compass box exists in the markup');
+  const compassInner = wrap.slice(wrap.indexOf('class="rl-compass"'));
+  assert.ok(compassInner.indexOf('rl-cw-w') > 0, 'the labels are inside the compass box');
+  assert.ok(compassInner.indexOf('rl-radar-screen') > 0, 'as is the disc they name');
 });
 
 test('embed radar keeps the same circle guarantee', () => {
