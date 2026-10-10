@@ -144,6 +144,41 @@ test('the minimap cannot take over the panel', () => {
   assert.match(css, /\.rl-minimap\s*\{[^}]*max-width:\s*\d+px/, 'the minimap is capped');
 });
 
+// ── Cards are one component, so they are one size ────────────────────────
+test('a card grid equalises its cards without a magic height', () => {
+  // In a multi-column grid the row stretches to the tallest card for free. In
+  // the single-column phone layout every card is its own row and each is sized
+  // by its own wording: a one-line description came out 19px shorter than a
+  // two-line one. Reserving the lines equalises them and survives a copy change.
+  assert.match(css, /\.rl-info-card p\s*\{[^}]*min-height:\s*\d+em/,
+    'the description reserves its lines');
+  assert.doesNotMatch(css, /\.rl-info-card\s*\{[^}]*height:\s*\d+px/,
+    'and no fixed card height that a longer text would overflow');
+});
+
+test('the two card grids use the same column count', () => {
+  // A card must not change size because of which group it happens to sit in.
+  const count = (sel) => {
+    const m = css.match(new RegExp(`${sel.replace('.', '\\.')}[^}]*grid-template-columns:\\s*repeat\\((\\d+)`));
+    return m ? Number(m[1]) : null;
+  };
+  assert.equal(count('.rl-info-grid'), 4, 'the feature grid is four across');
+  assert.equal(count('.rl-threat-grid'), 4, 'the threat-type grid matches it');
+  // Every breakpoint has to move them together, or parity is lost on the way in.
+  assert.match(css, /\.rl-info-grid, \.rl-threat-grid\s*\{\s*grid-template-columns:\s*repeat\(2, 1fr\)/,
+    'they collapse to two together');
+  assert.match(css, /\.rl-info-grid, \.rl-doc-feats\s*\{[^}]*1fr\s*;?\s*\}/, 'and to one on the phone');
+});
+
+test('a bare card row and a card inside a section are the same width', () => {
+  // The section's own padding used to narrow the cards it contained: 370px in
+  // a bare row against 344px inside one. Only the title keeps its inset.
+  assert.match(css, /#threatTypes\s*\{\s*padding-left:\s*0;\s*padding-right:\s*0/,
+    'the grid runs full width inside the section');
+  assert.match(css, /\.rl-info > \.rl-info-grid\s*\{[^}]*margin-left:\s*1px/,
+    'and the bare row is inset by the section border it sits beside');
+});
+
 // ── The empty radar must not stack text on text ──────────────────────────
 test('the empty-state message owns a band the radar keeps clear', () => {
   // Drawn at the centre, it sat on the centre name and under any geocoded city

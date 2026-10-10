@@ -150,6 +150,7 @@ button { font-family: inherit; }
 /* The detail panel reads as a panel, not as the full width of the middle column. */
 .rl-detail-col { min-width: 0; max-width: 760px; }
 .rl-card {
+  --card-pad: 16px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -523,10 +524,32 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
 /* ── Info + ads ──────────────────────────────────────────── */
 .rl-info { max-width: 1900px; margin: 0 auto; padding: 0 20px 32px; display: grid; gap: 16px; }
 .rl-info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+/* A bare card row sits directly in the page column, while a card inside a
+   section is inset by that section's 1px border. Insetting the bare row by the
+   same border width is what makes a card the same size in both places — a 2px
+   difference that is visible the moment the two sit on one phone screen. */
+.rl-info > .rl-info-grid { margin-left: 1px; margin-right: 1px; }
 .rl-info-card { transition: box-shadow 0.15s ease; }
 .rl-info-card:hover { box-shadow: var(--shadow); }
 .rl-info-card h3 { margin: 0 0 6px; font-size: 14px; color: var(--text); text-transform: none; letter-spacing: 0; border: 0; padding: 0; }
 .rl-info-card p { margin: 0; color: var(--muted); font-size: 13px; }
+/* A card grid must read as one row of equals. In a multi-column grid the row
+   stretches to the tallest card for free; in the single-column phone layout
+   every card is its own row and each one is sized by its own wording, so a
+   one-line description came out 19px shorter than a two-line one. Reserving two
+   lines for the description equalises them without a magic card height that
+   would break the moment the copy changes. */
+.rl-info-card p { min-height: 3em; line-height: 1.5; }
+/* The grid inside a titled section runs the full width of that section, so a
+   card here is exactly as wide as a card in a bare grid elsewhere on the page.
+   Measured 370px against 344px before: the section's own padding was narrowing
+   the cards it contains. Only the title keeps its inset. */
+#threatTypes { padding-left: 0; padding-right: 0; }
+#threatTypes > h2 { margin-left: calc(var(--card-pad) + 1px); margin-right: calc(var(--card-pad) + 1px); }
+/* Same column count as the feature grid beside it. Four across instead of three
+   makes every card on the page the same width — a card must not change size
+   just because of which group it happens to sit in. */
+.rl-threat-grid { grid-template-columns: repeat(4, 1fr); }
 .rl-threat-ico { width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; margin-bottom: 10px; background: var(--surface-2); border: 1px solid var(--line-soft); }
 .rl-threat-ico svg { width: 22px; height: 22px; }
 .rl-ad-slot {
@@ -654,7 +677,9 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
 .rl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 /* ── Responsive ──────────────────────────────────────────── */
-.rl-threat-grid { grid-template-columns: repeat(3, 1fr); }
+/* The threat-type grid deliberately has no rule of its own here: it must keep
+   the same column count as the feature grid, or cards change size between
+   groups. Both collapse together at the breakpoints below. */
 @media (max-width: 1700px) {
   .rl-controls { flex-basis: 264px; }
   .rl-feed-col { flex-basis: 332px; }
@@ -681,7 +706,7 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
   .rl-radar-card { grid-column: 2; grid-row: 1; }
   .rl-feed-col { grid-column: 1 / -1; grid-row: 2; }
   .rl-detail-col { grid-column: 2; grid-row: 3; max-width: 760px; }
-  .rl-info-grid { grid-template-columns: repeat(2, 1fr); }
+  .rl-info-grid, .rl-threat-grid { grid-template-columns: repeat(2, 1fr); }
   .rl-doc-feats { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 900px) {
@@ -720,6 +745,10 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
 }
 @media (max-width: 760px) {
   .rl-main { padding: 10px 10px 96px; gap: 12px; }
+  /* The card inset changes here, and the grid that runs full-bleed inside a
+     titled section has to follow it, or its cards end up a different width
+     from the cards in a bare grid on the same phone. */
+  .rl-card { --card-pad: 12px; }
   .rl-topbar { padding: 0 10px; gap: 10px; min-height: 56px; }
   .rl-brand small { display: none; }
   .rl-brand b { font-size: 16px; }
@@ -733,7 +762,7 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
   .rl-radar-screen { width: min(100%, calc(100vw - 48px)); }
   .rl-feed { max-height: none; overflow: visible; }
   .rl-info-grid, .rl-doc-feats { grid-template-columns: 1fr; }
-  .rl-threat-grid { grid-template-columns: 1fr !important; }
+  .rl-threat-grid { grid-template-columns: 1fr; }
   .rl-seg button { min-height: 42px; font-size: 13.5px; }
   .rl-tab { flex: 1; min-height: 34px; }
   body { padding-bottom: 0; }

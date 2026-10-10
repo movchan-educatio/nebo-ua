@@ -48,10 +48,15 @@ for (const [w, h, name] of [[1440, 900, 'desktop'], [1920, 1080, 'wide'], [390, 
     // further down belongs to a different row and must not be counted, or every
     // full-width section looks like a hole under every column above it.
     // Cards that are position:fixed (the mobile bottom sheet) do not occupy
-    // document flow, so measuring gaps against them is meaningless.
+    // document flow, so measuring gaps against them is meaningless. A card
+    // nested inside another card is not an independent block either: the
+    // enclosing card already accounts for the space around it, so comparing a
+    // nested card against the next sibling card reports the parent's own
+    // padding as dead space.
     const cards = [...document.querySelectorAll('.rl-card')]
       .filter((el) => el.getBoundingClientRect().height > 0)
       .filter((el) => getComputedStyle(el).position !== 'fixed')
+      .filter((el) => !el.parentElement?.closest('.rl-card'))
       .map(box);
     const gaps = [];
     for (let i = 0; i < cards.length; i++) {
