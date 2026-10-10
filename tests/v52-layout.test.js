@@ -187,3 +187,58 @@ test('the empty detail panel never shows next to the placeholder', () => {
   assert.match(html, /id="detailCard"[^>]*\bhidden\b/, 'it ships hidden');
   assert.match(css, /\.rl-detail\[hidden\]\s*\{\s*display:\s*none/, 'and the CSS keeps it hidden');
 });
+
+// ── The top bar is a site header, not an app tab bar ──────────────────────
+test('the nav is a plain list of links', () => {
+  const nav = html.slice(html.indexOf('<nav class="rl-nav"'), html.indexOf('</nav>'));
+  assert.ok(nav.length > 0, 'the nav exists');
+  assert.doesNotMatch(nav, /<svg/, 'no icons in the navigation');
+  const labels = [...nav.matchAll(/>([^<>]+)</g)].map((m) => m[1].trim()).filter(Boolean);
+  assert.deepEqual(labels, ['Радар', 'Події', 'Типи загроз', 'Джерела', 'Про проєкт', 'FAQ']);
+  // The sections must stay reachable: the script drives them by data attributes.
+  for (const attr of ['data-goto="radarCard"', 'data-goto="feedCard"', 'data-goto="threatTypes',
+    'data-goto="sourcesCard"', 'data-href="./info/"', 'data-href="./info/#faq"']) {
+    assert.ok(nav.includes(attr), `${attr} still wired`);
+  }
+});
+
+test('the nav is not drawn as a segmented pill', () => {
+  const rule = css.slice(css.indexOf('.rl-nav {'), css.indexOf('.rl-top-right'));
+  assert.doesNotMatch(rule, /background:\s*var\(--surface\)/, 'no filled container behind the links');
+  assert.doesNotMatch(rule, /border:\s*1px solid/, 'no border around the group');
+  assert.doesNotMatch(rule, /border-radius:\s*11px/, 'no pill shape');
+  assert.doesNotMatch(rule, /flex-direction:\s*column/, 'links are not stacked icon-over-label');
+  // One signal for the active item, not a fill and an underline at once.
+  // Read only the declaration block itself — the ::after underline legitimately
+  // sets a background.
+  const activeRule = css.slice(css.indexOf('.rl-nav button.active {'));
+  assert.doesNotMatch(activeRule.slice(0, activeRule.indexOf('}') + 1), /background:/,
+    'the active link is not filled');
+  assert.match(activeRule, /\.rl-nav button\.active::after/, 'the active link is underlined');
+});
+
+test('the nav items divide the available width evenly', () => {
+  const rule = css.slice(css.indexOf('.rl-nav {'), css.indexOf('.rl-nav button'));
+  // Equal columns, not equal gaps: every item gets the same width, so the menu
+  // fills the bar between the brand and the status cluster.
+  assert.match(rule, /display:\s*grid/, 'the nav is a grid');
+  assert.match(rule, /grid-template-columns:\s*repeat\(6,\s*1fr\)/, 'six equal columns');
+  const item = css.slice(css.indexOf('.rl-nav button, .rl-nav a {'));
+  assert.doesNotMatch(item.slice(0, 260), /flex:\s*none/, 'items are not content-width');
+  assert.match(item.slice(0, 260), /text-align:\s*center/, 'labels are centred in their column');
+  // The count must track the number of sections, or one column goes empty.
+  const nav = html.slice(html.indexOf('<nav class="rl-nav"'), html.indexOf('</nav>'));
+  const count = (nav.match(/<button/g) || []).length;
+  const cols = css.match(/grid-template-columns:\s*repeat\((\d+),\s*1fr\)/);
+  assert.ok(cols, 'column count is declared');
+  assert.equal(Number(cols[1]), count, `columns (${cols[1]}) match nav items (${count})`);
+});
+
+test('the bar is sized by its own variable and anchors clear it', () => {
+  const h = css.match(/--topbar-h:\s*(\d+)px/);
+  assert.ok(h, '--topbar-h is defined');
+  assert.ok(Number(h[1]) <= 64, `the bar is ${h[1]}px, not a double-height app bar`);
+  assert.match(css, /\.rl-topbar\s*\{[^}]*min-height:\s*var\(--topbar-h\)/, 'the bar uses it');
+  // Anchored jumps land under a sticky bar otherwise.
+  assert.match(css, /scroll-margin-top:\s*calc\(var\(--topbar-h\)/, 'nav targets clear the sticky bar');
+});
