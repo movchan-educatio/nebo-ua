@@ -669,7 +669,11 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
    the same red as its own background. The button looked empty because its text
    was there at 1:1 contrast. Matched on the element so it wins on specificity
    rather than on source order. */
-.rl-doc a.rl-doc-cta { color: #fff; }
+/* White on --red is 3.86:1, which is under the 4.5:1 floor for text this size.
+   The brand red stays on the radar's badges; the CTA is the one place with a
+   word on it, so it uses the darker step of the same ramp. */
+.rl-doc a.rl-doc-cta { color: #fff; background: var(--red-hover); }
+.rl-doc a.rl-doc-cta:hover { background: var(--red); }
 .rl-doc h2 + ul, .rl-doc h2 + p { margin-top: 0; }
 .rl-doc hr { border: 0; border-top: 1px solid var(--line-soft); margin: 8px 0; }
 
@@ -813,6 +817,9 @@ dialog#rlSettings .rl-sheet-card { animation: rl-pop 0.18s ease; }
   .rl-detail-col { grid-column: 2; grid-row: 3; max-width: 760px; }
   .rl-info-grid, .rl-threat-grid { grid-template-columns: repeat(2, 1fr); }
   .rl-doc-feats { grid-template-columns: repeat(2, 1fr); }
+  /* An odd card count in two columns strands the last one in a half-width row.
+     Letting it span reads as deliberate; leaving it stranded reads as a bug. */
+  .rl-doc-feats > :last-child:nth-child(odd) { grid-column: 1 / -1; }
 }
 @media (max-width: 900px) {
   .rl-main { grid-template-columns: minmax(0, 1fr); max-width: 720px; }
