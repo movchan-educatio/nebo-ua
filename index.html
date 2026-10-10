@@ -100,6 +100,7 @@
     </div>
   </aside>
 
+  <div class="rl-col-b">
   <section class="rl-card rl-radar-card" id="radarCard" aria-label="Радар">
     <div class="rl-radar-wrap">
       <span class="rl-cw rl-cw-n" aria-hidden="true">Пн</span>
@@ -108,6 +109,7 @@
       <span class="rl-cw rl-cw-e" aria-hidden="true">Сх</span>
       <div class="rl-radar-screen"><canvas id="rlScope" aria-label="Радар повітряних загроз"></canvas></div>
     </div>
+    <p class="rl-map-state" id="rlMapState" role="status" hidden></p>
     <div class="rl-radar-legend" aria-label="Позначення">
       <span><svg style="color:#EBAA19" aria-hidden="true"><use href="./assets/threats/sprite.svg#uav"/></svg>БпЛА</span>
       <span><svg style="color:#EF3F36" aria-hidden="true"><use href="./assets/threats/sprite.svg#missile"/></svg>Крилата ракета</span>
@@ -118,6 +120,31 @@
     <p class="rl-muted rl-radar-note" id="rlRadarCount">Очікування даних…</p>
     <div class="rl-contact-list" id="rlContacts" aria-live="polite"></div>
   </section>
+
+  <aside class="rl-detail-col" aria-label="Детальна інформація">
+    <section class="rl-card rl-detail" id="detailCard" aria-label="Детальна інформація про загрозу" hidden>
+      <div class="rl-detail-head">
+        <span class="rl-dh-ico" id="rlDetailIcon" aria-hidden="true"></span>
+        <div class="rl-detail-head-txt">
+          <div class="rl-detail-title-row">
+            <h2 id="rlDetailTitle">Детальна інформація про загрозу</h2>
+            <span class="rl-sev" id="rlDetailSev" hidden></span>
+          </div>
+          <p class="rl-detail-sub" id="rlDetailSub"></p>
+        </div>
+        <button class="rl-detail-close" id="rlDetailClose" aria-label="Закрити деталі">×</button>
+      </div>
+      <div class="rl-detail-body" id="rlDetailBody"></div>
+    </section>
+    <section class="rl-card" id="detailPlaceholder">
+      <div class="rl-detail-empty">
+        <svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-radar"/></svg>
+        <b>Оберіть загрозу</b>
+        Натисніть маркер на радарі або рядок у стрічці, щоб побачити деталі: джерело, відстань, напрямок і статус.
+      </div>
+    </section>
+  </aside>
+  </div>
 
   <div class="rl-feed-col">
     <section class="rl-card" id="feedCard" aria-label="Поточні повідомлення">
@@ -137,22 +164,6 @@
     </section>
   </div>
 
-  <aside class="rl-detail-col" aria-label="Детальна інформація">
-    <section class="rl-card rl-detail" id="detailCard" aria-label="Детальна інформація про загрозу" hidden>
-      <div class="rl-detail-head">
-        <h2>Детальна інформація про загрозу</h2>
-        <button class="rl-detail-close" id="rlDetailClose" aria-label="Закрити деталі">×</button>
-      </div>
-      <div class="rl-detail-body" id="rlDetailBody"></div>
-    </section>
-    <section class="rl-card" id="detailPlaceholder">
-      <div class="rl-detail-empty">
-        <svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-radar"/></svg>
-        <b>Оберіть загрозу</b>
-        Натисніть маркер на радарі або рядок у стрічці, щоб побачити деталі: джерело, відстань, напрямок і статус.
-      </div>
-    </section>
-  </aside>
 </main>
 
 <div class="rl-info">
@@ -251,6 +262,7 @@
   </div>
 </dialog>
 
+<div class="rl-sheet-scrim" id="rlSheetScrim" hidden></div>
 <script type="module" src="./radar/radar.js"></script>
 </body>
 </html>

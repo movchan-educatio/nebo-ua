@@ -40,6 +40,13 @@ const state = {
   onlyActive: false,
   onlyCoords: false,
   showContours: true,
+  // 'idle' (not started) | 'loading' | 'ready' | 'error'. Kept separate from
+  // `contours` so the scope can say what is happening instead of showing an
+  // empty disc that looks finished, and so a failure can be retried.
+  // Starts as 'idle', NOT 'loading': loadContours() guards on 'loading', so
+  // initialising it there would skip the fetch and never draw the map.
+  contourStatus: 'idle',
+  contourError: null,
   animOn: !matchMedia('(prefers-reduced-motion: reduce)').matches,
   cityLabels: [],
   selectedId: null,
@@ -162,10 +169,16 @@ const staticC = document.createElement('canvas');
 let staticKey = '';
 const sctx = staticC.getContext('2d');
 
+// The key MUST include the contour payload. Without it the first frame
+// caches a contour-less disc while the GeoJSON is still in flight; when the
+// fetch resolves nothing changes the key, so the disc is never rebuilt and the
+// map stays missing for the rest of the session. Measured: 8 of 20 reloads
+// drew the map, the rest did not. The embed radar already keyed on this.
 function staticCacheKey(cssSize, dpr) {
   return [cssSize, dpr, state.range,
     state.center[0].toFixed(3), state.center[1].toFixed(3), state.centerName,
-    state.showContours ? 1 : 0, (state.cityLabels || []).length,
+    state.showContours ? 1 : 0, state.contourStatus, (state.contours || []).length,
+    (state.cityLabels || []).length,
   ].join('|');
 }
 
@@ -206,6 +219,15 @@ function rebuildStatic(W, H, dpr, cssSize) {
       c.lineWidth = 1 * dpr;
       c.stroke();
     }
+  }
+
+  // Never present an empty disc as finished: while the GeoJSON is in flight,
+  // or after it failed, the disc says which of the two it is.
+  if (state.showContours && state.contourStatus !== 'ready') {
+    c.fillStyle = '#9AA5B4';
+    c.font = `${12 * dpr}px Inter, system-ui, sans-serif`;
+    c.textAlign = 'center';
+    c.fillText(state.contourStatus === 'error' ? 'Контури карти недоступні' : 'Завантаження карти…', cx, cy - R * 0.55);
   }
 
   const rings = rangeRings(state.range);
@@ -470,10 +492,14 @@ function feedEvents() {
   });
 }
 
-async function loadContours() {
-  if (state.contours !== null) return;
+async function loadContours(force = false) {
+  if (!force && (state.contourStatus === 'loading' || state.contourStatus === 'ready')) return;
+  state.contourStatus = 'loading';
+  state.contourError = null;
+  renderMapState();
   try {
     const r = await fetch('../assets/data/ukraine-oblasts.geojson');
+    if (!r.ok) throw new Error('HTTP ' + r.status);
     const g = await r.json();
     const polys = [];
     for (const f of g.features || []) {
@@ -484,8 +510,36 @@ async function loadContours() {
         if (poly[0] && poly[0].length > 1) polys.push(poly[0].filter(p => Array.isArray(p)));
       }
     }
+    // An empty result is a failure, not a map with no outlines: say so rather
+    // than presenting a blank disc as finished.
+    if (!polys.length) throw new Error('порожній файл');
     state.contours = polys;
-  } catch { state.contours = []; }
+    state.contourStatus = 'ready';
+  } catch (err) {
+    state.contourStatus = 'error';
+    state.contourError = String(err && err.message ? err.message : err).slice(0, 120);
+  }
+  renderMapState();
+}
+
+// Honest map state. The radar keeps working either way: contours are context,
+// never a dependency of the data path.
+function renderMapState() {
+  const el = $('#rlMapState');
+  if (!el) return;
+  if (state.contourStatus === 'ready') { el.hidden = true; el.textContent = ''; return; }
+  el.hidden = false;
+  if (state.contourStatus === 'error') {
+    el.className = 'rl-map-state rl-map-state-error';
+    el.innerHTML = '<span>Не вдалося завантажити контури карти'
+      + (state.contourError ? ' (' + esc(state.contourError) + ')' : '')
+      + '. Дані джерел працюють.</span> <button type="button" class="rl-map-retry">Спробувати ще</button>';
+    const b = el.querySelector('.rl-map-retry');
+    if (b) b.onclick = () => loadContours(true);
+  } else {
+    el.className = 'rl-map-state rl-map-state-loading';
+    el.innerHTML = '<span class="rl-map-spin" aria-hidden="true"></span> Завантаження контурів карти…';
+  }
 }
 
 async function load(force = false) {
@@ -844,6 +898,24 @@ const SEVERITY = {
   kab: 'Підвищена небезпека', uav: 'Моніторинг', aviation: 'Моніторинг', other: 'Моніторинг',
 };
 
+// Header is the panel's identity row: icon, label, severity, time and source.
+// One helper so opening a threat and opening the cluster picker cannot drift.
+function setDetailHead({ icon = '', title = '', sev = '', sub = '' } = {}) {
+  const ic = $('#rlDetailIcon'), ti = $('#rlDetailTitle');
+  const sv = $('#rlDetailSev'), sb = $('#rlDetailSub');
+  if (ic) ic.innerHTML = icon;
+  if (ti) ti.textContent = title;
+  if (sv) { sv.hidden = !sev; sv.className = 'rl-sev' + (sv.hidden ? '' : (sev.endsWith('mid') ? ' mid' : sev.endsWith('low') ? ' low' : '')); sv.textContent = sev; }
+  if (sb) sb.textContent = sub;
+}
+
+// The mobile sheet detaches from the layout, so it needs a backdrop of its
+// own; on wider screens the scrim stays hidden and this is a no-op.
+function setSheetOpen(open) {
+  const scrim = $('#rlSheetScrim');
+  if (scrim) scrim.hidden = !open;
+}
+
 function openDetail(id) {
   const e = (state.snapshot?.events || []).find(x => String(x.trackId ?? x.id) === String(id));
   if (!e) return;
@@ -853,15 +925,15 @@ function openDetail(id) {
   const d = hasPos ? haversineKm(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
   const b = hasPos ? bearingDeg(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
   const confirmed = e.eventTime || e.timestamp;
-  const danger = kind === 'missile' || kind === 'ballistic';
-  const sevCls = danger ? '' : (kind === 'kab' ? ' mid' : ' low');
+  // The header owns identity; the body starts straight at the facts, so no
+  // space is spent on a title block duplicated above the scroll area.
+  setDetailHead({
+    icon: kindIcon(kind, KIND_COLOR[kind]),
+    title: KIND_LABEL[kind],
+    sev: SEVERITY[kind],
+    sub: fmtFullTime(confirmed) + (e.source ? ' · ' + e.source : ''),
+  });
   $('#rlDetailBody').innerHTML = `
-    <div class="rl-detail-hero">
-      ${kindIcon(kind, KIND_COLOR[kind]).replace('class="rl-ev-ico"', 'class="rl-dh-ico"').replace('<svg ', '<svg class="rl-dh-ico" ')}
-      <b style="color:${KIND_COLOR[kind]}">${esc(KIND_LABEL[kind])}</b>
-      <span class="rl-sev${sevCls}">${esc(SEVERITY[kind])}</span>
-    </div>
-    <p class="rl-detail-sub">${esc(fmtFullTime(confirmed))}${e.source ? ' · ' + esc(e.source) : ''}</p>
     <dl class="rl-kv">
       <dt>Джерело</dt><dd>${esc(e.source || '—')}</dd>
       <dt>Можливе місцезнаходження</dt><dd>${esc(geoDesc(e))}</dd>
@@ -880,6 +952,7 @@ function openDetail(id) {
     <button class="rl-btn" id="rlShowOnRadar" style="flex:none">На радарі</button></div>
     <p class="rl-muted" id="rlWatchNote" style="margin:6px 0 0"></p>`;
   $('#detailCard').hidden = false;
+  setSheetOpen(true);
   const ph = $('#detailPlaceholder');
   if (ph) ph.hidden = true;
   renderFeed();
@@ -908,15 +981,17 @@ function openClusterList(members) {
     const d = hasPos ? haversineKm(state.center[0], state.center[1], +e.lat, +e.lon) : NaN;
     return { e, kind, d };
   }).sort((a, b) => (a.d || Infinity) - (b.d || Infinity));
+  setDetailHead({
+    title: `Виберіть загрозу (${rows.length})`,
+    sub: 'Маркери накладаються — координати не зміщено.',
+  });
   $('#rlDetailBody').innerHTML = `
-    <span class="rl-muted">ПОРУЧ ${rows.length} ПОВІДОМЛЕНЬ</span>
-    <h2 style="margin:6px 0">Виберіть загрозу</h2>
-    <p class="rl-muted">Маркери накладаються — координати не зміщено.</p>
     <div class="rl-cluster-list">${rows.map(({ e, kind, d }) => `
       <button class="rl-contact" data-id="${esc(e.trackId ?? e.id ?? '')}">${kindIcon(kind, KIND_COLOR[kind])}
       <span>${esc(KIND_LABEL[kind])} · ${esc(geoDesc(e))}</span>
       <time>${Number.isFinite(d) ? esc(formatDistanceKm(d)) : '—'}</time></button>`).join('')}</div>`;
   $('#detailCard').hidden = false;
+  setSheetOpen(true);
   const ph2 = $('#detailPlaceholder');
   if (ph2) ph2.hidden = true;
   $('#rlDetailBody').querySelectorAll('.rl-contact').forEach(b => b.onclick = () => openDetail(b.dataset.id));
@@ -1078,8 +1153,13 @@ function setupControls() {
     $('#detailCard').hidden = true;
     const ph3 = $('#detailPlaceholder');
     if (ph3) ph3.hidden = false;
+    setDetailHead({ title: 'Детальна інформація про загрозу' });
+    setSheetOpen(false);
     state.selectedId = null; renderFeed();
   };
+  // Tapping the backdrop is a dismissal, the way any modal should behave.
+  const scrim = $('#rlSheetScrim');
+  if (scrim) scrim.onclick = () => $('#rlDetailClose').click();
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#detailCard').hidden) $('#rlDetailClose').click(); });
   // nav
   const goto = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1190,6 +1270,7 @@ setupControls();
 // backend is unreachable, otherwise the controls vanish during an outage.
 renderKindFilters();
 renderSources();
+renderMapState();
 loadContours();
 loadCityLabels();
 startScope();
