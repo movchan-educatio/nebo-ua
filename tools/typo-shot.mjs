@@ -14,7 +14,8 @@ const srv = http.createServer((q, r) => {
   fs.createReadStream(f).pipe(r);
 });
 await new Promise((r) => srv.listen(0, '127.0.0.1', r));
-const BASE = `http://127.0.0.1:${srv.address().port}`;
+// Pass a base URL to check the deployed site instead of the working tree.
+const BASE = process.argv[2] || `http://127.0.0.1:${srv.address().port}`;
 fs.mkdirSync('tmp-shots', { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
@@ -38,12 +39,10 @@ const browser = await chromium.launch({ headless: true });
 }
 
 // A heading that used to strand a word.
-{
-  const page = await browser.newPage({ viewport: { width: 390, height: 900 } });
-  await page.goto(BASE + '/safety/', { waitUntil: 'domcontentloaded' });
-  await page.waitForTimeout(600);
-  const h = await page.$('h1');
-  await h.screenshot({ path: path.join('tmp-shots', 'fix-heading.png') });
+for (const [url, w] of [['safety/', 390], ['terms/', 390], ['about/', 768]]) {
+  const page = await browser.newPage({ viewport: { width: w, height: 900 } });
+  await page.goto(BASE + '/' + url, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(700);
   const m = await page.evaluate(() => {
     const el = document.querySelector('h1');
     const range = document.createRange();
@@ -51,7 +50,8 @@ const browser = await chromium.launch({ headless: true });
     const rects = [...range.getClientRects()].filter((r) => r.width > 1);
     return { lines: rects.length, widths: rects.map((r) => Math.round(r.width)), text: el.textContent.trim() };
   });
-  console.log(`\nh1 at 390: ${m.lines} lines, line widths ${m.widths.join(' / ')}`);
+  const ratio = m.widths.length > 1 ? Math.round((Math.min(...m.widths) / Math.max(...m.widths)) * 100) : 100;
+  console.log(`\n/${url} h1 @${w}: ${m.lines} lines, widths ${m.widths.join(' / ')} (shortest is ${ratio}% of the longest)`);
   console.log(`  "${m.text}"`);
   await page.close();
 }
