@@ -66,10 +66,12 @@ export function meaningfulFp(alerts, threats, health) {
     NEPTUN_DELAYED: !!health?.NEPTUN?.delayed,
     MAPA: health?.MAPA?.status || null,
   };
+  // These projections have fixed key order, regardless of source JSON order.
+  // Native serialization avoids sorting and allocating every field per cycle.
   return {
-    fpAlerts: stableStringify(a),
-    fpThreats: stableStringify(t),
-    fpHealth: stableStringify(h),
+    fpAlerts: JSON.stringify(a),
+    fpThreats: JSON.stringify(t),
+    fpHealth: JSON.stringify(h),
   };
 }
 

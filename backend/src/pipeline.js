@@ -136,12 +136,14 @@ export async function runDurablePipeline(env) {
     } catch { kvLoadError = true; telemetry.kvLoadError = true; }
     previous ||= checkpoint;
     telemetry.stagesMs.load = Date.now() - started;
+    console.log(JSON.stringify({ pipeline: 'stage', stage: 'loaded' }));
     const [alerts, threats, mapa] = await Promise.all([
       sourceTask(() => fetchNeptunAlerts(env), 19000),
       sourceTask(() => fetchNeptunThreats(env), 19000),
       sourceTask(() => fetchMapa(env), 25000),
     ]);
     telemetry.stagesMs.monitoringFetch = Date.now() - started - telemetry.stagesMs.load;
+    console.log(JSON.stringify({ pipeline: 'stage', stage: 'fetched', alerts: alerts.items.length, threats: threats.items.length, mapa: mapa.items.length }));
     const common = { alerts, threats, mapa,
       alertLimit: Number(env.ALERT_MISS_LIMIT) || 3,
       threatLimit: Number(env.THREAT_MISS_LIMIT) || 3 };
@@ -150,6 +152,7 @@ export async function runDurablePipeline(env) {
     const publish = async () => {
       const reduceStart = Date.now();
       const next = reduceCycle(previous, common, started);
+      console.log(JSON.stringify({ pipeline: 'stage', stage: 'reduced' }));
       telemetry.stagesMs.normalizeCorrelateFuse = (telemetry.stagesMs.normalizeCorrelateFuse || 0) + Date.now() - reduceStart;
       const publishedAt = new Date().toISOString();
       // *2 keeps the marker unique per run so a slower earlier run cannot be
