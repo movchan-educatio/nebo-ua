@@ -5,14 +5,14 @@ import { accuracyLevel } from './geo.js';
 // Filter kinds shown on the mockup. 'other' covers recon/fpv/explosion/other.
 export const KIND_FILTERS = ['uav', 'missile', 'ballistic', 'kab', 'aviation', 'other'];
 // Shared kind presentation (single source for full page + embed).
-export const KIND_LABEL = { uav: 'БпЛА', missile: 'Крилата ракета', ballistic: 'Балістика', kab: 'КАБ', aviation: 'Авіація', other: 'Інше' };
+export const KIND_LABEL = { uav: 'БпЛА / шахеди', missile: 'Крилаті ракети', ballistic: 'Балістичні ракети', kab: 'КАБ', aviation: 'Авіація', other: 'Інші загрози' };
 // Premium palette (centralized design tokens mirror in radar/radar.css :root).
 export const KIND_COLOR = { uav: '#EBAA19', missile: '#EF3F36', ballistic: '#D92D2D', kab: '#F08B2F', aviation: '#477FE0', other: '#64748B' };
 export const KIND_SYMBOL = { uav: 'uav', missile: 'missile', ballistic: 'ballistic', kab: 'kab', aviation: 'aircraft', other: 'other' };
 
 export function normalizeKind(event) {
   const kind = classifyThreat(event);
-  if (kind === 'shahed') return 'uav'; // shaheds live under БпЛА per mockup
+  if (['shahed', 'recon', 'fpv'].includes(kind)) return 'uav';
   if (KIND_FILTERS.includes(kind)) return kind;
   return 'other';
 }
@@ -87,7 +87,7 @@ export function applyFeedFilters(events, { kinds = null, tab = 'all', onlyNew = 
 // plotted (geometry is computed by geo.radarPoint at render time).
 export function radarEvents(events, { kinds = null, onlyNew = false } = {}, nowMs = Date.now()) {
   return applyFeedFilters(events, { kinds, tab: 'all', onlyNew, onlyActive: true, onlyWithCoords: true }, nowMs)
-    .filter(e => normalizeKind(e) !== 'other' && accuracyLevel(e) <= 2);
+    .filter(e => accuracyLevel(e) <= 2);
 }
 
 export function countByKind(events) {

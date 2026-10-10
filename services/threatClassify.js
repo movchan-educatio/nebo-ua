@@ -89,6 +89,18 @@ export function classifyThreat(event) {
   ]);
   if (detected) return detected;
 
+  // Explicit upstream types carry meaning even when category is "other".
+  const sourceKinds = {
+    uav: 'uav', drone: 'uav', drone_piston: 'uav', drone_jet: 'uav',
+    drone_fpv: 'fpv', fpv: 'fpv', recon: 'recon',
+    missile_cruise: 'missile', missile_ballistic: 'ballistic',
+    bomb: 'kab', kab: 'kab', aircraft: 'aviation', mig31k: 'aviation',
+  };
+  const explicit = sourceKinds[event.sourceType] || sourceKinds[event.kind];
+  if (explicit) return explicit;
+  if (/бпла|бплa|безпілот|беспилот|\bdrone\b|дрон/i.test(
+    [event.subtype, event.title, event.rawExplanation].filter(Boolean).join(' '))) return 'uav';
+
   const cat = event.category || 'other';
   const MAP = {
     uav:       'uav',

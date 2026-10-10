@@ -9,15 +9,24 @@ const NOW = Date.parse('2026-10-09T12:00:00.000Z');
 const min = (n) => new Date(NOW - n * 60000).toISOString();
 const ev = (o) => ({ id: o.id, kind: o.kind, category: o.category, lat: o.lat, lon: o.lon, areaOnly: o.areaOnly, stale: o.stale, status: o.status, eventTime: o.eventTime, region: o.region, source: o.source });
 
-test('unknown contacts never enter the radar, including an explicit other filter', () => {
+test('upstream threat types use the six displayed categories', () => {
+  for (const [sourceType, expected] of Object.entries({
+    drone_piston: 'uav', drone_jet: 'uav', drone_fpv: 'uav', recon: 'uav',
+    missile_cruise: 'missile', missile_ballistic: 'ballistic', bomb: 'kab',
+    aircraft: 'aviation', unknown: 'other',
+  })) assert.equal(normalizeKind({ sourceType, category: 'other' }), expected, sourceType);
+  assert.equal(normalizeKind({ title: 'БПЛА на місто', category: 'other' }), 'uav');
+});
+
+test('unspecified threats appear as other threats instead of being hidden', () => {
   const contact = { lat: 49, lon: 31, stale: false, eventTime: min(1) };
   const list = [
     ev({ ...contact, id: 'known', kind: 'uav' }),
     ev({ ...contact, id: 'unknown', kind: 'unknown', category: 'other' }),
     ev({ ...contact, id: 'missing' }),
   ];
-  assert.deepEqual(radarEvents(list, {}, NOW).map(e => e.id), ['known']);
-  assert.deepEqual(radarEvents(list, { kinds: ['other'] }, NOW), []);
+  assert.deepEqual(radarEvents(list, {}, NOW).map(e => e.id), ['known', 'unknown', 'missing']);
+  assert.deepEqual(radarEvents(list, { kinds: ['other'] }, NOW).map(e => e.id), ['unknown', 'missing']);
   assert.equal(applyFeedFilters(list, {}, NOW).length, 3);
 });
 
@@ -25,7 +34,7 @@ test('shahed folds into uav; unknown kinds become other', () => {
   assert.equal(normalizeKind(ev({ id: 'a', kind: 'shahed' })), 'uav');
   assert.equal(normalizeKind(ev({ id: 'b', kind: 'missile' })), 'missile');
   assert.equal(normalizeKind(ev({ id: 'c', kind: 'explosion' })), 'other');
-  assert.equal(normalizeKind(ev({ id: 'd', kind: 'fpv' })), 'other');
+  assert.equal(normalizeKind(ev({ id: 'd', kind: 'fpv' })), 'uav');
   assert.deepEqual(KIND_FILTERS, ['uav', 'missile', 'ballistic', 'kab', 'aviation', 'other']);
 });
 
