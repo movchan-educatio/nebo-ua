@@ -538,6 +538,51 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
 
 /* ── Info article ────────────────────────────────────────── */
 .rl-doc { max-width: 880px; margin: 0 auto; padding: 20px 20px 44px; display: grid; gap: 16px; }
+/* ── Sub-pages: one shell for every document route ──────────────────────
+   The old site shipped these in a dark theme of its own. They now share the
+   radar's own stylesheet, so a change to the tokens or the top bar reaches
+   them without anyone remembering to update eight files. */
+/* Sub-pages carry one extra entry (Контакти), so their nav needs its own
+   column count — the six-column grid would wrap onto a second row and double
+   the bar's height. */
+.rl-subnav { grid-template-columns: repeat(7, 1fr); }
+.rl-subnav button, .rl-subnav a {
+  font-size: 13.5px;
+  padding: 19px 0 18px;      /* the bar is 60px; keep the tap area honest */
+}
+.rl-subnav a.active { color: var(--text); }
+.rl-subnav a.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 2px; background: var(--red); border-radius: 2px;
+}
+.rl-doc .lead { font-size: 15.5px; line-height: 1.6; color: var(--muted); margin: 0 0 4px; }
+.rl-doc .note {
+  border-left: 3px solid var(--red-line); background: var(--red-soft);
+  color: #8C2A24; border-radius: var(--radius-sm);
+  padding: 12px 14px; font-size: 13.5px; line-height: 1.55;
+}
+.rl-doc .note + .note, .rl-doc .note + ul, .rl-doc ul + .note { margin-top: 12px; }
+.rl-doc a { color: var(--red); }
+.rl-doc h2 + ul, .rl-doc h2 + p { margin-top: 0; }
+.rl-doc hr { border: 0; border-top: 1px solid var(--line-soft); margin: 8px 0; }
+
+.rl-foot { border-top: 1px solid var(--line); background: var(--surface-2); margin-top: 12px; }
+.rl-foot-in { max-width: 880px; margin: 0 auto; padding: 22px 20px 40px; display: grid; gap: 10px; }
+.rl-foot-links { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+.rl-foot-links a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; padding: 4px 0; }
+.rl-foot-links a:hover { color: var(--red); text-decoration: none; }
+.rl-foot-note { color: var(--muted); font-size: 12.5px; line-height: 1.55; max-width: 62ch; }
+/* A short document must not leave the footer stranded halfway down the page. */
+body.rl-page { min-height: 100vh; display: flex; flex-direction: column; }
+body.rl-page .rl-doc { flex: 1 0 auto; }
+body.rl-page .rl-foot { margin-top: auto; }
+.rl-back { font-size: 13px; margin: 0; }
+.rl-back a {
+  display: inline-block; color: var(--muted); text-decoration: none;
+  border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px;
+  background: var(--surface);
+}
+.rl-back a:hover { color: var(--red); border-color: var(--red-line); text-decoration: none; }
 .rl-doc h1 { font-size: 26px; margin: 6px 0; letter-spacing: -0.01em; }
 .rl-doc h2 { font-size: 17px; margin: 0 0 8px; }
 .rl-doc p, .rl-doc li { font-size: 14px; }

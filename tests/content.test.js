@@ -46,10 +46,17 @@ test('content pages: no app chrome, document flow, unique SEO', () => {
     assert.ok(!h.includes('id="map"'), `${d}: no map engine markup`);
     assert.ok(!h.includes('adsbygoogle'), `${d}: no ad script`);
     assert.ok(!h.includes('app.js'), `${d}: no live app bundle`);
-    assert.ok(h.includes('class="site-header"'), `${d}: content header`);
-    assert.ok(h.includes('class="site-footer"'), `${d}: content footer`);
-    assert.ok(h.includes('id="menuButton"') && h.includes('id="siteMenu"'), `${d}: mobile menu`);
-    assert.ok(h.includes('aria-expanded'), `${d}: menu aria state`);
+    assert.ok(h.includes('class="rl-topbar"'), `${d}: radar top bar`);
+    assert.ok(h.includes('class="rl-foot"'), `${d}: shared footer`);
+    assert.ok(h.includes('class="rl-nav rl-subnav"'), `${d}: section nav`);
+    assert.ok(h.includes('href="../radar/radar.css"'), `${d}: radar stylesheet`);
+    assert.ok(h.includes('<body class="rl-page">'), `${d}: document body`);
+    assert.ok(h.includes('rl-back'), `${d}: a way back to the radar`);
+    // The old theme must not creep back in.
+    assert.ok(!h.includes('content.css'), `${d}: no old-theme stylesheet`);
+    for (const legacy of ['site-header', 'site-footer', 'menuButton', 'mainnav']) {
+      assert.ok(!h.includes(legacy), `${d}: no old ${legacy}`);
+    }
     const title = h.match(/<title>([^<]+)<\/title>/)[1];
     assert.ok(title.length > 10 && !titles.has(title), `${d}: unique title`);
     titles.add(title);
@@ -71,16 +78,23 @@ test('desktop header nav + active state on every page', () => {
   const nebo = read('nebo/index.html');
   assert.ok(nebo.includes('class="mainnav"'), 'archive keeps desktop section nav');
   assert.ok(nebo.includes('id="menuButton"'), 'archive keeps mobile menu button');
+  // Sections that live in the nav mark themselves; the legal pages are reached
+  // from the footer and deliberately claim no nav position.
+  const IN_NAV = ['about', 'how-it-works', 'sources', 'safety', 'faq', 'contact'];
   for (const d of DIRS) {
     const p = read(`${d}/index.html`);
-    assert.ok(p.includes('class="site-nav"'), `${d}: desktop nav`);
-    assert.ok(p.includes(`href="../${d}/" aria-current="page"`), `${d}: active state`);
+    assert.ok(p.includes('class="rl-nav rl-subnav"'), `${d}: desktop nav`);
+    if (IN_NAV.includes(d)) {
+      assert.ok(p.includes(`<a class="active" href="../${d}/">`), `${d}: active state`);
+    } else {
+      assert.ok(!/<a class="active"/.test(p), `${d}: not in the nav, so no active state`);
+    }
   }
 });
 
 test('FAQ lives on /faq/ with matching schema', () => {
   const h = read('faq/index.html');
-  const visQs = [...h.matchAll(/<details class="faq"><summary>([^<]+)<\/summary>/g)].map((m) => m[1]);
+  const visQs = [...h.matchAll(/<details><summary>([^<]+)<\/summary>/g)].map((m) => m[1]);
   assert.ok(visQs.length >= 9, 'faq questions visible');
   const ld = JSON.parse(h.match(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/)[1]);
   const faq = ld['@graph'].find((x) => x['@type'] === 'FAQPage');
@@ -111,12 +125,16 @@ test('internal linking: no orphan pages', () => {
 });
 
 test('layout safe-area: header in document flow, content offset, no overlap architecture', () => {
-  const css = read('assets/css/styles.css') + '\n' + read('assets/css/content.css');
+  // content.css is gone with the old theme; the archive stylesheet remains.
+  const css = read('assets/css/styles.css');
   assert.ok(css.includes('--header-h:56px'), 'canonical header variable (desktop 56px)');
   assert.ok(css.includes('--safe-gap:12px'), 'safe gap variable');
   assert.ok(/\.app-header\{position:sticky/.test(css), 'app header occupies document flow');
-  assert.ok(/\.site-header\{[^}]*position:sticky/.test(css) || /\.site-header\{position:sticky/.test(css), 'content header occupies document flow');
-  assert.ok(css.includes('scroll-margin-top:calc(var(--header-h)'), 'anchors stop below header');
+  // The content pages no longer use styles.css: they wear the radar's top bar.
+  const radar = read('radar/radar.css');
+  assert.ok(/\.rl-topbar\s*\{[^}]*position:\s*sticky/.test(radar), 'content top bar occupies document flow');
+  assert.ok(/scroll-margin-top:\s*calc\(var\(--topbar-h\)/.test(radar), 'anchors stop below the sticky bar');
+  assert.ok(!css.includes('scroll-margin-top'), 'no duplicate anchor offset competing with the radar one');
   assert.ok(css.includes('safe-area-inset-bottom'), 'iPhone safe area respected');
   const h = read('nebo/index.html');
   const headerAt = h.indexOf('<header class="topbar"');
@@ -153,9 +171,11 @@ test('AdSense untouched: single script, publisher intact', () => {
 });
 
 test('no horizontal overflow vectors, no GitHub canonical', () => {
-  const css = read('assets/css/styles.css') + read('assets/css/content.css');
-  assert.ok(css.includes('overflow-x:hidden'), 'horizontal overflow guarded');
+  const css = read('assets/css/styles.css') + read('radar/radar.css');
+  assert.ok(/overflow-x:\s*(clip|hidden)/.test(css), 'horizontal overflow guarded');
   assert.ok(css.includes('minmax(0,1fr)'), 'grids cannot force overflow');
+  // The old theme stylesheet is gone with the pages that used it.
+  assert.ok(!fs.existsSync(path.join(root, 'assets/css/content.css')), 'old content stylesheet removed');
   for (const f of ['index.html', 'sitemap.xml', 'robots.txt', ...DIRS.map((d) => `${d}/index.html`)]) {
     assert.ok(!read(f).includes('movchan-educatio.github.io/nebo-ua'), `${f}: no mirror canonical`);
   }
@@ -172,15 +192,15 @@ test('content icon system: single outline set, gold token, uniform box', () => {
   assert.ok(sprite.includes('id="i-bomb"'), 'bomb icon exists (KAB)');
   assert.ok(sprite.includes('id="i-bell"'), 'bell icon exists (notifications)');
   assert.ok(!/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(sprite), 'no emoji in icon set');
-  const css = read('assets/css/content.css');
-  const rule = css.match(/\.card>svg\{([^}]+)\}/)[1];
-  assert.ok(rule.includes('width:40px') && rule.includes('height:40px'), 'uniform 40px icon container');
-  assert.ok(rule.includes('color:var(--gold)'), 'gold design token, not hardcoded black');
+  const css = read('radar/radar.css');
+  const rule = css.match(/\.rl-threat-ico\s*\{([^}]+)\}/)[1];
+  assert.ok(/width:\s*34px/.test(rule) && /height:\s*34px/.test(rule), 'uniform icon container');
   assert.ok(!/#000|black/.test(rule), 'no black icon paint');
-  assert.ok(rule.includes('fill:none') && rule.includes('stroke:currentColor'), 'outline style normalized');
-  assert.ok(!/\.card[^{]*svg\.threat/.test(css) && !/svg\.threat/.test(css), 'no threat-size special case left');
-  const hover = css.match(/\.card:hover>svg\{([^}]+)\}/)[1];
-  assert.ok(!/transform|scale|rotate|animation/.test(hover), 'hover is glow only, no motion');
+  assert.ok(/fill:\s*none/.test(css) && /stroke:\s*currentColor/.test(css), 'outline style normalized');
+  assert.ok(!/svg\.threat/.test(css), 'no threat-size special case left');
+  const hover = css.match(/\.rl-info-card:hover\s*\{([^}]+)\}/)[1];
+  assert.ok(/box-shadow/.test(hover), 'hover lifts the card');
+  assert.ok(!/transform|scale|rotate|animation/.test(hover), 'and adds no motion');
 });
 
 test('content cards use one icon set, map markers untouched', () => {
