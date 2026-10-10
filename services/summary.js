@@ -103,6 +103,10 @@ const SOURCE_NAMES = {
   MAPA: 'MAPA · моніторинг',
   OFFICIAL: 'Офіційні тривоги',
 };
+// Retired sources are absent from the payload, and a source the backend marks
+// disabled is switched off in configuration. Neither counts towards the
+// overall level: a disabled source is not a degraded one.
+const SUMMARY_KEYS = ['NEPTUN', 'MAPA', 'OFFICIAL'];
 
 export function sourceState(key, h) {
   const name = SOURCE_NAMES[key] || key;
@@ -121,9 +125,10 @@ export function sourceState(key, h) {
 
 export function overallStatus(health) {
   const per = {};
-  for (const key of ['NEPTUN', 'MAPA', 'OFFICIAL']) {
-    const s = sourceState(key, health?.[key]);
-    if (s.state !== 'IDLE') per[key] = s;
+  for (const key of SUMMARY_KEYS) {
+    const h = health?.[key];
+    if (!h || h.status === 'disabled') continue;
+    per[key] = sourceState(key, h);
   }
   const states = Object.values(per).map(s => s.state);
   let level = 'LIVE';

@@ -1,5 +1,5 @@
 // РАДАР.LIVE — light radar app (browser module, no Leaflet, no dark theme).
-// Data: services/data.js fetchAll (NEPTUN/MAPA primary, UkraineAlarm auxiliary).
+// Data: services/data.js fetchAll. NEPTUN and MAPA are the two sources.
 // Geometry: ./geo.js. Filters: ./filters.js. City search: services/locations.js.
 import { fetchAll, shouldPoll, POLL_MS } from '../services/data.js';
 import { searchUkrainianPlaces, loadSelectedPlace, saveSelectedPlace } from '../services/locations.js';
@@ -769,7 +769,7 @@ function renderSources() {
   };
   const cls = { ONLINE: 'ok', DEGRADED: 'warn', STALE: 'warn', RECOVERING: 'ok', OFFLINE: 'bad', IDLE: 'bad' };
   $('#rlSources').innerHTML = `<div class="rl-source-grid">` + cards.map(c => {
-    // UkraineAlarm failures stay visible but human-readable: the raw HTTP
+    // A source failure stays visible but human-readable: the raw HTTP
     // status lives behind an expandable technical block, never as the headline.
     const auxFail = c.key === 'OFFICIAL' && c.state === 'OFFLINE';
     const k = cls[c.state] || 'bad';

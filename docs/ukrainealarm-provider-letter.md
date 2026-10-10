@@ -1,4 +1,12 @@
-# Letter to UkraineAlarm API support
+# Letter to UkraineAlarm API support — NOT FOR SENDING
+
+> **Status: superseded.** On 2026-10-10 the owner decided to stop using
+> UkraineAlarm in production. Support will not be contacted and no new key will
+> be sought, so this letter is not to be sent. It is kept only as the record of
+> the diagnosis and of the evidence that was gathered.
+>
+> See `ukrainealarm-401-report.md` for the findings and
+> `../backend/README.md` for how the source is switched off.
 
 Subject: API key returns 401 for every request since 2026-10-09 03:38 UTC —
 request for diagnosis

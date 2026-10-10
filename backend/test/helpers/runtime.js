@@ -41,6 +41,11 @@ export function testKv() {
 export function testEnv() {
   return {
     SYNC_STATE_STORE: 'd1', NEBO_STATE: testKv(), nebo_journal: testDb(),
+    // The official source is retired in production (OFFICIAL_SOURCE_ENABLED is
+    // "false" in wrangler.toml) and the switch fails CLOSED. The suite opts in
+    // explicitly so the retired integration keeps its coverage and stays
+    // re-enableable; test/official-disabled.test.js covers the off path.
+    OFFICIAL_SOURCE_ENABLED: 'true',
     UKRAINEALARM_API_KEY: 'fixture-key',
     NEPTUN_ALERTS_URL: 'https://sources.invalid/alerts',
     NEPTUN_THREATS_URL: 'https://sources.invalid/threats',

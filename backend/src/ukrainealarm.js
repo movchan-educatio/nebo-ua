@@ -25,6 +25,19 @@
 //     (missing/invalid -> null, never `now`). Verification time is assigned
 //     by the pipeline (receivedAt/health.updatedAt), never by this module.
 export const UA_DEFAULT_BASE = 'https://api.ukrainealarm.com';
+
+/**
+ * Is the official source switched on?
+ *
+ * FAILS CLOSED: an absent var means disabled. A source that has been retired
+ * must not resume because a config value went missing, and the switch must be
+ * checked BEFORE any fetch so "disabled" really means zero requests rather
+ * than "a request that fails fast".
+ */
+export function officialSourceEnabled(env) {
+  const v = String(env?.OFFICIAL_SOURCE_ENABLED ?? '').trim().toLowerCase();
+  return v === 'true' || v === '1' || v === 'yes' || v === 'on';
+}
 export const UA_REGIONS_KV_KEY = 'v1:ua-regions';
 export const UA_REGIONS_TTL_S = 7 * 24 * 3600;
 export const UA_REGIONS_MAX_AGE_MS = 24 * 3600_000;
@@ -566,6 +579,10 @@ export async function refreshRegionsTree(env, maxAgeExceeded, opts) {
 // Never throws for upstream problems (honest { ok:false }).
 export async function fetchOfficialUkraineAlarm(env, opts = {}) {
   const started = Date.now();
+  // Retired by configuration: no request, no D1, no KV, no upstream log line.
+  if (!officialSourceEnabled(env)) {
+    return { ok: true, disabled: true, items: [], latencyMs: 0, error: null };
+  }
   if (!env.UKRAINEALARM_API_KEY) {
     return { ok: true, disabled: true, items: [], latencyMs: 0, error: null };
   }

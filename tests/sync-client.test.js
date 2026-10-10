@@ -14,18 +14,22 @@ test('an older fallback snapshot cannot rewind a newer publication', () => {
   assert.equal(result.events[0].id, 'new'); assert.equal(result.degraded, true);
 });
 
-test('direct fallback cannot clear offline official alerts or pretend NEPTUN is UkraineAlarm', async () => {
+test('direct fallback reports only the monitoring sources, never a retired one', async () => {
   globalThis.fetch = async url => {
     if (String(url).endsWith('/v1/state')) return new Response('{}', { status: 503 });
     return Response.json({ oblasts: [], raions: [], threats: [], objects: [] });
   };
   const incoming = await fetchAll();
-  assert.equal(incoming.health.OFFICIAL.status, 'offline');
+  assert.equal('OFFICIAL' in incoming.health, false,
+    'a source retired in configuration must not appear as "offline"');
+  assert.ok('NEPTUN' in incoming.health && 'MAPA' in incoming.health);
+  // Merging must not resurrect it either.
   const lastSuccess = new Date('2026-10-09T06:00:00Z');
   const merged = mergeSnapshot({ alerts: [{ id: 'ua:1', source: 'OFFICIAL' }],
     health: { OFFICIAL: { updatedAt: lastSuccess } } }, incoming);
-  assert.equal(merged.alerts[0].id, 'ua:1'); assert.equal(merged.alerts[0].stale, true);
-  assert.equal(merged.health.OFFICIAL.lastSuccessAt, lastSuccess);
+  assert.equal('OFFICIAL' in merged.health, false, 'merge does not invent health for it');
+  assert.equal(merged.alerts.some((a) => a.id === 'ua:1'), false,
+    'its alerts are not republished as current confirmations');
 });
 
 test('successful alerts alone cannot advance monitoring freshness during direct fallback', async () => {

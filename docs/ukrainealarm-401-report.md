@@ -1,5 +1,13 @@
 # UkraineAlarm API — HTTP 401: findings
 
+> **Outcome: the source was retired on 2026-10-10** by owner decision. Support
+> is not being contacted and no new key will be sought. It is switched off in
+> `backend/wrangler.toml` with `OFFICIAL_SOURCE_ENABLED = "false"`, which fails
+> closed and is checked before any request is built. The adapter stays in the
+> repository, so one config line brings it back.
+>
+> This document is kept as the record of the diagnosis.
+
 Status: **diagnosed, not fixable in code.** The credential is rejected by the
 provider. This document records what was proven, how, and what remains open.
 

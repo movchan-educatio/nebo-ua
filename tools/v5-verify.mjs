@@ -45,7 +45,8 @@ const snapshot = () => ({
   pipelineCheckedAt: new Date().toISOString(), dataUpdatedAt: new Date().toISOString(),
   publishedAt: new Date().toISOString(),
   health: {
-    OFFICIAL: { status: 'disabled', updatedAt: null, error: null },
+    // Retired in production: absent from the payload, so the public block has
+    // nothing to render for it.
     NEPTUN: { status: 'online', updatedAt: new Date().toISOString(), error: null },
     MAPA: { status: 'online', updatedAt: new Date().toISOString(), error: null },
   },
@@ -87,6 +88,12 @@ for (const [w, h, name] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
       legend: document.querySelectorAll('.rl-radar-legend svg').length,
       feedIcons: document.querySelectorAll('.rl-event svg').length,
       filterDots: document.querySelectorAll('.rl-kind-dot').length,
+      // Public source-status block: the retired source must not appear.
+      sourceCards: document.querySelectorAll('#rlSources .rl-source-mini').length,
+      sourceNames: [...document.querySelectorAll('#rlSources .rl-src-name')].map((n) => n.textContent.trim()),
+      sourceLabels: [...document.querySelectorAll('#rlSources .rl-src-state')].map((n) => n.textContent.trim()),
+      mentionsUA: (document.getElementById('rlSources')?.textContent || '').includes('UkraineAlarm'),
+      badge: document.getElementById('rlLive')?.textContent?.trim() || '',
       contacts: document.querySelectorAll('.rl-contact').length,
       radarCount: document.getElementById('rlRadarCount')?.textContent || '',
       scopeLabel: document.getElementById('rlScope')?.getAttribute('aria-label') || '',
@@ -108,6 +115,12 @@ for (const [w, h, name] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
   ok(/Радар: 7 цілей/.test(r.scopeLabel), `${name}: canvas aria-label agrees (${r.scopeLabel})`);
   // The contact list is a deliberate "5 nearest" summary, not the full set.
   ok(r.contacts === 5, `${name}: contact list caps at the 5 nearest (${r.contacts})`);
+  ok(r.sourceCards === 2, `${name}: source block shows exactly 2 cards (${r.sourceCards})`);
+  ok(JSON.stringify(r.sourceNames) === JSON.stringify(['NEPTUN', 'MAPA']),
+    `${name}: only the monitoring sources — ${r.sourceNames.join(', ')}`);
+  ok(!r.mentionsUA, `${name}: the retired source is not shown`);
+  ok(!r.sourceLabels.includes('Офлайн'), `${name}: nothing is reported as offline (${r.sourceLabels.join(', ')})`);
+  ok(r.badge === 'LIVE', `${name}: the aggregate badge is healthy (${r.badge})`);
   ok(r.hScroll <= 1, `${name}: no horizontal scroll (${r.hScroll})`);
   ok(errs.length === 0, `${name}: no JS errors ${errs[0] || ''}`);
 
@@ -134,6 +147,11 @@ for (const [w, h, name] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
   ok(detail.nohead && /невідомий/.test(detail.nohead['Напрямок руху'] || ''), `${name}: absent heading says "unknown", not a guess (${detail.nohead && detail.nohead['Напрямок руху']})`);
   ok(detail.nohead && /невідома/.test(detail.nohead['Швидкість'] || ''), `${name}: absent speed says "unknown" (${detail.nohead && detail.nohead['Швидкість']})`);
 
+  // Screenshot the top of the page, with no modal open: the detail-card probe
+  // above scrolls the view and covers the source-status block.
+  await page.evaluate(() => document.getElementById('rlDetailClose')?.click());
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(400);
   await page.screenshot({ path: `shots/V5-${name}.png` });
   await page.close();
 }

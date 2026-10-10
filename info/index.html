@@ -17,7 +17,7 @@
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="Про РАДАР.LIVE — як працює радар повітряних загроз">
 <meta name="twitter:description" content="Джерела, типи загроз, позначення, FAQ.">
-<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/"},{"@type":"WebPage","name":"Про РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/info/","description":"Як працює радар, джерела даних, типи загроз, FAQ."},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Звідки РАДАР.LIVE бере дані?","acceptedAnswer":{"@type":"Answer","text":"З відкритих джерел NEPTUN і MAPA. Допоміжне офіційне джерело — UkraineAlarm."}},{"@type":"Question","name":"Чому радар інколи порожній?","acceptedAnswer":{"@type":"Answer","text":"Маркери з'являються лише для повідомлень із достатньо точними координатами. Повідомлення про області без координат показані лише у стрічці."}},{"@type":"Question","name":"Чи замінює сервіс офіційні сповіщення?","acceptedAnswer":{"@type":"Answer","text":"Ні. орієнтуйтеся на офіційні сигнали повітряної тривоги."}}]}]}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/"},{"@type":"WebPage","name":"Про РАДАР.LIVE","inLanguage":"uk","url":"https://nebo-ua.vercel.app/info/","description":"Як працює радар, джерела даних, типи загроз, FAQ."},{"@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Звідки РАДАР.LIVE бере дані?","acceptedAnswer":{"@type":"Answer","text":"З відкритих моніторингових джерел NEPTUN і MAPA."}},{"@type":"Question","name":"Чому радар інколи порожній?","acceptedAnswer":{"@type":"Answer","text":"Маркери з'являються лише для повідомлень із достатньо точними координатами. Повідомлення про області без координат показані лише у стрічці."}},{"@type":"Question","name":"Чи замінює сервіс офіційні сповіщення?","acceptedAnswer":{"@type":"Answer","text":"Ні. орієнтуйтеся на офіційні сигнали повітряної тривоги."}}]}]}</script>
 <link rel="icon" type="image/x-icon" href="../favicon.ico">
 <link rel="icon" type="image/png" sizes="32x32" href="../favicon-32x32.png">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
@@ -87,7 +87,6 @@
     <ul>
       <li><b>NEPTUN</b> — рух цілей (БпЛА, ракети). Основне джерело.</li>
       <li><b>MAPA</b> — додаткові спостереження. Основне джерело.</li>
-      <li><b>UkraineAlarm</b> — офіційні дані тривог. Допоміжне джерело, працює лише за доступності.</li>
     </ul>
     <p class="rl-muted">Для кожного джерела показані час останньої перевірки та час останнього оновлення даних. Це різний час: перевірка — коли джерело опитано, оновлення — коли його дані змінилися.</p>
   </section>
@@ -103,7 +102,7 @@
 
   <section class="rl-card" id="faq">
     <h2>Часті запитання</h2>
-    <details open><summary>Звідки РАДАР.LIVE бере дані?</summary><p class="rl-muted">З відкритих джерел NEPTUN і MAPA. Допоміжне офіційне джерело — UkraineAlarm.</p></details>
+    <details open><summary>Звідки РАДАР.LIVE бере дані?</summary><p class="rl-muted">З відкритих моніторингових джерел NEPTUN і MAPA.</p></details>
     <details><summary>Чому радар інколи порожній?</summary><p class="rl-muted">Маркери з'являються лише для повідомлень із достатньо точними координатами. Повідомлення про області без координат показані лише у стрічці. Порожній радар — це нормально.</p></details>
     <details><summary>Що означають статуси подій?</summary><p class="rl-muted">Активна — джерело ще відстежує загрозу. Завершена — джерело більше не відстежує її. Нова — зафіксовано за останні 10 хвилин.</p></details>
     <details><summary>Чи замінює сервіс офіційні сповіщення?</summary><p class="rl-muted">Ні. орієнтуйтеся на офіційні сигнали повітряної тривоги.</p></details>

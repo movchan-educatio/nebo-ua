@@ -85,7 +85,9 @@ test('radar info page: light design system, real content, SEO, no ads', () => {
   assert.ok(!h.includes('adsbygoogle') && !h.includes('pagead2.'), 'no ads running');
   assert.ok(h.includes('data-ad-enabled="false"'), 'ad slot disabled');
   assert.ok(h.includes('../privacy/') && h.includes('../terms/') && h.includes('../contact/'), 'legal links reused, not duplicated');
-  assert.ok(h.includes('NEPTUN') && h.includes('MAPA') && h.includes('UkraineAlarm'), 'sources documented');
+  assert.ok(h.includes('NEPTUN') && h.includes('MAPA'), 'sources documented');
+  assert.ok(!h.includes('UkraineAlarm'),
+    'the retired source is not advertised on the public radar page');
   assert.ok(!/точне відстеження|гарантуємо/i.test(h), 'no false promises');
 });
 

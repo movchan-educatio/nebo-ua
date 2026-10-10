@@ -22,7 +22,16 @@ OFFICIAL_API_URL = ""
 NEPTUN_ALERTS_URL = "https://neptun.in.ua/api/v1/alerts"
 NEPTUN_THREATS_URL = "https://neptun.in.ua/api/v1/threats"
 MAPA_URL = "https://mapa.ua/api/v1/current"
-# UkraineAlarm API v3 (official alerts). The KEY is a Worker secret, never a var:
+# UkraineAlarm API v3 (official alerts) — RETIRED by owner decision (2026-10-10).
+# The provider rejects the key with HTTP 401; support is not being contacted and
+# no new key will be issued. While this is "false" the Worker makes ZERO requests
+# to api.ukrainealarm.com, writes nothing to D1/KV for it, and the source does not
+# appear in the pipeline or in the public source-status block.
+# The adapter in src/ukrainealarm.js is kept intact: set this back to "true" and
+# the integration comes back without any code change.
+OFFICIAL_SOURCE_ENABLED = "false"
+# The KEY remains a Worker secret, never a var. Left in place so re-enabling is a
+# one-line change and so the secret name stays covered by the leak tests:
 #   wrangler secret put UKRAINEALARM_API_KEY
 # Optional auth-scheme prefix for the Authorization header, e.g. "Token".
 # Default "" sends the raw key (swagger-codegen default); set only if the

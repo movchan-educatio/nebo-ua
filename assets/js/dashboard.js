@@ -468,7 +468,7 @@ async function refreshMap() {
 // ── Search ────────────────────────────────────────────────────────────────
 // Two honest sources: instant LOCAL oblast names (from the boundary geojson)
 // and OpenStreetMap Nominatim for cities/communities/raions. The backend
-// region directory (UkraineAlarm) is used when it is available. Nothing is
+// region directory is used when it is available. Nothing is
 // invented: every hit navigates, no data cards.
 function setupSearch() {
   const input = $('#mapSearch'), box = $('#searchResults');
@@ -710,7 +710,7 @@ function showSources() {
   const cards = sourceCards(state.snapshot?.health);
   openSheet(`<span class="kicker">ДЖЕРЕЛА ДАНИХ</span><h2>Статуси</h2>
     ${cards.map(c => `<div class="event-row"><span><b>${esc(c.name)}</b><br><small class="micro">${esc(c.sub)} · ${c.updatedAt ? 'перевірено ' + esc(clock(c.updatedAt)) : esc(c.error || 'очікування')}</small></span><span class="pill ${c.state === 'ONLINE' ? 'on' : c.state === 'OFFLINE' ? 'off' : c.state === 'IDLE' ? 'idle' : 'warn'}" style="margin-left:auto">${esc(c.label)}</span></div>`).join('')}
-    <p class="micro">Офіційні тривоги — <a href="https://www.ukrainealarm.com/" target="_blank" rel="noopener" class="top-links-link">UkraineAlarm</a> (ключ лише на сервері). НЕБО.UA не є його партнером. Моніторинг цілей — NEPTUN і MAPA. <a href="/sources/" class="top-links-link">Розгорнута сторінка&nbsp;джерел&nbsp;›</a></p>`);
+    <p class="micro">НЕБО.UA не є партнером жодного джерела даних. Моніторинг цілей і тривог — NEPTUN і MAPA. <a href="/sources/" class="top-links-link">Розгорнута сторінка&nbsp;джерел&nbsp;›</a></p>`);
 }
 
 // ── Data loop ─────────────────────────────────────────────────────────────

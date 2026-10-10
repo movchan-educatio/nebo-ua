@@ -9,7 +9,7 @@
 //
 // prev: { alerts: [{... alertRecord, misses}], threats: [...] } | null
 // fresh: { alerts: [...], threats: [...] } freshly normalized records
-export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3, successfulSources = null) {
+export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3, successfulSources = null, retiredSources = null) {
   const prev = new Map((prevAlerts || []).map(a => [a.id, a]));
   const seen = new Set();
   const active = [];
@@ -20,6 +20,15 @@ export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3, successful
   }
   for (const [id, p] of prev) {
     if (seen.has(id)) continue;
+    // A source retired by configuration is not "failing" and must not be kept
+    // alive by the outage protection: that rule exists so a transient fetch
+    // failure never looks like an all-clear, and it would pin every record of a
+    // permanently disabled source as stale forever. Retired records are ENDED
+    // (journalled, never deleted) and leave the active set immediately.
+    if (retiredSources && retiredSources.has(sourceKey(p))) {
+      ended.push({ ...p, misses: p.misses || 0, retired: true });
+      continue;
+    }
     if (successfulSources && !successfulSources.has(sourceKey(p))) {
       active.push({ ...p, stale: true });
       continue;
@@ -34,7 +43,7 @@ export function protectAlerts(prevAlerts, freshAlerts, missLimit = 3, successful
   return { active, ended };
 }
 
-export function protectThreats(prevThreats, freshThreats, missLimit = 3, successfulSources = null) {
+export function protectThreats(prevThreats, freshThreats, missLimit = 3, successfulSources = null, retiredSources = null) {
   const prev = new Map((prevThreats || []).map(e => [e.id, e]));
   const seen = new Set();
   const active = [];
@@ -45,6 +54,10 @@ export function protectThreats(prevThreats, freshThreats, missLimit = 3, success
   }
   for (const [id, p] of prev) {
     if (seen.has(id)) continue;
+    if (retiredSources && retiredSources.has(sourceKey(p))) {
+      ended.push({ ...p, misses: p.misses || 0, retired: true });
+      continue;
+    }
     if (successfulSources && !successfulSources.has(sourceKey(p))) {
       active.push({ ...p, stale: true });
       continue;

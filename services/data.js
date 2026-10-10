@@ -8,7 +8,6 @@ export async function fetchAll(signal) {
   if (tasks.every(r => r.status === 'rejected')) throw new Error('Усі джерела тимчасово недоступні');
   const checkedAt = new Date();
   const health = {
-    OFFICIAL: { status: 'offline', updatedAt: null, error: 'Офіційний статус тимчасово недоступний' },
     NEPTUN: { ...healthItem(tasks[1], tasks[1].status === 'fulfilled' && tasks[1].value.stale, checkedAt),
       alertsStatus: tasks[0].status === 'fulfilled' ? 'online' : 'offline' },
     MAPA: healthItem(tasks[2], false, checkedAt),

@@ -2,7 +2,7 @@ import { normalizeAlert, normalizeNeptunThreat, normalizeMapa, isFreshEvent } fr
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchOfficial, fetchNeptunAlerts, fetchNeptunThreats, fetchMapa } from './sources.js';
-import { fetchOfficialUkraineAlarm } from './ukrainealarm.js';
+import { fetchOfficialUkraineAlarm, officialSourceEnabled } from './ukrainealarm.js';
 import { loadBundle, saveBundle, meaningfulFp, shouldWrite, recordChecksBatch, journalUpsert, journalEnd } from './store.js';
 import { slimBundle } from './slim.js';
 import { loadRuntime, commitRuntime } from './runtime-state.js';
@@ -65,8 +65,11 @@ export function reduceCycle(previous, results, startedMs) {
   const { official, alerts, threats, mapa } = results;
   const now = new Date(startedMs);
   const prev = previous?.prev || { alerts: [], threats: [] };
-  let officialItems = previous?.officialItems || [];
-  let officialActionIndex = previous?.officialActionIndex ?? null;
+  const officialEnabled = results.officialEnabled !== false;
+  // While the source is off, its carried records are dropped outright: they are
+  // audit history in D1, never a current confirmation.
+  let officialItems = officialEnabled ? (previous?.officialItems || []) : [];
+  let officialActionIndex = officialEnabled ? (previous?.officialActionIndex ?? null) : null;
   if (official?.ok && !official.disabled && !official.carried) {
     officialItems = official.items.map(x => normalizeAlert(x, new Date(official.checkedAt), 'OFFICIAL')).filter(Boolean);
     officialActionIndex = official.lastActionIndex ?? null;
@@ -88,14 +91,18 @@ export function reduceCycle(previous, results, startedMs) {
   ]);
   // Pending is different from failed: until UA completes, keep its records
   // unchanged. On a failure, retain them as stale without counting a miss.
+  // A source switched off in configuration is retired, not failing. Its records
+  // must leave the active set instead of being held stale forever by the outage
+  // protection, which exists for transient failures and would otherwise pin them.
+  const retiredSources = officialEnabled ? null : new Set(['OFFICIAL']);
   const protAlerts = protectAlerts(prev.alerts, freshAlerts,
-    results.alertLimit, alertSources);
+    results.alertLimit, alertSources, retiredSources);
   if (!official) {
     const oldOfficials = new Map(prev.alerts.filter(a => a.source === 'OFFICIAL').map(a => [a.id, a]));
     protAlerts.active = protAlerts.active.map(a => oldOfficials.get(a.id) || a);
   }
   const protThreats = protectThreats(prev.threats, freshThreats,
-    results.threatLimit, threatSources);
+    results.threatLimit, threatSources, retiredSources);
   const events = fuse(correlate(protThreats.active)).map(e => ({
     ...e, stale: e.stale || !isFreshEvent(e.category, e.eventTime, startedMs),
   }));
@@ -108,7 +115,9 @@ export function reduceCycle(previous, results, startedMs) {
     error: [alerts.error, threats.error].filter(Boolean).join('; ') || null,
   };
   const health = {
-    OFFICIAL: healthOf(official, oldHealth.OFFICIAL),
+    // A retired source reports "disabled" with NO error: it is not a failure and
+    // must not be rendered as one.
+    OFFICIAL: officialEnabled ? healthOf(official, oldHealth.OFFICIAL) : { status: 'disabled', checkedAt: null, lastSuccessAt: null, updatedAt: null, error: null },
     NEPTUN: { ...healthOf(neptun, oldHealth.NEPTUN), alertsStatus: alerts.ok ? 'online' : 'offline' },
     MAPA: healthOf(mapa, oldHealth.MAPA),
   };
@@ -151,19 +160,25 @@ export async function runDurablePipeline(env) {
     } catch { kvLoadError = true; telemetry.kvLoadError = true; }
     previous ||= checkpoint;
     telemetry.stagesMs.load = Date.now() - started;
+    // Retired source: no request is created at all — not a request that fails
+    // fast. That is the only way to guarantee zero upstream traffic, zero D1
+    // rows and zero CPU spent on a source that is switched off.
+    const officialEnabled = officialSourceEnabled(env);
     let officialResult = null;
-    const officialPromise = sourceTask(signal => env.UKRAINEALARM_API_KEY
-      ? fetchOfficialUkraineAlarm(env, {
-        signal,
-        publishedIndex: Array.isArray(previous?.officialItems) ? previous.officialActionIndex ?? null : null,
-      }) : fetchOfficial(env), 9000).then(r => { officialResult = r; return r; });
+    const officialPromise = officialEnabled
+      ? sourceTask(signal => env.UKRAINEALARM_API_KEY
+        ? fetchOfficialUkraineAlarm(env, {
+          signal,
+          publishedIndex: Array.isArray(previous?.officialItems) ? previous.officialActionIndex ?? null : null,
+        }) : fetchOfficial(env), 9000).then(r => { officialResult = r; return r; })
+      : Promise.resolve(null);
     const [alerts, threats, mapa] = await Promise.all([
       sourceTask(() => fetchNeptunAlerts(env), 19000),
       sourceTask(() => fetchNeptunThreats(env), 19000),
       sourceTask(() => fetchMapa(env), 25000),
     ]);
     telemetry.stagesMs.monitoringFetch = Date.now() - started - telemetry.stagesMs.load;
-    const common = { alerts, threats, mapa,
+    const common = { alerts, threats, mapa, officialEnabled,
       alertLimit: Number(env.ALERT_MISS_LIMIT) || 3,
       threatLimit: Number(env.THREAT_MISS_LIMIT) || 3 };
     let published = previous;
@@ -230,15 +245,22 @@ export async function runDurablePipeline(env) {
       telemetry.stagesMs.checks = Date.now() - started - (telemetry.stagesMs.monitoringFetch || 0);
     } catch { telemetry.checksError = true; }
 
-    if (!officialResult) await briefWait(officialPromise, 50);
-    if (!officialResult) await publish(null, 0);
-    const official = await officialPromise;
-    try {
-      await recordChecksBatch(env.nebo_journal, [
-        { source: 'OFFICIAL', ok: official.ok && !official.disabled && !official.partial, latencyMs: official.latencyMs, error: official.error },
-      ]);
-    } catch { telemetry.checksError = true; }
-    if (!superseded) await publish(official, 1);
+    if (!officialEnabled) {
+      // Single publication, no OFFICIAL check row: nothing about this source
+      // should cost CPU, a D1 write or a fake "checked and failed" signal.
+      telemetry.official = 'disabled';
+      if (!superseded) await publish(null, 0);
+    } else {
+      if (!officialResult) await briefWait(officialPromise, 50);
+      if (!officialResult) await publish(null, 0);
+      const official = await officialPromise;
+      try {
+        await recordChecksBatch(env.nebo_journal, [
+          { source: 'OFFICIAL', ok: official.ok && !official.disabled && !official.partial, latencyMs: official.latencyMs, error: official.error },
+        ]);
+      } catch { telemetry.checksError = true; }
+      if (!superseded) await publish(official, 1);
+    }
     if (superseded) {
       telemetry.outcome = 'superseded';
       try {

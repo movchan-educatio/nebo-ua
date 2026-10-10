@@ -3,7 +3,7 @@ import { normalizeNeptunThreat, normalizeMapa, normalizeAlert, isFreshEvent } fr
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
 import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
-import { fetchOfficialUkraineAlarm, fetchRegionHistory, getRegionsTree } from './ukrainealarm.js';
+import { fetchOfficialUkraineAlarm, fetchRegionHistory, getRegionsTree, officialSourceEnabled } from './ukrainealarm.js';
 import { loadPrev, saveState, loadLatest, loadBundle, saveBundle, meaningfulFp, shouldWrite, isAlreadyPersisted, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
@@ -67,7 +67,7 @@ async function runPipeline(env) {
   const [official, alertsRes, threatsRes, mapaRes] = await Promise.all([
     // UkraineAlarm v3 (official) when its secret is configured; otherwise the
     // legacy generic endpoint. Absent key => disabled source (never an error).
-    env.UKRAINEALARM_API_KEY ? fetchOfficialUkraineAlarm(env) : fetchOfficial(env),
+    officialSourceEnabled(env) ? (env.UKRAINEALARM_API_KEY ? fetchOfficialUkraineAlarm(env) : fetchOfficial(env)) : Promise.resolve({ ok: true, disabled: true, items: [] }),
     fetchNeptunAlerts(env),
     fetchNeptunThreats(env),
     fetchMapa(env),
@@ -404,7 +404,9 @@ export default {
     if (url.pathname === '/v1/official/history' && request.method === 'GET') {
       // Validated read-through to UkraineAlarm regionHistory (last 25).
       // No KV writes, no persistence. Requires the server secret.
-      if (!env.UKRAINEALARM_API_KEY) return json({ error: 'Official source not configured' }, 503, 5);
+      if (!officialSourceEnabled(env) || !env.UKRAINEALARM_API_KEY) {
+        return json({ error: 'Official source not configured' }, 503, 5);
+      }
       const regionId = url.searchParams.get('regionId');
       let items = null;
       try {

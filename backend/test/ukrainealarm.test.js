@@ -124,6 +124,10 @@ const envBase = (kv, db, extra = {}) => ({
   NEPTUN_THREATS_URL: 'https://src.test/threats',
   MAPA_URL: 'https://src.test/mapa',
   OFFICIAL_API_URL: '', OFFICIAL_API_TOKEN: '',
+  // The production switch is "false" and fails closed. This suite tests the
+  // integration itself, so it opts in explicitly; the retired behaviour is
+  // covered by test/official-disabled.test.js.
+  OFFICIAL_SOURCE_ENABLED: 'true',
   UKRAINEALARM_API_URL: UA, UKRAINEALARM_AUTH_SCHEME: '',
   ...extra,
 });

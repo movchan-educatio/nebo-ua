@@ -98,7 +98,13 @@ export function sourceCards(health, nowMs = Date.now()) {
     { key: 'NEPTUN', name: 'NEPTUN', sub: 'Рух цілей (БПЛА, ракети)', ico: 'nep' },
     { key: 'MAPA', name: 'MAPA', sub: 'Додаткові спостереження', ico: 'mapa' },
   ];
-  return defs.map(d => {
+  // A source switched off in configuration gets NO card at all. It is not
+  // failing and there is nothing for the operator to do, so rendering it as
+  // "Офлайн" or "Вимкнено" would be misleading. Driven by the data, so
+  // re-enabling the source brings its card back with no code change.
+  return defs
+    .filter(d => health?.[d.key] && health[d.key].status !== 'disabled')
+    .map(d => {
     const h = health?.[d.key];
     let state = 'IDLE', label = 'Вимкнено';
     if (h) {
@@ -113,14 +119,14 @@ export function sourceCards(health, nowMs = Date.now()) {
       else { state = 'ONLINE'; label = 'Онлайн'; }
     }
     return { ...d, state, label, updatedAt: h?.updatedAt || null, error: h?.error || null, latencyMs: h?.latencyMs ?? null };
-  });
+    });
 }
 
 // Overall system badge from per-source states + pipeline age.
-// The aggregate reflects the two PRIMARY sources only (NEPTUN, MAPA): an
-// auxiliary source (UkraineAlarm) being offline must not drag a healthy
-// monitoring pipeline into warning. Cards without a key (legacy callers)
-// fall back to the whole set.
+// The aggregate reflects the two PRIMARY sources only (NEPTUN, MAPA): a
+// retired or failing auxiliary source must not drag a healthy monitoring
+// pipeline into warning. Cards without a key (legacy callers) fall back to
+// the whole set.
 export function systemBadge(cards, pipelineAgeMs) {
   if (!cards.length) return { level: 'bad', text: 'Немає даних' };
   const primaries = cards.some(c => c.key)
