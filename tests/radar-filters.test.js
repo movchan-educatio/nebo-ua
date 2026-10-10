@@ -9,6 +9,18 @@ const NOW = Date.parse('2026-10-09T12:00:00.000Z');
 const min = (n) => new Date(NOW - n * 60000).toISOString();
 const ev = (o) => ({ id: o.id, kind: o.kind, category: o.category, lat: o.lat, lon: o.lon, areaOnly: o.areaOnly, stale: o.stale, status: o.status, eventTime: o.eventTime, region: o.region, source: o.source });
 
+test('unknown contacts never enter the radar, including an explicit other filter', () => {
+  const contact = { lat: 49, lon: 31, stale: false, eventTime: min(1) };
+  const list = [
+    ev({ ...contact, id: 'known', kind: 'uav' }),
+    ev({ ...contact, id: 'unknown', kind: 'unknown', category: 'other' }),
+    ev({ ...contact, id: 'missing' }),
+  ];
+  assert.deepEqual(radarEvents(list, {}, NOW).map(e => e.id), ['known']);
+  assert.deepEqual(radarEvents(list, { kinds: ['other'] }, NOW), []);
+  assert.equal(applyFeedFilters(list, {}, NOW).length, 3);
+});
+
 test('shahed folds into uav; unknown kinds become other', () => {
   assert.equal(normalizeKind(ev({ id: 'a', kind: 'shahed' })), 'uav');
   assert.equal(normalizeKind(ev({ id: 'b', kind: 'missile' })), 'missile');

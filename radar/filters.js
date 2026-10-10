@@ -87,7 +87,7 @@ export function applyFeedFilters(events, { kinds = null, tab = 'all', onlyNew = 
 // plotted (geometry is computed by geo.radarPoint at render time).
 export function radarEvents(events, { kinds = null, onlyNew = false } = {}, nowMs = Date.now()) {
   return applyFeedFilters(events, { kinds, tab: 'all', onlyNew, onlyActive: true, onlyWithCoords: true }, nowMs)
-    .filter(e => accuracyLevel(e) <= 2);
+    .filter(e => normalizeKind(e) !== 'other' && accuracyLevel(e) <= 2);
 }
 
 export function countByKind(events) {
