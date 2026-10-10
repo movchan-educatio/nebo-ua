@@ -40,6 +40,15 @@ const shahedUman = {
 };
 const fpsOf = (alerts, threats, health = HEALTH) => meaningfulFp(alerts, threats, health);
 
+test('fingerprints ignore source object key order and list ordering', () => {
+  const reversed = value => Object.fromEntries(Object.entries(value).reverse());
+  const other = { ...shahedUman, id: 'neptun:2', lat: 49 };
+  assert.deepEqual(
+    fpsOf([alertKyiv], [shahedUman, other]),
+    fpsOf([reversed(alertKyiv)], [reversed(other), reversed(shahedUman)], reversed(HEALTH)),
+  );
+});
+
 function storedBundle(alerts, threats, writtenAt, health = HEALTH) {
   const f = fpsOf(alerts, threats, health);
   return { snapshot: { v: 1 }, prev: { alerts, threats }, ...f, writtenAt };

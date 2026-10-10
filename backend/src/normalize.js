@@ -121,7 +121,7 @@ export function normalizeMapa(raw, receivedAt = new Date()) {
     ? raw.trail.slice(-20).map(p => {
         const t = unix(p[2]);
         return { lon: num(p[0]), lat: num(p[1]), timestamp: t ? t.toISOString() : null };
-      }).filter(p => validCoord(p.lat, p.lon) && p.timestamp)
+      }).filter(p => validCoord(p.lat, p.lon) && p.timestamp).slice(-8)
     : [];
   return base({
     id: `mapa:${raw.id}`,
