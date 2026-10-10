@@ -295,12 +295,24 @@ export function livenessLevel(resp, nowMs) {
   return 'LIVE';
 }
 
-function json(data, status = 200, cacheSeconds = 10) {
+// `cacheMode` decides whether a shared cache may keep this response.
+//
+// The live state must not be `public`: a CDN or corporate proxy that stored a
+// snapshot would hand the same one to every client for the whole max-age, and
+// on a threat radar that means showing yesterday's positions as current. The
+// endpoint still revalidates cheaply, so nothing is lost by forbidding storage.
+//
+// Everything else — the region directory, the widget payloads — is immutable
+// for minutes at a time and is fine to let a cache keep.
+function json(data, status = 200, cacheSeconds = 10, cacheMode = 'public') {
+  const cacheControl = cacheMode === 'no-store'
+    ? 'no-store, must-revalidate'
+    : `public, max-age=${cacheSeconds}`;
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      'Cache-Control': `public, max-age=${cacheSeconds}`,
+      'Cache-Control': cacheControl,
       'Access-Control-Allow-Origin': '*',
     },
   });
@@ -343,7 +355,9 @@ export default {
       // Liveness overlay from D1 (best effort, 0 KV writes). On D1 failure
       // the stored snapshot is served as-is: honestly stale, never faked.
       const d1 = await latestPipelineCheck(env.nebo_journal);
-      return json(buildStateResponse(bundle, d1, Date.now()));
+      // Live state: no shared cache may keep it. Every other route keeps its
+      // previous behaviour untouched.
+      return json(buildStateResponse(bundle, d1, Date.now()), 200, 0, 'no-store');
     }
     if (url.pathname === '/v1/metrics' && request.method === 'GET') {
       const metrics = await sourceMetrics(env.nebo_journal, SOURCES).catch(() => ({}));

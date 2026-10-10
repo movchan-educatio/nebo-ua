@@ -23,3 +23,4 @@ private/
 .wrangler/
 # Local visual-QA screenshots (Playwright captures, not production assets)
 shots/
+tmp-shots/

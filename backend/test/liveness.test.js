@@ -327,7 +327,8 @@ test('7. GET /v1/state never writes; updates visible immediately; cache headers 
     for (let i = 0; i < 5; i++) {
       const { res } = await readState(env);
       const cc = res.headers.get('Cache-Control');
-      assert.match(cc, /max-age=\d+/, 'Cache-Control present (no 55-min edge caching)');
+      assert.match(cc, /no-store/, 'live state is not storable by any cache');
+      assert.doesNotMatch(cc, /public/, 'and no shared cache may keep it');
     }
     assert.equal(c.puts(), 1, 'reads never PUT');
   } finally {

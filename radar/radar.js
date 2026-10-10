@@ -1,7 +1,12 @@
 // РАДАР.LIVE — light radar app (browser module, no Leaflet, no dark theme).
-// Data: services/data.js fetchAll. NEPTUN and MAPA are the two sources.
+// Data: /v1/state through refresh.js. NEPTUN and MAPA are the two sources.
 // Geometry: ./geo.js. Filters: ./filters.js. City search: services/locations.js.
-import { fetchAll, shouldPoll, POLL_MS } from '../services/data.js';
+import { aggregatorUrl } from '../services/config.js';
+import { adaptAggregatorSnapshot } from '../services/aggregator.js';
+import {
+  validate, assess, describe, formatAge, formatClock, nextDelayMs,
+  STATUS, FRESH_WINDOW_MS, POLL_NORMAL_MS, POLL_HIDDEN_MS,
+} from './refresh.js';
 import { searchUkrainianPlaces, loadSelectedPlace, saveSelectedPlace } from '../services/locations.js';
 import { findLocalPlace, searchLocalPlaces } from '../services/ukraine-places.js';
 import { sourceCards, systemBadge } from '../services/overview.js';
@@ -28,7 +33,16 @@ const POPULAR = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Ль
 
 const state = {
   snapshot: null,
-  lastSuccess: null,
+  // Reachability and freshness are recorded separately on purpose. lastVerified
+  // is when WE last heard from the server; pipeCheckedAt in the snapshot is
+  // when the SERVER last checked its sources. A reachable server can be
+  // serving an old snapshot, and only the second number says so.
+  lastVerifiedAt: 0,
+  reachable: true,
+  failStreak: 0,
+  lastError: null,
+  retryAfter: null,
+  lastReason: 'boot',
   loading: false,
   lastLoadStart: 0,
   center: [49, 31],
@@ -594,27 +608,95 @@ function renderMapState() {
   }
 }
 
-async function load(force = false) {
-  if (state.loading) return;
-  if (!force && !shouldPoll({ hidden: document.hidden, loading: state.loading, lastStart: state.lastLoadStart || 0, nowMs: Date.now(), intervalMs: POLL_MS })) return;
-  state.lastLoadStart = Date.now();
-  state.loading = true;
+// One request at a time, always bounded. A hung response must not be able to
+// stop polling for the rest of the session, and two callers must never race:
+// the scheduler and the refresh button share this single in-flight flag.
+let inFlight = null;
+
+async function fetchSnapshot(timeoutMs = 12000) {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    const snap = await fetchAll(new AbortController().signal);
-    state.snapshot = snap;
-    state.lastSuccess = snap.receivedAt ? new Date(snap.receivedAt) : (snap.pipelineCheckedAt ? new Date(snap.pipelineCheckedAt) : new Date());
-    trackSeen(snap.events);
-    renderAll();
-  } catch (err) {
-    try { console.error('[radar-live] load failed', err); } catch { /* ignore */ }
-    renderStatus(null, true);
+    // no-store plus an explicit pragma: the aggregator is cross-origin and its
+    // own cache headers are outside our control, so the request is made
+    // uncacheable from this side too.
+    const res = await fetch(aggregatorUrl(), {
+      cache: 'no-store',
+      headers: { 'cache-control': 'no-cache', pragma: 'no-cache' },
+      signal: ac.signal,
+    });
+    if (!res.ok) return { ok: false, reason: 'http-' + res.status, retryAfter: retryAfterMs(res) };
+    const body = await res.text();
+    const v = validate(body);
+    return { ...v, retryAfter: retryAfterMs(res) };
+  } catch (e) {
+    const aborted = e && (e.name === 'AbortError' || e.code === 20);
+    return { ok: false, reason: aborted ? 'timeout' : 'network', error: e };
   } finally {
-    state.loading = false;
+    clearTimeout(timer);
   }
 }
+
+function retryAfterMs(res) {
+  const h = res && res.headers && res.headers.get('retry-after');
+  if (!h) return null;
+  const secs = Number(h);
+  if (Number.isFinite(secs)) return Math.max(0, secs * 1000);
+  const at = Date.parse(h);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+async function load(reason = 'auto') {
+  // A manual press while a poll is in flight must not queue a second request.
+  if (inFlight) return inFlight;
+  state.loading = true;
+  state.lastLoadStart = Date.now();
+  state.lastReason = reason;
+  renderFreshness({ checking: true });
+  const p = (async () => {
+    let res;
+    try {
+      res = await fetchSnapshot();
+      state.reachable = res.ok;
+      state.retryAfter = res.retryAfter || null;
+      if (res.ok) {
+        const snap = adaptAggregatorSnapshot(res.snapshot);
+        state.snapshot = snap;
+        state.lastVerifiedAt = Date.now();
+        trackSeen(snap.events);
+        // Only a snapshot that passes validation is allowed to clear the
+        // degraded state. Anything else keeps the previous one on screen.
+        state.failStreak = 0;
+        state.lastError = null;
+      } else {
+        state.failStreak = (state.failStreak || 0) + 1;
+        state.lastError = res.reason;
+        if (res.reason === 'invalid-json' || res.reason === 'unsupported-version') {
+          // A malformed payload is a server fault, not stale data: drop it
+          // rather than keep showing something we could not read.
+          state.snapshot = null;
+        }
+      }
+      renderAll();
+    } catch (err) {
+      state.reachable = false;
+      state.failStreak = (state.failStreak || 0) + 1;
+      try { console.error('[radar-live] load failed', err); } catch { /* ignore */ }
+      renderAll();
+    } finally {
+      state.loading = false;
+      inFlight = null;
+      renderFreshness();
+    }
+    return res;
+  })();
+  inFlight = p;
+  return p;
+}
+
 function refreshIfStale(maxAgeMs = 5000) {
-  const t = state.lastSuccess ? state.lastSuccess.getTime() : 0;
-  if (Date.now() - t > maxAgeMs) load(true);
+  const t = state.lastVerifiedAt || 0;
+  if (Date.now() - t > maxAgeMs) load('wake');
 }
 
 function trackSeen(events) {
@@ -893,12 +975,84 @@ function renderSources() {
   }).join('') + `</div>`
     + (snap ? `<p class="rl-muted">Зміна даних: ${snap.dataUpdatedAt ? esc(fmtTime(snap.dataUpdatedAt)) : '—'} · Публікація: ${snap.publishedAt ? esc(fmtTime(snap.publishedAt)) : '—'}</p>` : '');
   // header badge: honest liveness (primaries only)
-  const age = state.lastSuccess ? Date.now() - state.lastSuccess.getTime() : null;
-  const badge = systemBadge(cards, age);
   const el = $('#rlLive');
-  el.textContent = badge.level === 'ok' ? 'LIVE' : badge.text.toUpperCase();
+  if (!el) return;
+  const badge = systemBadge(cards, state.lastVerifiedAt ? Date.now() - state.lastVerifiedAt : null);
   el.title = badge.text;
-  el.classList.toggle('stale', badge.level !== 'ok');
+  renderFreshness();
+}
+
+let lastFreshStatus = null;
+
+function renderFreshness({ checking = false, toast = '' } = {}) {
+  const a = assess(state.snapshot, { reachable: state.reachable !== false });
+  const ui = describe(a);
+
+  // CHECKING is a transition, not a verdict: the previous state stays on screen
+  // and the button simply shows that a request is running.
+  const shown = checking && lastFreshStatus ? lastFreshStatus : a.status;
+  const badge = $('#rlLive');
+  if (badge) {
+    badge.textContent = checking ? 'ПЕРЕВІРКА' : shown;
+    badge.classList.toggle('stale', shown !== STATUS.LIVE);
+    badge.classList.toggle('is-degraded', shown === STATUS.DEGRADED);
+  }
+
+  const btn = $('#rlRefreshBtn');
+  if (btn) {
+    btn.disabled = !!checking || !!state.loading;
+    btn.setAttribute('aria-busy', checking || state.loading ? 'true' : 'false');
+  }
+
+  // The clock says when the server last verified, not when the page last
+  // received bytes. Those differ exactly when it matters.
+  const upd = $('#rlUpdated');
+  if (upd) {
+    upd.textContent = a.pipeAt === null
+      ? 'Час перевірки —'
+      : `Перевірка ${formatClock(a.pipeAt)}`;
+    upd.title = a.pipeAt === null ? '' : `${formatAge(a.pipeAgeMs)} · дані ${a.dataAt === null ? 'неизвестно' : formatAge(a.dataAgeMs)}`;
+  }
+
+  // The recovery notice appears only for a state the user must act on or know
+  // about. A healthy radar never shows it, so it cannot become wallpaper.
+  const alert = $('#rlAlert');
+  if (alert) {
+    const warn = shown === STATUS.STALE || shown === STATUS.OFFLINE || shown === STATUS.DEGRADED;
+    const show = warn || (toast && toastExpires > Date.now());
+    alert.hidden = !show;
+    alert.classList.toggle('is-warn', shown !== STATUS.OFFLINE);
+    if (show) {
+      const title = $('#rlAlertTitle');
+      const detail = $('#rlAlertDetail');
+      const meta = $('#rlAlertMeta');
+      const recovered = toast && toastExpires > Date.now() && !warn;
+      if (title) title.textContent = recovered ? toast : ui.title;
+      if (detail) detail.textContent = recovered ? '' : ui.detail;
+      if (meta) {
+        const bits = [];
+        if (!recovered) {
+          bits.push(`Остання підтверджена перевірка: ${a.pipeAt === null ? 'невідома' : formatClock(a.pipeAt)}`);
+          bits.push(`Вік даних: ${a.dataAt === null ? 'невідоме' : formatAge(a.dataAgeMs)}`);
+          for (const [k, s] of Object.entries(a.sources)) {
+            bits.push(`${k}: ${s.delayed ? 'затримка' : (s.status || 'невідомо')}`);
+          }
+        }
+        meta.textContent = bits.join(' · ');
+      }
+    }
+  }
+  if (!checking) lastFreshStatus = a.status;
+  return a;
+}
+
+let toastExpires = 0;
+
+// A transient confirmation that cannot outlive its usefulness, so a recovered
+// radar says so once instead of leaving a banner the user has to dismiss.
+function toast(text, ms = 6000) {
+  toastExpires = Date.now() + ms;
+  renderFreshness({ toast: text });
 }
 
 function renderStatus(fetchFailed = false) {
@@ -1065,10 +1219,9 @@ function tickClock() {
     const time = now.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
     const day = now.toLocaleDateString('uk-UA', { day: 'numeric', month: 'long' });
     $('#rlClock').textContent = day + ', ' + time;
-    const t = state.lastSuccess;
-    $('#rlUpdated').textContent = t
-      ? 'Оновлено ' + t.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-      : 'Оновлено —';
+    // #rlUpdated belongs to renderFreshness: it states when the SERVER last
+    // verified, and writing it from here as well would overwrite a deliberate
+    // "перевірка старіє" message with a wall-clock reading.
   } catch { /* ignore */ }
 }
 
@@ -1340,13 +1493,75 @@ if (state.centerName.startsWith('Україна')) {
     pickCity('Київ').catch(() => {});
   }
 }
-setInterval(load, POLL_MS);
-setInterval(tickClock, 20000);
+// One scheduler for the whole page. The previous pair of setInterval calls
+// polled on a fixed 20s cadence regardless of whether the previous request had
+// finished or whether the data was stale, so a slow response overlapped the
+// next tick. A single self-rescheduling timeout cannot overlap itself.
+let pollTimer = null;
+
+function scheduleNext(delayMs) {
+  clearTimeout(pollTimer);
+  pollTimer = setTimeout(async () => {
+    await load('auto');
+    scheduleNext(nextDelay());
+  }, Math.max(500, delayMs));
+}
+
+function nextDelay() {
+  return nextDelayMs({
+    assessment: assess(state.snapshot, { reachable: state.reachable !== false }),
+    attempt: state.failStreak || 0,
+    checking: !!state.loading,
+    hidden: document.hidden,
+    retryAfter: state.retryAfter,
+  });
+}
+
+load('boot').then(() => scheduleNext(nextDelay()));
+setInterval(() => { tickClock(); renderFreshness(); }, 15000);
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) { liveMoves.clear(); lastFix.clear(); refreshIfStale(); }
+  if (document.hidden) { clearTimeout(pollTimer); return; }
+  liveMoves.clear(); lastFix.clear();
+  refreshIfStale();
+  scheduleNext(nextDelay());
 });
 window.addEventListener('focus', () => refreshIfStale());
-window.addEventListener('online', () => refreshIfStale(0));
+window.addEventListener('online', () => load('online').then(() => scheduleNext(nextDelay())));
+window.addEventListener('offline', () => { state.reachable = false; renderFreshness(); });
+  // ── Manual refresh ────────────────────────────────────────────────
+  // A plain GET on the same public endpoint the page already polls. It does not
+  // touch the admin refresh route and cannot start the server-side cron: the
+  // user asking again must never be able to make the backend work harder.
+  let lastManualAt = 0;
+  const pressRefresh = async (ev) => {
+    const btn = ev.currentTarget;
+    // Two guards: the disabled flag the renderer already sets, and a floor on
+    // how often a press can start a request. A held-down key or a double tap
+    // must not become a burst.
+    if (state.loading || inFlight) return;
+    if (Date.now() - lastManualAt < 1500) return;
+    lastManualAt = Date.now();
+    const wasStale = (() => {
+      const a = assess(state.snapshot, { reachable: state.reachable !== false });
+      return a.status === STATUS.STALE || a.status === STATUS.OFFLINE;
+    })();
+    const res = await load('manual');
+    const a = assess(state.snapshot, { reachable: state.reachable !== false });
+    if (res.ok && a.status === STATUS.LIVE) {
+      toast('З’єднання відновлено. Дані актуальні', 6000);
+    } else if (res.ok && wasStale) {
+      // The server answered, but it is still handing out an old snapshot.
+      // Saying "updated" here would be the one message this whole change
+      // exists to avoid.
+      toast('Сервер відповідає, але дані залишаються застарілими', 8000);
+    }
+    scheduleNext(nextDelay());
+    if (btn) btn.blur();
+  };
+  const rb = $('#rlRefreshBtn');
+  if (rb) rb.addEventListener('click', pressRefresh);
+  const ar = $('#rlAlertRetry');
+  if (ar) ar.addEventListener('click', pressRefresh);
 window.addEventListener('resize', () => { /* canvas auto-resizes each frame */ });
 
 async function loadCityLabels() {

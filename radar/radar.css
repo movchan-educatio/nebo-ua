@@ -522,6 +522,72 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
 .rl-detail-empty b { display: block; color: var(--text); font-size: 14px; margin-bottom: 4px; }
 
 /* ── Info + ads ──────────────────────────────────────────── */
+/* ── Freshness: status, manual refresh, recovery notice ──────────────────
+   The clock, the badge and the refresh button live together because they
+   answer one question — how much can be trusted right now. */
+/* One row, so the bar keeps its 60px. Stacking the button above the clock
+   pushed the whole header past its height and clipped the button. */
+.rl-fresh { display: flex; align-items: center; gap: 14px; }
+.rl-fresh-line { display: flex; align-items: center; gap: 12px; }
+
+.rl-refresh {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--line); border-radius: 999px;
+  background: var(--surface); color: var(--text);
+  font-size: 12.5px; font-weight: 700; letter-spacing: 0.005em;
+  padding: 7px 14px; cursor: pointer; white-space: nowrap;
+  transition: border-color .15s ease, background .15s ease, color .15s ease;
+}
+.rl-refresh:hover:not(:disabled) { border-color: var(--red-line); background: var(--surface-2); color: var(--red); }
+.rl-refresh:focus-visible { outline: 2px solid var(--aviation); outline-offset: 2px; }
+.rl-refresh:disabled { cursor: default; color: var(--muted-2); }
+/* One spinner, no layout shift: the icon never changes size, only rotates. */
+.rl-refresh-ico { width: 15px; height: 15px; flex: none; }
+.rl-refresh[aria-busy="true"] .rl-refresh-ico { animation: rl-spin .8s linear infinite; }
+.rl-refresh[aria-busy="true"] { color: var(--muted); }
+@keyframes rl-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .rl-refresh[aria-busy="true"] .rl-refresh-ico { animation: none; }
+}
+
+.rl-alert {
+  display: flex; align-items: center; gap: 12px;
+  max-width: 1900px; margin: 0 auto; padding: 10px 20px;
+  border-bottom: 1px solid var(--red-line);
+  background: var(--red-soft); color: #8C2A24;
+}
+.rl-alert[hidden] { display: none; }
+.rl-alert.is-warn { background: #FFF6E8; border-bottom-color: rgba(217, 131, 36, .3); color: #8A5A12; }
+.rl-alert-ico { flex: none; display: grid; place-items: center; }
+.rl-alert-ico svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.rl-alert-body { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; flex: 1; }
+.rl-alert-body b { font-size: 13.5px; }
+.rl-alert-body span { font-size: 12.5px; opacity: .9; }
+.rl-alert-meta { font-variant-numeric: tabular-nums; }
+.rl-alert-retry {
+  flex: none; border: 1px solid currentColor; background: transparent; color: inherit;
+  border-radius: 999px; padding: 6px 14px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer;
+}
+.rl-alert-retry:hover { background: rgba(255, 255, 255, .6); }
+.rl-alert-retry:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+
+/* The notice must never cover the radar: it sits in the document flow above
+   the main grid and reserves its height only while it is actually shown. */
+@media (max-width: 760px) {
+  .rl-fresh { gap: 9px; }
+  .rl-fresh-line { gap: 8px; }
+  .rl-refresh-txt { display: none; }
+  .rl-refresh { padding: 8px; }
+  .rl-refresh-ico { width: 17px; height: 17px; }
+  .rl-alert { padding: 9px 12px; gap: 9px; align-items: flex-start; }
+  .rl-alert-body b { width: 100%; }
+  .rl-alert-retry { padding: 7px 12px; }
+}
+@media (max-width: 380px) {
+  .rl-alert { flex-wrap: wrap; }
+  .rl-alert-retry { margin-left: 27px; }
+}
+
 .rl-info { max-width: 1900px; margin: 0 auto; padding: 0 20px 32px; display: grid; gap: 16px; }
 .rl-info-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 /* A bare card row sits directly in the page column, while a card inside a

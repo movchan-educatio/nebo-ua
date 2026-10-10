@@ -63,8 +63,9 @@ test('radar info: honest copy, no tracking promises, links to info pages', () =>
 
 test('radar.js uses real data services, no fake events', () => {
   const js = read('radar/radar.js');
-  assert.ok(js.includes("from '../services/data.js'"), 'uses data service');
-  assert.ok(js.includes('fetchAll'), 'fetches snapshot');
+  assert.ok(js.includes("from '../services/aggregator.js'"), 'uses the aggregator adapter');
+  assert.ok(js.includes("from './refresh.js'"), 'freshness rules come from the tested module');
+  assert.ok(js.includes('adaptAggregatorSnapshot'), 'adapts the snapshot the same way the old path did');
   assert.ok(js.includes("from '../services/locations.js'"), 'real city search');
   assert.ok(!/Math\.random\(\)\s*\*\s*(lat|lon|360)/.test(js), 'no random coordinates');
   assert.ok(!/TEST_EVENT|demoThreat|fakeEvent/i.test(js), 'no demo threats');

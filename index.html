@@ -42,10 +42,28 @@
   </nav>
   <div class="rl-top-right">
     <button class="rl-icon-btn" id="rlSettingsBtn" aria-label="Налаштування"><svg aria-hidden="true"><use href="./assets/brand/icons.svg#i-settings"/></svg></button>
-    <div class="rl-clock" aria-live="off"><b id="rlClock">--:--</b><small id="rlUpdated">Оновлено —</small></div>
-    <span class="rl-live stale" id="rlLive" role="status">ПЕРЕВІРКА</span>
+    <div class="rl-fresh">
+      <button type="button" class="rl-refresh" id="rlRefreshBtn" aria-label="Оновити дані" title="Оновити дані">
+        <svg class="rl-refresh-ico" aria-hidden="true" focusable="false"><use href="./assets/brand/icons.svg#i-refresh"/></svg>
+        <span class="rl-refresh-txt">Оновити дані</span>
+      </button>
+      <div class="rl-fresh-line">
+        <span class="rl-clock" aria-live="off"><b id="rlClock">--:--</b><small id="rlUpdated">Оновлено —</small></span>
+        <span class="rl-live stale" id="rlLive" role="status">ПЕРЕВІРКА</span>
+      </div>
+    </div>
   </div>
 </header>
+
+<div class="rl-alert" id="rlAlert" role="alert" hidden>
+  <span class="rl-alert-ico" aria-hidden="true"><svg><use href="./assets/brand/icons.svg#i-warning"/></svg></span>
+  <div class="rl-alert-body">
+    <b id="rlAlertTitle">Увага! Дані радара можуть бути застарілими</b>
+    <span id="rlAlertDetail"></span>
+    <span class="rl-alert-meta" id="rlAlertMeta"></span>
+  </div>
+  <button type="button" class="rl-alert-retry" id="rlAlertRetry">Повторити перевірку</button>
+</div>
 
 <main class="rl-main">
   <h1 class="rl-sr">РАДАР.LIVE — моніторинг повітряних загроз України онлайн</h1>

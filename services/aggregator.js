@@ -49,6 +49,13 @@ function adaptEvent(e) {
 
 export async function fetchAggregated(signal) {
   const data = await fetchJson(aggregatorUrl(), { signal, timeout: 12000 });
+  return adaptAggregatorSnapshot(data);
+}
+
+// Exposed separately so the radar can fetch the payload itself — with its own
+// cache and timeout handling — and still get exactly the same shape. Adapting
+// in two places would let the two paths drift.
+export function adaptAggregatorSnapshot(data) {
   if (!data || data.v !== 1 || !Array.isArray(data.alerts) || !Array.isArray(data.events)) {
     throw new Error('Некоректний зріз агрегатора');
   }
