@@ -41,7 +41,7 @@ test('radar ads: no auto ads, slots disabled and off the radar', () => {
 
 test('radar markup: ranges, tabs, filters, bottom nav, settings, a11y', () => {
   const h = read('index.html');
-  for (const r of ['25', '50', '100', '200', '300', '500']) assert.ok(h.includes(`data-range="${r}"`), `range ${r}`);
+  for (const r of ['25', '50', '100', '200', '300', '500', '700']) assert.ok(h.includes(`data-range="${r}"`), `range ${r}`);
   for (const t of ['all', 'new', 'active', 'completed']) assert.ok(h.includes(`data-tab="${t}"`), `tab ${t}`);
   assert.ok(h.includes('id="rlScope"'), 'canvas');
   assert.ok(h.includes('aria-label="Радар повітряних загроз"'), 'canvas label');

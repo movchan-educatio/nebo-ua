@@ -28,7 +28,7 @@ const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const RANGES = [25, 50, 100, 200, 300, 500];
+const RANGES = [25, 50, 100, 200, 300, 500, 700];
 const POPULAR = ['Київ', 'Харків', 'Одеса', 'Дніпро', 'Львів'];
 
 const state = {
@@ -117,6 +117,7 @@ const spriteImgs = new Map();
 // Last CONFIRMED fix per stable track id. Bounded and pruned every frame, so a
 // vanished track can never accumulate memory.
 const lastFix = new Map();
+const observedTrails = new Map();
 // Transitions currently gliding between two confirmed fixes.
 const liveMoves = new Map();
 // Track ids seen this frame; everything else is pruned below.
@@ -131,6 +132,7 @@ function rememberFix(event) {
   const prev = lastFix.get(fix.id);
   if (prev && prev.atMs >= fix.atMs) return prev;      // never move backwards
   lastFix.set(fix.id, fix);
+  observedTrails.set(fix.id, [...(observedTrails.get(fix.id) || []), fix].slice(-8));
   return prev || null;
 }
 function pruneFixes() {
@@ -139,6 +141,7 @@ function pruneFixes() {
   for (const id of lastFix.keys()) {
     if (seenTrackIds.has(id)) continue;
     lastFix.delete(id);
+    observedTrails.delete(id);
     liveMoves.delete(id);
   }
 }
@@ -423,11 +426,12 @@ function drawFrame(t) {
       if (fix) {
         seenTrackIds.add(fix.id);
         const prevFix = rememberFix(p.e);
-        const plan = (prevFix && animate && !reducedMotion())
+        const isNewFix = prevFix && fix.atMs > prevFix.atMs;
+        const plan = (isNewFix && animate && !reducedMotion())
           ? planTransition(prevFix, fix, { nowMs: wall })
           : null;
         if (plan) liveMoves.set(fix.id, { plan, fromFix: prevFix });
-        else {
+        else if (isNewFix || !animate || !prevFix) {
           // No legal transition (new track, stale, no prior fix, or a data jump):
           // any in-flight glide ends here and the marker sits exactly on the
           // confirmed coordinate from this frame on.
@@ -441,10 +445,9 @@ function drawFrame(t) {
         t = tweenProgress(move.plan, wall);
         if (t < 1 && move.fromFix) {
           // Glide in project space between the two CONFIRMED fixes.
-          const a = projectRadar(move.fromFix.lat, move.fromFix.lon, state.center, state.range, cssW);
-          const b = projectRadar(fix.lat, fix.lon, state.center, state.range, cssW);
-          if (a && b) {
-            const ip = interpolateFix(a, b, t);
+          const position = interpolateFix(move.fromFix, fix, t);
+          const ip = projectRadar(position.lat, position.lon, state.center, state.range, cssW);
+          if (ip) {
             drawX = ip.x * dpr; drawY = ip.y * dpr;
           }
           turnFrom = move.fromFix.heading;
@@ -455,6 +458,30 @@ function drawFrame(t) {
         }
       }
 
+      // Only source-reported, timestamped coordinates become trail segments.
+      // Never extend a trail along heading/speed beyond the last confirmed fix.
+      const sourceTrail = (p.e.trail || []).slice(-8).map(point => makeFix({
+        ...p.e, lat: point.lat, lon: point.lon,
+        eventTime: point.timestamp, timestamp: point.timestamp,
+      })).filter(point => point && fix && point.atMs <= fix.atMs);
+      const trail = [...new Map([...sourceTrail, ...(observedTrails.get(fix?.id) || [])]
+        .map(point => [point.atMs, point])).values()].sort((a, b) => a.atMs - b.atMs).slice(-8);
+      if (fix && trail.at(-1)?.atMs !== fix.atMs) trail.push(fix);
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.clip();
+      ctx.strokeStyle = KIND_COLOR[p.kind] || KIND_COLOR.other;
+      ctx.lineWidth = 1.5 * dpr; ctx.globalAlpha = 0.4;
+      ctx.setLineDash([3 * dpr, 3 * dpr]);
+      for (let i = 1; i < trail.length; i++) {
+        if (!planTransition(trail[i - 1], trail[i], { nowMs: wall })) continue;
+        const a = projectRadar(trail[i - 1].lat, trail[i - 1].lon, state.center, state.range, cssW);
+        const b = projectRadar(trail[i].lat, trail[i].lon, state.center, state.range, cssW);
+        if (!a || !b) continue;
+        ctx.beginPath(); ctx.moveTo(a.x * dpr, a.y * dpr);
+        ctx.lineTo(i === trail.length - 1 && t < 1 ? drawX : b.x * dpr,
+          i === trail.length - 1 && t < 1 ? drawY : b.y * dpr); ctx.stroke();
+      }
+      ctx.restore();
       const img = spriteImgs.get(glyphSymbol(p.kind, p.e));
       const halo = KIND_COLOR[p.kind] || KIND_COLOR.other;
       ctx.save();
@@ -1587,7 +1614,7 @@ load('boot').then(() => scheduleNext(nextDelay()));
 setInterval(() => { tickClock(); renderFreshness(); }, 15000);
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { clearTimeout(pollTimer); return; }
-  liveMoves.clear(); lastFix.clear();
+  liveMoves.clear(); lastFix.clear(); observedTrails.clear();
   refreshIfStale();
   scheduleNext(nextDelay());
 });

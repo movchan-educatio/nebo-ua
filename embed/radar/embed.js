@@ -24,7 +24,7 @@ const state = {
 };
 try {
   const p = JSON.parse(localStorage.getItem('radar-live-embed-v1') || '{}');
-  if ([25, 50, 100, 200, 300, 500].includes(p.range)) state.range = p.range;
+  if ([25, 50, 100, 200, 300, 500, 700].includes(p.range)) state.range = p.range;
 } catch { /* storage may be blocked in sandbox */ }
 function savePrefs() { try { localStorage.setItem('radar-live-embed-v1', JSON.stringify({ range: state.range })); } catch { /* ignore */ } }
 

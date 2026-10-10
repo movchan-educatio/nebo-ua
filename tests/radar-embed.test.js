@@ -38,7 +38,7 @@ test('embed reuses the same data services and geo math, compact UI present', () 
   assert.ok(!js.includes('clusterPoints('), 'each target retains its type glyph without clustering');
   assert.ok(js.includes('KIND_LABEL') && js.includes('KIND_COLOR'), 'shared kind presentation');
   const h = read('embed/radar/index.html');
-  for (const r of ['25', '50', '100', '200', '300', '500']) assert.ok(h.includes(`data-range="${r}"`), `range ${r}`);
+  for (const r of ['25', '50', '100', '200', '300', '500', '700']) assert.ok(h.includes(`data-range="${r}"`), `range ${r}`);
   assert.ok(h.includes('id="emScope"') && h.includes('id="emCity"'), 'canvas + city search');
   assert.ok(h.includes('Повна версія'), 'link to full version');
   assert.ok(h.includes('target="_blank"'), 'full-version link opens aside, no nav trap');
