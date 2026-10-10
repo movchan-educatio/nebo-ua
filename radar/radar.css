@@ -664,6 +664,12 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
 }
 .rl-doc .note + .note, .rl-doc .note + ul, .rl-doc ul + .note { margin-top: 12px; }
 .rl-doc a { color: var(--red); }
+/* The red CTA lives inside .rl-doc, and `.rl-doc a` is (0,1,1) while
+   `.rl-doc-cta` is only (0,1,0) — so the link colour won and painted the label
+   the same red as its own background. The button looked empty because its text
+   was there at 1:1 contrast. Matched on the element so it wins on specificity
+   rather than on source order. */
+.rl-doc a.rl-doc-cta { color: #fff; }
 .rl-doc h2 + ul, .rl-doc h2 + p { margin-top: 0; }
 .rl-doc hr { border: 0; border-top: 1px solid var(--line-soft); margin: 8px 0; }
 
@@ -692,8 +698,29 @@ body.rl-page .rl-foot { margin-top: auto; }
 .rl-doc details + details { margin-top: 8px; }
 .rl-doc summary { cursor: pointer; font-weight: 700; font-size: 14px; }
 .rl-doc .rl-muted { color: var(--muted); }
-.rl-doc-feats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.rl-doc-feats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+/* Four cards in a three-column grid leave one stranded on its own row, which is
+   the ragged tail this layout was supposed to remove. Two columns give a clean
+   2x2 and wider cards. :has() is well supported; where it is not, the rule
+   simply does not match and the grid falls back to three columns. */
+.rl-doc-feats:has(> :nth-child(4):last-child) { grid-template-columns: repeat(2, 1fr); }
 .rl-doc-feats .rl-info-card { text-align: left; }
+/* Outline icons: paint safety net.
+   assets/brand/icons.svg deliberately carries no fill/stroke — the shapes rely
+   on inherited paint, which tests/content.test.js pins. Wherever a component
+   rule supplied that paint the icons looked right; wherever one did not, the
+   browser fell back to its defaults and drew a solid black silhouette at the
+   default 300x150 replaced-element size. Targeting the <use> element covers
+   every usage at once, including future ones, and is inherited into the shadow
+   content. The combat silhouettes in threats/sprite.svg are untouched: they set
+   fill and stroke on their own shapes, which always wins over inheritance. */
+use[href*="brand/icons.svg"] { fill: none; stroke: currentColor; }
+/* Geometry for the doc feature cards, whose icon is a direct child rather than
+   wrapped in .rl-threat-ico and therefore had no size rule at all. */
+.rl-doc-feats .rl-info-card > svg {
+  width: 34px; height: 34px; max-width: 34px; max-height: 34px;
+  display: block; margin: 0 0 10px; flex: none;
+}
 .rl-doc-lead { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; align-items: center; }
 .rl-doc-lead p { margin: 0 0 10px; }
 .rl-doc-cta { display: inline-flex; align-items: center; gap: 7px; background: var(--red); color: #fff;

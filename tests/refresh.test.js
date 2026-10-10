@@ -320,10 +320,45 @@ test('a manual refresh only reads the public endpoint', () => {
 
 test('requests are uncacheable and bounded', () => {
   assert.match(radarCode, /cache: 'no-store'/, 'no-store on the request');
-  assert.match(radarCode, /'cache-control': 'no-cache'/, 'and an explicit header');
   assert.match(radarCode, /ac\.abort\(\)/, 'every request can be aborted');
   assert.match(radarCode, /setTimeout\(\(\) => ac\.abort\(\)/, 'and the abort is scheduled');
   assert.doesNotMatch(radarCode, /\?t=\$\{Date\.now\(\)\}/, 'no cache-busting query parameter');
+});
+
+// This assertion used to require the two headers that caused the outage. It
+// passed, and the radar still went dark for every visitor: a source-level check
+// cannot know which request headers are CORS-safelisted, so "we set a header"
+// looked like thoroughness while actually breaking the request.
+test('the state request sets no header that triggers a CORS preflight', () => {
+  const fn = radarCode.slice(radarCode.indexOf('async function fetchSnapshot'), radarCode.indexOf('function retryAfterMs'));
+  assert.ok(fn.length > 0, 'fetchSnapshot exists');
+
+  // Scope to the fetch options object. Scanning the whole function picks up
+  // ordinary object properties like `reason: 'timeout'` and calls them headers.
+  const call = fn.slice(fn.indexOf('fetch(aggregatorUrl()'), fn.indexOf('});', fn.indexOf('fetch(aggregatorUrl()')));
+  assert.ok(call.length > 0, 'the fetch call is found');
+
+  const safelist = ['accept', 'accept-language', 'content-language', 'content-type'];
+  const headersProp = call.match(/headers\s*:\s*\{([^}]*)\}/);
+  if (headersProp) {
+    for (const m of headersProp[1].matchAll(/['"]([a-z-]+)['"]\s*:/gi)) {
+      const h = m[1].toLowerCase();
+      assert.ok(safelist.includes(h), `"${h}" is not CORS-safelisted; a preflight the aggregator may refuse would take the radar offline`);
+    }
+  } else {
+    // No headers at all is the strongest possible position: nothing to preflight.
+    assert.doesNotMatch(call, /pragma/i, 'no pragma header');
+    assert.doesNotMatch(call, /cache-control/i, 'no cache-control request header — cache mode does that without preflighting');
+  }
+  assert.match(call, /cache:\s*'no-store'/, 'still uncacheable, via the fetch cache mode');
+});
+
+test('the aggregator preflight echoes the headers the browser asked for', async () => {
+  const src = read('backend/src/index.js');
+  assert.match(src, /Access-Control-Request-Headers/, 'reads the requested header list');
+  assert.match(src, /['"]Access-Control-Allow-Headers['"]:\s*allowHeaders/, 'and answers with it');
+  // A fixed allow-list is what let the radar be refused by its own API.
+  assert.doesNotMatch(src, /'Access-Control-Allow-Headers':\s*'Content-Type'/, 'no hardcoded single-header allow-list');
 });
 
 test('the recovery notice is a compact strip, not a modal', () => {

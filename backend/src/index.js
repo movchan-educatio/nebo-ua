@@ -337,7 +337,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') {
-      return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type', 'Access-Control-Max-Age': '86400' } });
+      // Echo the headers the browser actually asked about instead of naming a
+      // fixed set. A client that adds one innocuous request header (cache-control
+      // and pragma are not CORS-safelisted) used to be refused outright here,
+      // which surfaced as OFFLINE on the radar rather than as a CORS error the
+      // page could explain. Echoing is safe for this endpoint: it is public,
+      // read-only, and sends no credentials, so allowing extra request headers
+      // grants access to nothing that Access-Control-Allow-Origin: * did not
+      // already grant.
+      const asked = request.headers.get('Access-Control-Request-Headers') || '';
+      const allowHeaders = asked
+        ? asked.split(',').map((h) => h.trim()).filter(Boolean).join(', ')
+        : 'Content-Type';
+      return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'GET, POST, OPTIONS', 'Access-Control-Allow-Headers': allowHeaders, 'Access-Control-Max-Age': '86400' } });
     }
     if (url.pathname === '/v1/state' && request.method === 'GET') {
       if (env.SYNC_STATE_STORE === 'd1') {

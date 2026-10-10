@@ -617,12 +617,19 @@ async function fetchSnapshot(timeoutMs = 12000) {
   const ac = new AbortController();
   const timer = setTimeout(() => ac.abort(), timeoutMs);
   try {
-    // no-store plus an explicit pragma: the aggregator is cross-origin and its
-    // own cache headers are outside our control, so the request is made
-    // uncacheable from this side too.
+    // `cache: 'no-store'` is a fetch mode, not a header: it makes the browser
+    // bypass its own HTTP cache without adding anything to the request, so it
+    // does NOT trigger a CORS preflight.
+    //
+    // This request used to also set `cache-control: no-cache` and `pragma:
+    // no-cache`. Those are not CORS-safelisted, so the browser sent a preflight
+    // first — and the aggregator answers preflight with
+    // Access-Control-Allow-Headers: Content-Type. The mismatch made the browser
+    // refuse to send the request at all: ERR_FAILED, no network call, and the
+    // radar showed OFFLINE with "час перевірки невідомий" on every visitor.
+    // The headers added nothing that no-store did not already do.
     const res = await fetch(aggregatorUrl(), {
       cache: 'no-store',
-      headers: { 'cache-control': 'no-cache', pragma: 'no-cache' },
       signal: ac.signal,
     });
     if (!res.ok) return { ok: false, reason: 'http-' + res.status, retryAfter: retryAfterMs(res) };
