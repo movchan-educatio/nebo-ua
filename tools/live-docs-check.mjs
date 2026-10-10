@@ -52,20 +52,27 @@ for (const [name, url] of [['info', '/info/'], ['how-it-works', '/how-it-works/'
 
       const rows = new Map();
       for (const c of cards) {
-        const top = Math.round(c.getBoundingClientRect().top);
+        const r = c.getBoundingClientRect();
+        const top = Math.round(r.top);
         if (!rows.has(top)) rows.set(top, []);
-        rows.get(top).push(Math.round(c.getBoundingClientRect().height));
+        rows.get(top).push({ h: Math.round(r.height), w: Math.round(r.width) });
       }
-      const unevenRows = [...rows.values()].filter((h) => h.length > 1 && new Set(h).size > 1).length;
-      const lastRowSize = rows.size ? [...rows.values()].pop().length : 0;
+      const unevenRows = [...rows.values()].filter((r) => r.length > 1 && new Set(r.map((x) => x.h)).size > 1).length;
+      const gridEl = document.querySelector('.rl-doc-feats');
+      const gridWidth = gridEl ? gridEl.getBoundingClientRect().width : 0;
+      const lastRow = rows.size ? [...rows.values()].pop() : [];
+      const lastRowSize = lastRow.length;
+      // A single card in the last row is only a defect if it does NOT span the
+      // row: an odd last card at two columns is deliberately stretched across
+      // both, and counting cards alone reported that as stranded.
+      const lastSpansFull = lastRowSize === 1 && gridWidth > 0 && lastRow[0].w >= gridWidth - 2;
 
       return {
-        ctas, icons, unevenRows, lastRowSize,
+        ctas, icons, unevenRows, lastRowSize, lastSpansFull,
         cardCount: cards.length,
         columns: (() => {
-          const g = document.querySelector('.rl-doc-feats');
-          if (!g) return 1;
-          return getComputedStyle(g).gridTemplateColumns.split(/\s+/).filter(Boolean).length;
+          if (!gridEl) return 1;
+          return getComputedStyle(gridEl).gridTemplateColumns.split(/\s+/).filter(Boolean).length;
         })(),
         overflow: document.documentElement.scrollWidth - window.innerWidth,
       };
@@ -82,10 +89,7 @@ for (const [name, url] of [['info', '/info/'], ['how-it-works', '/how-it-works/'
       if (/rgb\(0,\s*0,\s*0\)|black|#000/.test(i.fill) && !/sprite\.svg/.test(i.sprite)) problems.push(`icon filled ${i.fill}`);
     }
       if (m.unevenRows) problems.push(`${m.unevenRows} row(s) with unequal card heights`);
-      // A lone card is only a defect when the grid has more than one column: in
-      // a single-column stack every card occupies its own row by design, and
-      // the first version of this check flagged all of them.
-      if (m.cardCount > 1 && m.lastRowSize === 1 && m.columns > 1) problems.push('a lone card in the last row');
+      if (m.cardCount > 1 && m.lastRowSize === 1 && m.columns > 1 && !m.lastSpansFull) problems.push('a lone card in the last row');
       if (m.overflow > 1) problems.push(`horizontal overflow ${m.overflow}px`);
 
     if (problems.length) { for (const p of problems.slice(0, 4)) fail(`${name} @${w}: ${p}`); }
