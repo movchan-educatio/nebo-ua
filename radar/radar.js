@@ -68,6 +68,10 @@ const state = {
   firstSeenAt: new Map(),
   audio: loadAudio(),
   contours: null,
+  // Rings paired with the oblast name they bound, for the "which oblast is
+  // this point in" lookup. Empty until the contours load, which is why
+  // geoDesc() still answers "місце невідоме" if that fetch fails.
+  contourRegions: [],
 };
 
 function loadAudio() {
@@ -568,19 +572,36 @@ async function loadContours(force = false) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     const g = await r.json();
     const polys = [];
+    // Rings paired with the oblast they bound. `polys` stays exactly as it was
+    // — the scope draws from it — and this parallel list is what answers "which
+    // oblast is this point in". Same array references, so the extra memory is a
+    // few hundred pointers, not a second copy of the file.
+    const regions = [];
     for (const f of g.features || []) {
       const geom = f.geometry;
       if (!geom) continue;
+      const name = f.properties?.region || f.properties?.NAME_1 || f.properties?.key || '';
       const list = geom.type === 'Polygon' ? [geom.coordinates] : geom.type === 'MultiPolygon' ? geom.coordinates : [];
       for (const poly of list) {
-        if (poly[0] && poly[0].length > 1) polys.push(poly[0].filter(p => Array.isArray(p)));
+        if (poly[0] && poly[0].length > 1) {
+          const ring = poly[0].filter(p => Array.isArray(p));
+          polys.push(ring);
+          if (name) regions.push({ ring, name });
+        }
       }
     }
     // An empty result is a failure, not a map with no outlines: say so rather
     // than presenting a blank disc as finished.
     if (!polys.length) throw new Error('порожній файл');
     state.contours = polys;
+    state.contourRegions = regions;
     state.contourStatus = 'ready';
+    // The feed has already rendered by now — loadContours is async and the first
+    // paint happens before it resolves — so every place label was drawn as
+    // "місце невідоме" against an empty region list. Re-render now that the
+    // oblast lookup can answer. Guarded: renderAll does not reload contours,
+    // since loadContours returns early once the status is 'ready'.
+    renderAll();
   } catch (err) {
     state.contourStatus = 'error';
     state.contourError = String(err && err.message ? err.message : err).slice(0, 120);
@@ -865,9 +886,46 @@ function renderMiniMap(e, distKm) {
   c.fillText(geoDesc(e), W / 2, H - 8);
 }
 
+// Which oblast a point falls in, or null when it falls in none of them.
+//
+// Standard even-odd ray casting against the outer ring. Only the outer ring is
+// tested: oblast shapes are simple enough here, and testing holes would turn a
+// raion-sized lake into an "unknown" oblast.
+function oblastAt(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  const list = state.contourRegions;
+  if (!Array.isArray(list) || !list.length) return null;
+  for (const { ring, name } of list) {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0], yi = ring[i][1];
+      const xj = ring[j][0], yj = ring[j][1];
+      if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    if (inside) return name;
+  }
+  return null;
+}
+
 function geoDesc(e) {
   const place = e.settlement || e.district || e.region || e.derivedRegion;
   if (place) return place;
+  // Fall back to the oblast the point is actually in.
+  //
+  // The source often sends exact coordinates and no place name at all, and the
+  // row still said "місце невідоме" while the very same record was plotted on
+  // the map at that coordinate — the UI contradicted itself. Resolving the
+  // point against oblast boundaries states something true and coarse.
+  //
+  // It deliberately stops at the oblast. The local gazetteer holds 33 places
+  // (oblast capitals), so naming the nearest one would put a drone over
+  // Ольховка, ten kilometres outside Kharkiv, under the label "Харків" — a
+  // confident wrong answer. If the point falls outside every polygon, or has no
+  // coordinates, or the contours never loaded, the answer stays unknown.
+  if (e.locationPrecision === 'COORDINATE') {
+    const o = oblastAt(Number(e.lat), Number(e.lon));
+    if (o) return o;
+  }
   return 'місце невідоме';
 }
 function kindIcon(kind, color) {
