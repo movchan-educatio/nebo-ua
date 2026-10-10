@@ -69,17 +69,3 @@ export async function fetchMapa(env) {
   const items = Array.isArray(r.data?.objects) ? r.data.objects : [];
   return { ...r, items };
 }
-
-// Official token API (generic shape):
-//   GET {OFFICIAL_API_URL}  Authorization: Bearer {OFFICIAL_API_TOKEN}
-//   -> [{oblast|region, district?, since, level?, reasons?[]}]
-// Disabled (not an error) when URL or token is missing.
-export async function fetchOfficial(env) {
-  const url = env.OFFICIAL_API_URL;
-  const token = env.OFFICIAL_API_TOKEN;
-  if (!url || !token) return { ok: true, disabled: true, items: [], latencyMs: 0, error: null };
-  const r = await fetchWithRetry(url, { timeoutMs: 9000, headers: { Authorization: `Bearer ${token}` } });
-  if (!r.ok) return { ...r, items: [] };
-  const items = Array.isArray(r.data) ? r.data : pickArray(r.data, ['alerts', 'states', 'items']);
-  return { ...r, items };
-}

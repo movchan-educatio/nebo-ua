@@ -6,7 +6,6 @@
 #    назви в коді й у toml повинні збігатися (це перевіряє backend/test/config.test.js).
 # 3) wrangler d1 create nebo-journal                 -> paste database_id below
 # 4) wrangler d1 execute nebo-journal --file=./schema.sql
-#    (optional) wrangler secret put OFFICIAL_API_TOKEN   # only if you got an official token
 # 5) wrangler deploy
 name = "check-ua-proxy"
 main = "src/index.js"
@@ -17,27 +16,13 @@ compatibility_flags = ["nodejs_compat"]
 # Apply migrations/0001_pipeline_state.sql before enabling this writer.
 # Uses the existing D1 database; no new paid service or production secret.
 SYNC_STATE_STORE = "d1"
-# Optional official alerts endpoint (generic JSON, see README). Leave empty to disable.
-OFFICIAL_API_URL = ""
 NEPTUN_ALERTS_URL = "https://neptun.in.ua/api/v1/alerts"
 NEPTUN_THREATS_URL = "https://neptun.in.ua/api/v1/threats"
 MAPA_URL = "https://mapa.ua/api/v1/current"
-# UkraineAlarm API v3 (official alerts) — RETIRED by owner decision (2026-10-10).
-# The provider rejects the key with HTTP 401; support is not being contacted and
-# no new key will be issued. While this is "false" the Worker makes ZERO requests
-# to api.ukrainealarm.com, writes nothing to D1/KV for it, and the source does not
-# appear in the pipeline or in the public source-status block.
-# The adapter in src/ukrainealarm.js is kept intact: set this back to "true" and
-# the integration comes back without any code change.
-OFFICIAL_SOURCE_ENABLED = "false"
-# The KEY remains a Worker secret, never a var. Left in place so re-enabling is a
-# one-line change and so the secret name stays covered by the leak tests:
-#   wrangler secret put UKRAINEALARM_API_KEY
-# Optional auth-scheme prefix for the Authorization header, e.g. "Token".
-# Default "" sends the raw key (swagger-codegen default); set only if the
-# key issuance docs require a prefix.
-UKRAINEALARM_API_URL = "https://api.ukrainealarm.com"
-UKRAINEALARM_AUTH_SCHEME = ""
+# Two monitoring sources: NEPTUN (alerts + threats) and MAPA. A third official
+# source was removed by owner decision (2026-10-10) — adapter, config, endpoints
+# and pipeline lane are gone. Its historical rows stay in D1 as audit material
+# and are never served as a current confirmation.
 # Admin gate for POST /v1/refresh (shared secret, never a var):
 #   wrangler secret put REFRESH_TOKEN
 # Fail-closed: without the secret the route answers 503; with it,

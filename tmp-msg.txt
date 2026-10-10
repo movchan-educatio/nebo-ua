@@ -1,0 +1,40 @@
+Remove the official source entirely: adapter, config, lane, endpoints
+
+It was switched off by configuration; now it is gone. Nothing about it
+survives as a dormant switch that someone could flip by accident.
+
+Deleted: the adapter, its three tests, the tools that probed the provider,
+and the two investigation write-ups.
+
+Backend:
+  - SOURCES is NEPTUN and MAPA. The generic token-API fallback existed only
+    to feed this source and went with it, so OFFICIAL_API_URL/TOKEN are gone
+    from the config, the README and the test fixtures.
+  - The pipeline has no official lane. One publication per cycle, two check
+    rows, one shared deadline. `phase` went with the second publication;
+    pipelineCompletedAt is now the one publication's timestamp, and the KV
+    checkpoint is written once instead of twice.
+  - The OFFICIAL health key is gone from the snapshot and from the KV change
+    fingerprint, and /v1/official/regions and /v1/official/history no longer
+    exist — they were read-throughs to the provider and already answered 503.
+  - normalizeAlert lost its source parameter: there is one alert source, so
+    the branch had a single reachable value.
+
+Frontend: the OFFICIAL card definition is removed, so no payload can bring
+the card back in any state — absent, not hidden. The badge follows the two
+sources that exist. The debug overlay no longer prints a third age.
+
+NEPTUN's air-raid channel is untouched on purpose: normalizeAlert still
+marks those alerts official, and officialStart/officialEnd push and sound
+still carry them. Removing that would have silently deleted a live
+notification path that was never about this provider.
+
+Historical D1 rows stay as audit material. retireSources still lists
+OFFICIAL so those records leave the active set and are journalled ended —
+they are never served as a current confirmation, which sync-integrity now
+asserts by seeding one and checking it disappears.
+
+615 tests pass, up from 615 with the removed ones replaced by equivalents:
+alert retention during an outage, bounded deadlines, overlapping-cron
+ordering, D1-commit failure recovery and the retired-source case are all
+still covered, now against NEPTUN.

@@ -12,13 +12,10 @@ export function computeAlertStats(alerts) {
   for (const a of alerts || []) {
     if (!a || !a.region) continue;
     oblasts.add(a.region);
-    if (a.district) {
-      raions.add(a.region + '||' + a.district);
-      if (a.locationPrecision === 'RAION' && a.source === 'OFFICIAL' && /громада/i.test(a.district)) {
-        communities.add(a.region + '||' + a.district);
-      }
-    }
+    if (a.district) raions.add(a.region + '||' + a.district);
   }
+  // No source reports community-level precision any more, so the count is
+  // honestly zero rather than inferred from a district name.
   return { oblasts: oblasts.size, raions: raions.size, communities: communities.size };
 }
 
@@ -94,7 +91,6 @@ export function matchTerritory(query, oblastNames = [], dirRegions = [], limit =
 // RECOVERING = this check succeeded right after a recorded failure.
 export function sourceCards(health, nowMs = Date.now()) {
   const defs = [
-    { key: 'OFFICIAL', name: 'UkraineAlarm API', sub: 'Офіційні дані тривог', ico: 'ua' },
     { key: 'NEPTUN', name: 'NEPTUN', sub: 'Рух цілей (БПЛА, ракети)', ico: 'nep' },
     { key: 'MAPA', name: 'MAPA', sub: 'Додаткові спостереження', ico: 'mapa' },
   ];

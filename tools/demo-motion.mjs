@@ -55,8 +55,7 @@ const snapshot = () => ({
   pipelineCheckedAt: new Date().toISOString(), dataUpdatedAt: new Date().toISOString(),
   publishedAt: new Date().toISOString(),
   health: {
-    OFFICIAL: { status: 'disabled', updatedAt: null, error: null },
-    NEPTUN: { status: 'online', updatedAt: new Date().toISOString(), error: null },
+      NEPTUN: { status: 'online', updatedAt: new Date().toISOString(), error: null },
     MAPA: { status: 'online', updatedAt: new Date().toISOString(), error: null },
   },
   alerts: [], events: [STEPS[step], ...CONTROLS], disagreement: null,

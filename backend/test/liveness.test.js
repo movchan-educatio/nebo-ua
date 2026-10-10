@@ -102,7 +102,7 @@ const baseEnv = (kv, db) => ({
   NEPTUN_ALERTS_URL: 'https://src.test/alerts',
   NEPTUN_THREATS_URL: 'https://src.test/threats',
   MAPA_URL: 'https://src.test/mapa',
-  OFFICIAL_API_URL: '', OFFICIAL_API_TOKEN: '',
+
   REFRESH_TOKEN: 'test-refresh',
 });
 const emptySources = {

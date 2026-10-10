@@ -41,12 +41,6 @@ export function testKv() {
 export function testEnv() {
   return {
     SYNC_STATE_STORE: 'd1', NEBO_STATE: testKv(), nebo_journal: testDb(),
-    // The official source is retired in production (OFFICIAL_SOURCE_ENABLED is
-    // "false" in wrangler.toml) and the switch fails CLOSED. The suite opts in
-    // explicitly so the retired integration keeps its coverage and stays
-    // re-enableable; test/official-disabled.test.js covers the off path.
-    OFFICIAL_SOURCE_ENABLED: 'true',
-    UKRAINEALARM_API_KEY: 'fixture-key',
     NEPTUN_ALERTS_URL: 'https://sources.invalid/alerts',
     NEPTUN_THREATS_URL: 'https://sources.invalid/threats',
     MAPA_URL: 'https://sources.invalid/mapa',
@@ -55,12 +49,11 @@ export function testEnv() {
 
 export function sourceRoutes() {
   return {
-    '/alerts': { oblasts: [], raions: [] },
+    // One standing air-raid alert, so outage and retention behaviour has a
+    // record to reason about rather than an empty set that proves nothing.
+    '/alerts': { oblasts: [{ name: 'м. Київ', oblast: 'Київська область',
+      since: '2026-10-09T05:00:00Z', reasons: ['Повітряна тривога'], key: 'alert-1' }], raions: [] },
     '/threats': { threats: [] }, '/mapa': { objects: [] },
-    '/api/v3/alerts/status': { lastActionIndex: 123 },
-    '/api/v3/alerts': [{ regionId: 's1', regionType: 'State', regionName: 'Черкаська область',
-      activeAlerts: [{ type: 'AIR', lastUpdate: '2026-10-09T05:00:00Z' }] }],
-    '/api/v3/regions': { states: [{ regionId: 's1', regionType: 'State', regionName: 'Черкаська область', regionChildIds: [] }] },
   };
 }
 

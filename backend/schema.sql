@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS journal (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,             -- 'alert' | 'threat'
-  source TEXT NOT NULL,           -- OFFICIAL | NEPTUN | MAPA
+  source TEXT NOT NULL,           -- NEPTUN | MAPA; OFFICIAL rows are historical only
   category TEXT,
   region TEXT,
   district TEXT,
@@ -29,14 +29,6 @@ CREATE TABLE IF NOT EXISTS pipeline_state (
   id INTEGER PRIMARY KEY CHECK (id=1),
   started_at INTEGER NOT NULL,
   bundle TEXT NOT NULL
-);
-
--- UkraineAlarm v3 sync state (version gate + 429 backoff). Tiny key/value
--- store, written only on change: lastActionIndex when the upstream version
--- moves, notBefore while honoring server-sent Retry-After.
-CREATE TABLE IF NOT EXISTS ua_sync (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
 );
 
 -- Web Push subscriptions. No accounts: the endpoint IS the identity.

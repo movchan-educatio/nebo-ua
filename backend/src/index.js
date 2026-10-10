@@ -2,15 +2,14 @@
 import { normalizeNeptunThreat, normalizeMapa, normalizeAlert, isFreshEvent } from './normalize.js';
 import { correlate, fuse, detectDisagreement } from './fuse.js';
 import { protectAlerts, protectThreats } from './protect.js';
-import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa, fetchOfficial } from './sources.js';
-import { fetchOfficialUkraineAlarm, fetchRegionHistory, getRegionsTree, officialSourceEnabled } from './ukrainealarm.js';
+import { fetchNeptunAlerts, fetchNeptunThreats, fetchMapa } from './sources.js';
 import { loadPrev, saveState, loadLatest, loadBundle, saveBundle, meaningfulFp, shouldWrite, isAlreadyPersisted, journalUpsert, journalEnd, recordChecksBatch, sourceMetrics } from './store.js';
 import { dispatchPush, sendToSubscription, deleteSubscription, configureVapid, toTestResult, endpointHash } from './push.js';
 import { validateSubscribe } from './notify.js';
 import { runDurablePipeline } from './pipeline.js';
 import { loadRuntime, runtimeResponse } from './runtime-state.js';
 
-const SOURCES = ['OFFICIAL', 'NEPTUN', 'MAPA'];
+const SOURCES = ['NEPTUN', 'MAPA'];
 
 // Explicit binding check: a missing binding must fail loudly with its name,
 // never as a cryptic `undefined.prepare` deep in the pipeline.
@@ -64,10 +63,7 @@ async function runPipeline(env) {
   const now = new Date();
   const nowMs = now.getTime();
   const nowIso = now.toISOString();
-  const [official, alertsRes, threatsRes, mapaRes] = await Promise.all([
-    // UkraineAlarm v3 (official) when its secret is configured; otherwise the
-    // legacy generic endpoint. Absent key => disabled source (never an error).
-    officialSourceEnabled(env) ? (env.UKRAINEALARM_API_KEY ? fetchOfficialUkraineAlarm(env) : fetchOfficial(env)) : Promise.resolve({ ok: true, disabled: true, items: [] }),
+  const [alertsRes, threatsRes, mapaRes] = await Promise.all([
     fetchNeptunAlerts(env),
     fetchNeptunThreats(env),
     fetchMapa(env),
@@ -77,7 +73,6 @@ async function runPipeline(env) {
   // Batched: single INSERT batch + hourly cleanup instead of 3×(INSERT+DELETE) per cron.
   try {
     await recordChecksBatch(env.nebo_journal, [
-      { source: 'OFFICIAL', ok: official.ok && !official.disabled, latencyMs: official.latencyMs, error: official.error },
       { source: 'NEPTUN', ok: alertsRes.ok && threatsRes.ok, latencyMs: Math.max(alertsRes.latencyMs, threatsRes.latencyMs), error: [alertsRes.error, threatsRes.error].filter(Boolean).join('; ') || null },
       { source: 'MAPA', ok: mapaRes.ok, latencyMs: mapaRes.latencyMs, error: mapaRes.error },
     ]);
@@ -93,28 +88,11 @@ async function runPipeline(env) {
   const alertsOk = alertsRes.ok;
   const threatsOk = threatsRes.ok && !threatsRes.stale;
   const mapaOk = mapaRes.ok;
-  const officialOk = official.ok && !official.disabled;
 
   // Normalize only successful sources. Failed sources keep previous state untouched.
   let freshAlerts = [];
   if (alertsOk) {
-    freshAlerts = alertsRes.items.map(x => normalizeAlert(x, now, 'NEPTUN')).filter(Boolean);
-  }
-  if (officialOk) {
-    if (official.carried) {
-      // Version gate proved the upstream set is byte-identical to the last
-      // full fetch: re-affirm previous OFFICIAL records as-is. stale:false is
-      // honest here (confirmed present); event timestamps are preserved, and
-      // misses reset via protectAlerts like any re-seen record.
-      for (const a of prev?.alerts || []) {
-        if (a?.source === 'OFFICIAL') freshAlerts.push({ ...a, stale: false });
-      }
-    } else {
-      for (const x of official.items) {
-        const a = normalizeAlert(x, now, 'OFFICIAL');
-        if (a) freshAlerts.push(a);
-      }
-    }
+    freshAlerts = alertsRes.items.map(x => normalizeAlert(x, now)).filter(Boolean);
   }
   let freshThreats = [];
   if (threatsOk) {
@@ -126,7 +104,7 @@ async function runPipeline(env) {
 
   const alertLimit = Number(env.ALERT_MISS_LIMIT) || 3;
   const threatLimit = Number(env.THREAT_MISS_LIMIT) || 3;
-  const alertSourcesOk = alertsOk || officialOk;
+  const alertSourcesOk = alertsOk;
   const protAlerts = alertSourcesOk
     ? protectAlerts(prev?.alerts || [], freshAlerts, alertLimit)
     : { active: prev?.alerts || [], ended: [] };
@@ -137,7 +115,6 @@ async function runPipeline(env) {
 
   const events = withFreshness(fuse(correlate(protThreats.active)), nowMs);
   const health = {
-    OFFICIAL: healthItem(official),
     NEPTUN: healthItem({ ok: alertsOk && threatsOk, error: [alertsRes.error, threatsRes.error].filter(Boolean).join('; ') || null, latencyMs: 0 }, { delayed: threatsRes.stale }),
     MAPA: healthItem(mapaRes),
   };
@@ -219,8 +196,8 @@ export const LIVE_MS = 5 * 60_000;
 export const OFFLINE_MS = 30 * 60_000;
 
 // Newest check row per source + newest SUCCESSFUL monitoring verification.
-// Monitoring = NEPTUN or MAPA. OFFICIAL is token-gated (often disabled) and
-// never counts as pipeline liveness.
+// Monitoring = NEPTUN or MAPA, the only two sources, and either one proves
+// pipeline liveness.
 // checkedAt scans back through recent rows for the newest SUCCESS: a single
 // failed cycle must NOT zero the heartbeat (it just stops advancing it —
 // the age then grows honestly until DELAYED/OFFLINE thresholds hit).
@@ -255,10 +232,8 @@ export async function latestPipelineCheck(db) {
   }
 }
 
-// Refresh per-source health from D1 without touching KV. OFFICIAL keeps its
-// stored `disabled` state (D1 rows for a disabled source are ok=0 by design
-// and must not flip it to `offline`). The backend `delayed` (stale-stream)
-// flag is preserved while the source reports ok.
+// Refresh per-source health from D1 without touching KV. The backend
+// `delayed` (stale-stream) flag is preserved while the source reports ok.
 export function mergeHealth(storedHealth = {}, bySource = {}) {
   const out = { ...(storedHealth || {}) };
   for (const key of ['NEPTUN', 'MAPA']) {
@@ -276,17 +251,6 @@ export function mergeHealth(storedHealth = {}, bySource = {}) {
       updatedAt: row.ts,
       error: row.ok ? null : (row.error || prev.error || 'Джерело недоступне'),
       ...(row.ok && (prev.delayed || prev.status === 'delayed') ? { delayed: true } : {}),
-    };
-  }
-  const offStored = storedHealth?.OFFICIAL;
-  if (offStored?.status === 'disabled') {
-    out.OFFICIAL = offStored;
-  } else if (bySource.OFFICIAL?.ts) {
-    const row = bySource.OFFICIAL;
-    out.OFFICIAL = {
-      status: row.ok ? 'online' : 'offline',
-      updatedAt: row.ts,
-      error: row.ok ? null : (row.error || 'Джерело недоступне'),
     };
   }
   return out;
@@ -380,46 +344,6 @@ export default {
       // the stored snapshot is served as-is: honestly stale, never faked.
       const d1 = await latestPipelineCheck(env.nebo_journal);
       return json(buildStateResponse(bundle, d1, Date.now()));
-    }
-    if (url.pathname === '/v1/official/regions' && request.method === 'GET') {
-      // Public region directory (id/name/type/parent) for the history picker
-      // and search. Served from the KV tree cache; contains no key material
-      // and no alert content. 404 when the tree was never fetched (key
-      // missing or upstream unreachable) — never an empty list passed off
-      // as authoritative.
-      const tree = await getRegionsTree(env);
-      if (!tree.states?.length) return json({ error: 'Region directory not available yet' }, 404, 30);
-      const flat = [];
-      const walk = (nodes, parentId) => {
-        for (const n of nodes || []) {
-          if (n && typeof n.regionId === 'string') {
-            flat.push({ regionId: n.regionId, regionName: n.regionName || null, regionType: n.regionType || null, parentId: parentId || null });
-            walk(n.regionChildIds, n.regionId);
-          }
-        }
-      };
-      walk(tree.states, null);
-      return json({ v: 1, serverTime: new Date().toISOString(), regions: flat }, 200, 300);
-    }
-    if (url.pathname === '/v1/official/history' && request.method === 'GET') {
-      // Validated read-through to UkraineAlarm regionHistory (last 25).
-      // No KV writes, no persistence. Requires the server secret.
-      if (!officialSourceEnabled(env) || !env.UKRAINEALARM_API_KEY) {
-        return json({ error: 'Official source not configured' }, 503, 5);
-      }
-      const regionId = url.searchParams.get('regionId');
-      let items = null;
-      try {
-        items = await fetchRegionHistory(env, regionId);
-      } catch (e) {
-        // fetchRegionHistory throws 'Некоректний regionId' BEFORE any
-        // network call: that is a client error, not an upstream outage.
-        if (e instanceof Error && /regionId/.test(e.message)) {
-          return json({ error: 'Некоректний regionId' }, 400, 5);
-        }
-        return json({ error: 'Official source unavailable' }, 502, 5);
-      }
-      return json({ v: 1, serverTime: new Date().toISOString(), regionId, history: items }, 200, 60);
     }
     if (url.pathname === '/v1/metrics' && request.method === 'GET') {
       const metrics = await sourceMetrics(env.nebo_journal, SOURCES).catch(() => ({}));

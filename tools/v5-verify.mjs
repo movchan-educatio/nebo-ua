@@ -92,7 +92,8 @@ for (const [w, h, name] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
       sourceCards: document.querySelectorAll('#rlSources .rl-source-mini').length,
       sourceNames: [...document.querySelectorAll('#rlSources .rl-src-name')].map((n) => n.textContent.trim()),
       sourceLabels: [...document.querySelectorAll('#rlSources .rl-src-state')].map((n) => n.textContent.trim()),
-      mentionsUA: (document.getElementById('rlSources')?.textContent || '').includes('UkraineAlarm'),
+      // The retired source appeared under this key; nothing else uses it.
+      mentionsRetired: /OFFICIAL/.test(document.getElementById('rlSources')?.textContent || ''),
       badge: document.getElementById('rlLive')?.textContent?.trim() || '',
       contacts: document.querySelectorAll('.rl-contact').length,
       radarCount: document.getElementById('rlRadarCount')?.textContent || '',
@@ -118,7 +119,7 @@ for (const [w, h, name] of [[1440, 900, 'desktop'], [390, 844, 'mobile']]) {
   ok(r.sourceCards === 2, `${name}: source block shows exactly 2 cards (${r.sourceCards})`);
   ok(JSON.stringify(r.sourceNames) === JSON.stringify(['NEPTUN', 'MAPA']),
     `${name}: only the monitoring sources — ${r.sourceNames.join(', ')}`);
-  ok(!r.mentionsUA, `${name}: the retired source is not shown`);
+  ok(!r.mentionsRetired, `${name}: the retired source is not shown`);
   ok(!r.sourceLabels.includes('Офлайн'), `${name}: nothing is reported as offline (${r.sourceLabels.join(', ')})`);
   ok(r.badge === 'LIVE', `${name}: the aggregate badge is healthy (${r.badge})`);
   ok(r.hScroll <= 1, `${name}: no horizontal scroll (${r.hScroll})`);

@@ -157,13 +157,13 @@ export function normalizeMapa(raw, receivedAt = new Date()) {
 
 // Generic official alert shape (works for NEPTUN alerts and a token API
 // returning [{oblast|region, district?, since, level?, reasons?[]}]).
-export function normalizeAlert(raw, receivedAt = new Date(), source = 'NEPTUN') {
+export function normalizeAlert(raw, receivedAt = new Date()) {
   if (!raw || (!raw.name && !raw.region && !raw.oblast)) return null;
   const name = raw.name || raw.region || raw.oblast;
   const oblast = raw.oblast || null;
   return base({
     id: `official:${raw.key || name}`,
-    source: source === 'OFFICIAL' ? 'OFFICIAL' : 'NEPTUN / офіційні канали',
+    source: 'NEPTUN / офіційні канали',
     sourceEventId: String(raw.key || name),
     sourceType: 'air_raid',
     official: true,
@@ -185,7 +185,7 @@ export function normalizeAlert(raw, receivedAt = new Date(), source = 'NEPTUN') 
     status: 'active',
     stale: false,
     trail: [],
-    sourceUrl: source === 'OFFICIAL' ? null : 'https://neptun.in.ua/',
+    sourceUrl: 'https://neptun.in.ua/',
     level: raw.level || null,
     key: raw.key || null,
   }, receivedAt);

@@ -62,7 +62,6 @@ export function meaningfulFp(alerts, threats, health) {
     subtype: x.subtype ?? null, explanation: x.rawExplanation ?? null,
   }));
   const h = {
-    OFFICIAL: health?.OFFICIAL?.status || null,
     NEPTUN: health?.NEPTUN?.status || null,
     NEPTUN_DELAYED: !!health?.NEPTUN?.delayed,
     MAPA: health?.MAPA?.status || null,
@@ -118,9 +117,9 @@ export async function loadBundle(kv) {
 // saveBundle: ONE PUT per logical state change (coalesced snapshot + prev).
 // dataUpdatedAt is persisted top-level (not only inside snapshot) so the
 // reloaded bundle keeps the same contract as the in-memory one.
-export async function saveBundle(kv, { snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt, officialItems, officialActionIndex, startedAt }) {
+export async function saveBundle(kv, { snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt, startedAt }) {
   await kv.put(BUNDLE_KEY, JSON.stringify({ v: 1, snapshot, prev, fpAlerts, fpThreats, fpHealth, writtenAt, dataUpdatedAt: dataUpdatedAt || snapshot?.dataUpdatedAt || null,
-    officialItems, officialActionIndex, startedAt }), { expirationTtl: LATEST_TTL_S });
+    startedAt }), { expirationTtl: LATEST_TTL_S });
 }
 
 // Journal upsert optimization:

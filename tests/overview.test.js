@@ -5,18 +5,21 @@ import {
   matchTerritory, sourceCards, systemBadge,
 } from '../services/overview.js';
 
-test('computeAlertStats dedups cross-source territories', () => {
+test('computeAlertStats counts each territory once', () => {
   const alerts = [
-    { region: 'Київ', district: null, source: 'OFFICIAL' },
-    { region: 'Київ', district: null, source: 'NEPTUN / офіційні канали' },
-    { region: 'Київська область', district: 'Бучанський район', source: 'OFFICIAL', locationPrecision: 'RAION' },
-    { region: 'Київська область', district: 'Бучанський район', source: 'NEPTUN / офіційні канали', locationPrecision: 'RAION' },
-    { region: 'Львівська область', district: 'Сокальська громада', source: 'OFFICIAL', locationPrecision: 'RAION' },
+    { region: 'Київ', district: null },
+    // The same oblast alert arriving twice in the stream.
+    { region: 'Київ', district: null },
+    { region: 'Київська область', district: 'Бучанський район', locationPrecision: 'RAION' },
+    { region: 'Київська область', district: 'Бучанський район', locationPrecision: 'RAION' },
+    { region: 'Львівська область', district: 'Сокальська громада', locationPrecision: 'RAION' },
   ];
   const s = computeAlertStats(alerts);
   assert.equal(s.oblasts, 3);
-  assert.equal(s.raions, 2, 'same raion via two sources counted once');
-  assert.equal(s.communities, 1);
+  assert.equal(s.raions, 2, 'the same raion counted once');
+  // No source reports community-level precision any more, so the count is
+  // honestly zero rather than inferred from a district name.
+  assert.equal(s.communities, 0);
   assert.deepEqual(computeAlertStats([]), { oblasts: 0, raions: 0, communities: 0 });
 });
 
@@ -61,37 +64,43 @@ const AT = Date.parse('2026-10-08T12:01:00Z');
 
 test('sourceCards maps ONLINE/DEGRADED/OFFLINE/RECOVERING/STALE explicitly', () => {
   const cards = sourceCards(ALL({
-    o: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
     n: { status: 'online', updatedAt: '2026-10-08T12:00:00Z', delayed: true },
     m: { status: 'offline', updatedAt: null, error: 'x' },
   }), AT);
-  assert.equal(cards[0].state, 'ONLINE');
-  assert.equal(cards[1].state, 'DEGRADED');
-  assert.equal(cards[2].state, 'OFFLINE');
+  assert.deepEqual(cards.map((c) => c.key), ['NEPTUN', 'MAPA'], 'only the two sources are defined');
+  assert.equal(cards[0].state, 'DEGRADED');
+  assert.equal(cards[1].state, 'OFFLINE');
+  const online = sourceCards(ALL({
+    n: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
+    m: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
+  }), AT);
+  assert.equal(online[0].state, 'ONLINE');
   const stale = sourceCards(ALL({
-    o: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
     n: { status: 'online', updatedAt: null },
     m: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
   }), AT);
-  assert.equal(stale[1].state, 'STALE');
+  assert.equal(stale[0].state, 'STALE');
   const rec = sourceCards(ALL({
-    o: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
     n: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
     m: { status: 'recovering', updatedAt: '2026-10-08T12:00:00Z' },
   }), AT);
-  assert.equal(rec[2].state, 'RECOVERING');
-  assert.equal(rec[2].label, 'Відновлення');
+  assert.equal(rec[1].state, 'RECOVERING');
+  assert.equal(rec[1].label, 'Відновлення');
 });
 
-test('a source switched off in configuration has no card at all', () => {
-  const off = sourceCards(ALL({
-    o: { status: 'disabled', updatedAt: null, error: null },
-    n: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
-    m: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
-  }), AT);
-  assert.deepEqual(off.map((c) => c.key), ['NEPTUN', 'MAPA'],
-    'no UkraineAlarm card, and nothing labelled "Вимкнено"');
-  assert.equal(off.some((c) => /UkraineAlarm/.test(c.name)), false);
+// The retired source has no definition left, so no payload can bring a card
+// back — not "disabled", not "offline", nothing. It is absent, not hidden.
+test('a retired source produces no card whatever the payload says', () => {
+  for (const status of ['disabled', 'online', 'offline', 'recovering']) {
+    const cards = sourceCards(ALL({
+      o: { status, updatedAt: '2026-10-08T12:00:00Z' },
+      n: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
+      m: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
+    }), AT);
+    assert.deepEqual(cards.map((c) => c.key), ['NEPTUN', 'MAPA'],
+      `no card for a source reported as ${status}`);
+    assert.equal(cards.some((c) => /OFFICIAL|UkraineAlarm/.test(c.key + c.name)), false);
+  }
 });
 
 test('a source missing from the payload entirely gets no card', () => {
@@ -103,15 +112,7 @@ test('a source missing from the payload entirely gets no card', () => {
   assert.equal(cards.length, 2, 'the retired source is absent from the public UI');
 });
 
-test('re-enabling the source brings its card back with no code change', () => {
-  const cards = sourceCards(ALL({
-    o: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
-    n: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
-    m: { status: 'online', updatedAt: '2026-10-08T12:00:00Z' },
-  }), AT);
-  assert.equal(cards.length, 3);
-  assert.equal(cards[0].key, 'OFFICIAL');
-});
+
 
 test('systemBadge: ok/warn/bad from cards + pipeline age', () => {
   const ok = [{ state: 'ONLINE' }, { state: 'ONLINE' }];
@@ -123,28 +124,25 @@ test('systemBadge: ok/warn/bad from cards + pipeline age', () => {
   assert.equal(systemBadge([{ state: 'IDLE' }], 0).level, 'bad');
 });
 
-test('systemBadge: aggregate follows the two primaries, not the auxiliary source', () => {
-  const keyed = (n, m, o) => ([
-    { key: 'NEPTUN', state: n }, { key: 'MAPA', state: m }, { key: 'OFFICIAL', state: o },
-  ]);
-  // Both primaries healthy + a non-primary source offline => still ok.
-  assert.equal(systemBadge(keyed('ONLINE', 'ONLINE', 'OFFLINE'), 60000).level, 'ok');
-  // One primary down => warn; both down => bad.
-  assert.equal(systemBadge(keyed('ONLINE', 'OFFLINE', 'ONLINE'), 60000).level, 'warn');
-  assert.equal(systemBadge(keyed('OFFLINE', 'OFFLINE', 'ONLINE'), 60000).level, 'bad');
-  // A recovering primary is honest warn, never fake-ok.
-  const rec = systemBadge(keyed('RECOVERING', 'ONLINE', 'OFFLINE'), 60000);
+test('systemBadge: aggregate follows both sources', () => {
+  const keyed = (n, m) => ([{ key: 'NEPTUN', state: n }, { key: 'MAPA', state: m }]);
+  assert.equal(systemBadge(keyed('ONLINE', 'ONLINE'), 60000).level, 'ok');
+  // One source down => warn; both down => bad.
+  assert.equal(systemBadge(keyed('ONLINE', 'OFFLINE'), 60000).level, 'warn');
+  assert.equal(systemBadge(keyed('OFFLINE', 'OFFLINE'), 60000).level, 'bad');
+  // A recovering source is honest warn, never fake-ok.
+  const rec = systemBadge(keyed('RECOVERING', 'ONLINE'), 60000);
   assert.equal(rec.level, 'warn');
   assert.equal(rec.text, 'Відновлення джерела');
 });
 
 test('a stopped cron cannot keep source cards online with a cached successful response', () => {
   const cards = sourceCards({
-    OFFICIAL: { status: 'online', updatedAt: '2026-10-09T07:45:00Z' },
     NEPTUN: { status: 'online', updatedAt: '2026-10-09T07:45:00Z' },
     MAPA: { status: 'online', updatedAt: '2026-10-09T07:45:00Z' },
   }, Date.parse('2026-10-09T07:54:00Z'));
-  assert.equal(cards[2].state, 'STALE');
+  assert.equal(cards.length, 2);
+  assert.equal(cards[1].state, 'STALE');
 });
 
 console.log('All overview tests passed!');

@@ -1,6 +1,7 @@
-// The official source is retired. These tests pin what the public site must
-// now say and show: two monitoring sources, no card, no mention, and no
-// dependency left behind in the parts of the UI that used to read it.
+// The official source is gone — not switched off, removed: adapter, config,
+// endpoints, pipeline lane and card definition. These tests pin that it cannot
+// come back by accident, and that the two monitoring sources plus the official
+// alert channel they carry are untouched.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -39,6 +40,44 @@ test('no public page advertises the retired source', () => {
   }
 });
 
+test('the source is absent from the entire working tree', () => {
+  const skip = new Set(['.git', 'node_modules', '.vercel']);
+  const walk = (dir, out = []) => {
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (skip.has(e.name)) continue;
+      const p = path.join(dir, e.name);
+      if (e.isDirectory()) walk(p, out);
+      else if (/\.(js|mjs|css|html|json|toml|sql|md)$/.test(e.name)) out.push(p);
+    }
+    return out;
+  };
+  // These files exist to forbid the name, so they necessarily contain it.
+  const guards = new Set([
+    'tests/official-retired.test.js',
+    'tests/overview.test.js',
+    'tests/radar-page.test.js',
+  ]);
+  const hits = [];
+  for (const file of walk(root)) {
+    const rel = path.relative(root, file).split(path.sep).join('/');
+    if (guards.has(rel)) continue;
+    if (/ukrainealarm/i.test(fs.readFileSync(file, 'utf8'))) hits.push(rel);
+  }
+  assert.deepEqual(hits, [], 'no file in the repository names the removed source');
+});
+
+test('no runtime source, config or schema names the removed lane', () => {
+  for (const file of ['backend/src/index.js', 'backend/src/pipeline.js', 'backend/src/store.js',
+    'backend/wrangler.toml', 'backend/schema.sql', 'services/overview.js',
+    'radar/radar.js', 'assets/js/dashboard.js', 'assets/js/widget.js']) {
+    assert.ok(!/OFFICIAL_SOURCE_ENABLED|UKRAINEALARM/i.test(read(file)),
+      `${file}: no configuration or lane for the removed source`);
+  }
+  // The OFFICIAL health key and the OFFICIAL check row are gone with it.
+  assert.doesNotMatch(read('backend/src/pipeline.js'), /source: 'OFFICIAL'/);
+  assert.doesNotMatch(read('services/overview.js'), /key: 'OFFICIAL'/);
+});
+
 test('no public script references the retired source', () => {
   for (const file of ['assets/js/dashboard.js', 'assets/js/widget.js', 'radar/radar.js']) {
     assert.ok(!read(file).includes('UkraineAlarm'), `${file}: no retired-source reference`);
@@ -66,10 +105,12 @@ test('the source block shows exactly two cards', () => {
   assert.ok(cards.every((c) => c.state === 'ONLINE'));
 });
 
-test('a disabled OFFICIAL entry is filtered out, not rendered as offline', () => {
-  const cards = sourceCards({ ...health, OFFICIAL: { status: 'disabled', error: null } }, AT);
-  assert.equal(cards.length, 2);
-  assert.equal(cards.some((c) => c.label === 'Офлайн'), false, 'nothing is reported as offline');
+test('an OFFICIAL entry in the payload cannot produce a card', () => {
+  for (const status of ['disabled', 'online', 'offline']) {
+    const cards = sourceCards({ ...health, OFFICIAL: { status, error: null } }, AT);
+    assert.equal(cards.length, 2, `no card when the payload reports ${status}`);
+    assert.equal(cards.some((c) => c.label === 'Офлайн'), false, 'nothing is reported as offline');
+  }
 });
 
 test('the overall badge is healthy with only the two monitoring sources', () => {
@@ -88,7 +129,7 @@ test('a monitoring outage is still reported honestly', () => {
 });
 
 // ── Nothing else depended on the retired source ───────────────────────────
-test('monitoring sound is unaffected by the retirement', () => {
+test('monitoring sound is unaffected by the removal', () => {
   const before = snapshotForRegion({ health, alerts: [], events: [] }, 'Одеська область');
   const after = snapshotForRegion({
     health,
@@ -111,7 +152,7 @@ test('official start/end sounds stay gated on a verified official source', () =>
   assert.equal(sounds.includes('officialStart'), false, 'no unverified all-clear sound');
 });
 
-test('monitoring notifications still work with no official source present', () => {
+test('monitoring notifications still work with only the two monitoring sources', () => {
   const prefs = { ...DEFAULT_NOTIFICATION_PREFS, enabled: true, uav: true, myOblast: true };
   const event = {
     id: 'n1', source: 'NEPTUN', category: 'uav', region: 'Одеська область',

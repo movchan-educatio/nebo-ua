@@ -825,14 +825,13 @@ function renderSources() {
   $('#rlSources').innerHTML = `<div class="rl-source-grid">` + cards.map(c => {
     // A source failure stays visible but human-readable: the raw HTTP
     // status lives behind an expandable technical block, never as the headline.
-    const auxFail = c.key === 'OFFICIAL' && c.state === 'OFFLINE';
     const k = cls[c.state] || 'bad';
     const notes = [];
     if (c.updatedAt) notes.push('Оновлено ' + esc(fmtTime(c.updatedAt)));
-    if (auxFail && !c.updatedAt) notes.push('Джерело тимчасово недоступне');
+    if (c.state === 'OFFLINE' && !c.updatedAt) notes.push('Джерело тимчасово недоступне');
     const ms = Number(c.latencyMs);
     if (Number.isFinite(ms) && ms > 0) notes.push('Затримка ' + (ms < 1000 ? Math.round(ms) + ' мс' : (ms / 1000).toFixed(0) + ' с'));
-    const tech = auxFail && c.error ? `<details class="rl-tech"><summary>Технічні деталі</summary>${esc(c.error)}</details>` : '';
+    const tech = c.error ? `<details class="rl-tech"><summary>Технічні деталі</summary>${esc(c.error)}</details>` : '';
     return `
     <div class="rl-source-mini" title="${esc(c.error || c.label)}">
       <span class="rl-src-ico ${k}"><svg aria-hidden="true"><use href="../assets/brand/icons.svg#i-source"/></svg></span>

@@ -34,11 +34,13 @@ test('mapa only accepts active records with real coordinates', () => {
   assert.equal(e.category, 'uav');
 });
 
-test('official alert shape normalizes raion and oblast', () => {
-  const r = normalizeAlert({ key: 'uman', name: 'Уманський район', oblast: 'Черкаська область', since: iso(10), reasons: ['Повітряна тривога'] }, NOW, 'OFFICIAL');
+test('air-raid alert shape normalizes raion and oblast', () => {
+  const r = normalizeAlert({ key: 'uman', name: 'Уманський район', oblast: 'Черкаська область', since: iso(10), reasons: ['Повітряна тривога'] }, NOW);
   assert.equal(r.region, 'Черкаська область');
   assert.equal(r.district, 'Уманський район');
-  assert.equal(r.source, 'OFFICIAL');
+  // One alert source remains, and it is attributed honestly.
+  assert.equal(r.source, 'NEPTUN / офіційні канали');
+  assert.equal(r.official, true, 'air-raid alerts still drive the official channel');
   assert.equal(r.latencyMs, 600000);
 });
 

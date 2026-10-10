@@ -10,7 +10,7 @@ const realFetch = globalThis.fetch;
 test.afterEach(() => { globalThis.fetch = realFetch; });
 const tick = () => new Promise(resolve => setTimeout(resolve, 3));
 async function run(env) { await tick(); return runDurablePipeline(env); }
-const officialAlerts = s => s.alerts.filter(a => a.source === 'OFFICIAL');
+const airAlerts = s => s.alerts.filter(a => a.official);
 async function read(env) {
   const res = await worker.fetch(new Request('https://worker.invalid/v1/state'), env);
   assert.equal(res.status, 200);
@@ -22,47 +22,51 @@ test('all sources work; source time, publish time and HTTP response time are dis
   globalThis.fetch = mockSources(sourceRoutes());
   await run(env);
   const data = await read(env);
-  assert.equal(officialAlerts(data).length, 1);
+  assert.equal(airAlerts(data).length, 1);
   assert.equal(data.storage, 'd1');
   for (const key of ['pipelineStartedAt', 'pipelineCheckedAt', 'publishedAt', 'responseAt']) assert.ok(Date.parse(data[key]));
   assert.equal(data.alerts[0].eventTime, '2026-10-09T05:00:00.000Z');
+  // Only the two monitoring sources exist now, and neither is the retired one.
+  assert.deepEqual(Object.keys(data.health).sort(), ['MAPA', 'NEPTUN']);
 });
 
-for (const status of [401, 500]) test(`UA ${status} for repeated cycles never deletes its alarms; monitoring still publishes`, async () => {
+// An alert source that keeps failing must never turn its own alarm into an
+// all-clear. The record stays, marked stale, without a single miss counted, and
+// the rest of the site keeps publishing.
+for (const status of [401, 500]) test(`NEPTUN alerts ${status} for repeated cycles never deletes its alarm; monitoring still publishes`, async () => {
   const env = testEnv(), routes = sourceRoutes();
   globalThis.fetch = mockSources(routes);
   await run(env);
-  const lastSuccess = (await read(env)).health.OFFICIAL.updatedAt;
-  routes['/api/v3/alerts/status'] = new Response('{}', { status });
+  const lastChecked = (await read(env)).pipelineCheckedAt;
+  routes['/alerts'] = new Response('{}', { status });
   for (let n = 0; n < 5; n++) {
     routes['/mapa'] = { objects: [{ id: n, kind: 'uav', status: 'active', lat: 49, lon: 31, last_seen: Date.now() / 1000 }] };
     await run(env);
     const state = await read(env);
-    assert.equal(officialAlerts(state).length, 1);
-    assert.equal(officialAlerts(state)[0].stale, true);
-    assert.equal(officialAlerts(state)[0].misses, 0);
-    assert.equal(state.health.OFFICIAL.status, 'offline');
-    assert.equal(state.health.OFFICIAL.updatedAt, lastSuccess);
+    assert.equal(airAlerts(state).length, 1);
+    assert.equal(airAlerts(state)[0].stale, true);
+    assert.equal(airAlerts(state)[0].misses, 0);
+    assert.equal(state.health.NEPTUN.alertsStatus, 'offline');
+    // NEPTUN's liveness comes from the threats lane, which still answers, so
+    // the heartbeat must keep advancing — one failed lane is not an outage.
+    assert.ok(state.pipelineCheckedAt > lastChecked);
+    assert.equal(state.health.NEPTUN.status, 'online');
     assert.ok(state.events.some(e => e.id === `mapa:${n}`), 'new event is immediately visible, no 3-minute throttle');
   }
 });
 
-test('UA pending does not block monitoring publication; final failure retains the first publication', async () => {
+// A source that never answers must not hang the cron: the per-source deadline
+// bounds it and the cycle still publishes.
+test('a source that never settles is bounded by its deadline and the cycle still publishes', async () => {
   const env = testEnv(), routes = sourceRoutes();
-  let finish;
-  routes['/api/v3/alerts/status'] = () => new Promise(resolve => { finish = resolve; });
+  routes['/alerts'] = () => new Promise(() => {});
   globalThis.fetch = mockSources(routes);
-  const pending = run(env);
-  let early;
-  for (let n = 0; n < 50; n++) {
-    await tick(); early = await loadRuntime(env.nebo_journal);
-    if (early) break;
-  }
-  assert.ok(early, 'D1 publication exists before UA resolves');
-  assert.equal(early.snapshot.health.MAPA.status, 'online');
-  finish(new Response('{}', { status: 401 }));
-  await pending;
-  assert.equal((await read(env)).health.OFFICIAL.status, 'offline');
+  await run(env);
+  const state = await read(env);
+  assert.equal(state.health.NEPTUN.alertsStatus, 'offline');
+  assert.equal(state.health.MAPA.status, 'online');
+  // The alert could not be verified, so it must not be presented as current.
+  assert.ok(airAlerts(state).every(a => a.stale === true));
 });
 
 test('whole-source timeout terminates an adapter that never settles', async () => {
@@ -121,9 +125,9 @@ test('unchanged content: ten simulated minutes advance checks, preserve content 
 test('overlapping cron: late older publication cannot overwrite the newer completed state', async () => {
   const env = testEnv(), routes = sourceRoutes();
   let finish, calls = 0;
-  routes['/api/v3/alerts/status'] = () => ++calls === 1
+  routes['/alerts'] = () => ++calls === 1
     ? new Promise(resolve => { finish = resolve; })
-    : new Response('{"lastActionIndex":456}');
+    : Response.json(sourceRoutes()['/alerts']);
   globalThis.fetch = mockSources(routes);
   const older = run(env);
   for (let n = 0; n < 20 && !finish; n++) await tick();
@@ -133,36 +137,49 @@ test('overlapping cron: late older publication cannot overwrite the newer comple
   await older;
   const final = await loadRuntime(env.nebo_journal);
   assert.equal(final.startedAt, newer.startedAt);
-  assert.equal(final.snapshot.health.OFFICIAL.status, 'online');
+  assert.equal(final.snapshot.health.NEPTUN.alertsStatus, 'online');
 });
 
-test('failed publication cannot advance the UA version; next cycle fetches and publishes it', async () => {
+test('a failed D1 commit still verifies and checkpoints, and never invents an all-clear', async () => {
   const env = testEnv(), routes = sourceRoutes(), calls = [];
   globalThis.fetch = mockSources(routes, calls);
   await run(env);
-  routes['/api/v3/alerts/status'] = { lastActionIndex: 124 };
-  routes['/api/v3/alerts'] = [];
   const prepare = env.nebo_journal.prepare;
   env.nebo_journal.prepare = sql => {
     if (sql.includes('INSERT INTO pipeline_state')) throw new Error('D1 unavailable');
     return prepare(sql);
   };
-  // A failed commit no longer kills the cycle: lanes still verify, the fresh
-  // snapshot reaches the KV checkpoint on content change, and the served D1
-  // state keeps the last committed officials (no invented all-clear, no silence).
+  // A failed commit no longer kills the cycle: the lane still verifies, the
+  // fresh snapshot reaches the KV checkpoint, and the served D1 state keeps the
+  // last committed alert rather than dropping it.
   await run(env);
   const duringFailure = await read(env);
-  assert.equal(officialAlerts(duringFailure).length, 1);
+  assert.equal(airAlerts(duringFailure).length, 1);
+  assert.equal(duringFailure.storage, 'd1', 'the last committed state is still what is served');
   const kvSnap = JSON.parse(env.NEBO_STATE.data.get('v1:latest'));
   assert.ok(Date.parse(kvSnap.snapshot.pipelineCheckedAt) >= Date.parse(duringFailure.pipelineCheckedAt));
   env.nebo_journal.prepare = prepare;
-  const fullBefore = calls.filter(p => p === '/api/v3/alerts').length;
+  // Recovery: once the commit works again the lane is fetched again in full.
+  const fullBefore = calls.filter(p => p === '/alerts').length;
   await run(env);
-  assert.equal(calls.filter(p => p === '/api/v3/alerts').length, fullBefore + 1);
-  // Grace counts successful absence checks, including version-carried EMPTY
-  // data. It must not resurrect the previous alert from its grace state.
-  await run(env); await run(env);
-  assert.equal(officialAlerts(await read(env)).length, 0);
+  assert.equal(calls.filter(p => p === '/alerts').length, fullBefore + 1);
+});
+
+test('records of the retired source leave the active set instead of being pinned stale', async () => {
+  const env = testEnv();
+  globalThis.fetch = mockSources(sourceRoutes());
+  await run(env);
+  // Seed history from the era when the source existed: its rows are audit
+  // material, not a current confirmation, and outage protection must not keep
+  // them alive as if they were.
+  const stored = await loadRuntime(env.nebo_journal);
+  stored.prev.alerts = [{ id: 'official:legacy', source: 'OFFICIAL', official: true, stale: false, misses: 0, eventTime: '2026-09-01T00:00:00.000Z', timestamp: '2026-09-01T00:00:00.000Z' }];
+  await commitRuntime(env.nebo_journal, stored);
+  await run(env);
+  const state = await read(env);
+  assert.equal(state.alerts.filter(a => a.source === 'OFFICIAL').length, 0,
+    'a retired source is never served as a current confirmation');
+  assert.equal(state.health.OFFICIAL, undefined, 'a retired source reports no health at all');
 });
 
 test('D1 outage keeps verifying lanes and serving fresh KV instead of going silent', async () => {
@@ -205,6 +222,8 @@ test('large MAPA payload uses the real schema without SQL variable errors', asyn
   // the cron, so a mass attack is now written as-is; only a payload near the
   // D1 row limit is worth compressing at all.
   assert.ok(!row.bundle.startsWith('gzip:'), 'a mass attack is no longer compressed every cycle');
+  // 1500 MAPA threats + 1 standing NEPTUN alert. No row is written for the
+  // retired source — not a success, not a failure.
   assert.equal(env.nebo_journal.sqlite.prepare('SELECT COUNT(*) AS n FROM journal').get().n, 1501);
 });
 

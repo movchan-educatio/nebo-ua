@@ -102,7 +102,7 @@ test('a cycle that loses the commit race still records its checks', async () => 
   await runDurablePipeline(env);
   const rows = env.nebo_journal.sqlite.prepare(
     "SELECT count(1) AS n FROM checks WHERE ts >= datetime('now','-5 minutes')").get();
-  assert.ok(rows.n >= 3, `checks recorded despite supersede, got ${rows.n}`);
+  assert.ok(rows.n >= 2, `checks recorded despite supersede, got ${rows.n}`);
 });
 
 // Retry absorbs one transient blip without hammering the upstream.
@@ -172,6 +172,6 @@ test('checks are recorded even when the D1 commit fails', async () => {
   assert.ok(snap && Array.isArray(snap.events), 'cycle still serves fresh content via KV');
   const rows = env.nebo_journal.sqlite.prepare(
     "SELECT count(1) AS n FROM checks WHERE ts >= datetime('now','-5 minutes')").get();
-  assert.ok(rows.n >= 3, `checks recorded despite failed commit, got ${rows.n}`);
+  assert.ok(rows.n >= 2, `checks recorded despite failed commit, got ${rows.n}`);
   env.nebo_journal.prepare = prepare;
 });

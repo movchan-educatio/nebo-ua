@@ -17,7 +17,7 @@ const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 test('regression: liveness checks are written before any push crypto runs', () => {
   const src = fs.readFileSync(path.join(root, 'backend/src/pipeline.js'), 'utf8');
   const checksIdx = src.indexOf('recordChecksBatch(env.nebo_journal, [');
-  const firstPublishIdx = src.indexOf('await publish(null, 0)');
+  const firstPublishIdx = src.indexOf('await publish()');
   assert.ok(checksIdx > -1, 'pipeline records checks');
   assert.ok(firstPublishIdx > -1, 'pipeline has the early publish');
   assert.ok(checksIdx < firstPublishIdx,

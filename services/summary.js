@@ -101,12 +101,8 @@ export function flowSummaryHTML(stats, raionCount) {
 const SOURCE_NAMES = {
   NEPTUN: 'NEPTUN · моніторинг',
   MAPA: 'MAPA · моніторинг',
-  OFFICIAL: 'Офіційні тривоги',
 };
-// Retired sources are absent from the payload, and a source the backend marks
-// disabled is switched off in configuration. Neither counts towards the
-// overall level: a disabled source is not a degraded one.
-const SUMMARY_KEYS = ['NEPTUN', 'MAPA', 'OFFICIAL'];
+const SUMMARY_KEYS = ['NEPTUN', 'MAPA'];
 
 export function sourceState(key, h) {
   const name = SOURCE_NAMES[key] || key;
