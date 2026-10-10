@@ -336,6 +336,32 @@ test('7. GET /v1/state never writes; updates visible immediately; cache headers 
   }
 });
 
+// The test above exercises the KV branch. Production runs with
+// SYNC_STATE_STORE='d1', which is a DIFFERENT set of return statements in the
+// same handler — so a fix applied to one can leave the deployed endpoint still
+// serving `public, max-age=5` while the suite is green. This one pins the
+// branch that actually runs in production.
+test('7b. GET /v1/state is uncacheable on the D1 path too (the one production uses)', async () => {
+  const restore = stubFetch(emptySources);
+  try {
+    const c = countingKv();
+    const env = baseEnv(c.kv, fakeD1());
+    // Seed through the KV branch first: the D1 branch reads whatever is already
+    // stored. Calling the refresh endpoint under SYNC_STATE_STORE='d1' would go
+    // down a different code path that is not what this test is about.
+    await refresh(env);
+    const d1env = { ...env, SYNC_STATE_STORE: 'd1' };
+    for (let i = 0; i < 3; i++) {
+      const { res } = await readState(d1env);
+      const cc = res.headers.get('Cache-Control');
+      assert.match(cc, /no-store/, 'D1 path: live state is not storable by any cache');
+      assert.doesNotMatch(cc, /public/, 'D1 path: and no shared cache may keep it');
+    }
+  } finally {
+    restore();
+  }
+});
+
 // ── 8. gating preserved: 100 identical rapid cycles -> 0 PUT ──────────────
 test('8. write gating preserved: identical rapid cycles never PUT', () => {
   const f = meaningfulFp([], []);

@@ -343,10 +343,10 @@ export default {
       if (env.SYNC_STATE_STORE === 'd1') {
         try {
           const current = await loadRuntime(env.nebo_journal);
-          if (current) return json(runtimeResponse(current, Date.now()), 200, 5);
+          if (current) return json(runtimeResponse(current, Date.now()), 200, 0, 'no-store');
         } catch { /* serve the last committed checkpoint, with its own times */ }
         const fallback = await loadBundle(env.NEBO_STATE);
-        if (fallback?.snapshot) return json(runtimeResponse(fallback, Date.now(), 'kv-fallback'), 200, 5);
+        if (fallback?.snapshot) return json(runtimeResponse(fallback, Date.now(), 'kv-fallback'), 200, 0, 'no-store');
         return json({ error: 'Актуальний стан тимчасово недоступний' }, 503, 0);
       }
       if (!env.NEBO_STATE) return json({ error: 'Storage binding NEBO_STATE is not configured' }, 503, 5);
