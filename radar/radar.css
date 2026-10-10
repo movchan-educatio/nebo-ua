@@ -53,6 +53,14 @@ body {
   overflow-x: clip;
 }
 img, svg, canvas, video { max-width: 100%; }
+/* Line breaks in a heading are a design decision, not a coincidence: a title
+   that ends on one stranded word reads as two unrelated lines. `balance`
+   equalises the lines instead. `pretty` does the equivalent for body copy by
+   refusing to leave a single word on the last line. Both are progressive — a
+   browser without them just wraps normally, which is what happened before.
+   Headings only: balancing a long paragraph would be noise. */
+h1, h2, h3, h4, .rl-card h2, .rl-card h3 { text-wrap: balance; }
+p, li, dd { text-wrap: pretty; }
 a { color: var(--aviation); text-decoration: none; }
 a:hover { text-decoration: underline; }
 button { font-family: inherit; }
@@ -682,7 +690,15 @@ input[type="range"].rl-range { width: 100%; accent-color: var(--red); min-height
 .rl-foot-links { display: flex; flex-wrap: wrap; gap: 8px 18px; }
 .rl-foot-links a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 600; padding: 4px 0; }
 .rl-foot-links a:hover { color: var(--red); text-decoration: none; }
-.rl-foot-note { color: var(--muted); font-size: 12.5px; line-height: 1.55; max-width: 62ch; }
+/* No max-width here. The 62ch that used to sit here was a measure rule, and a
+   measure belongs to body copy: it exists to stop a paragraph running to 140
+   characters across a wide screen. This is a single-line footer disclaimer of 75
+   characters, and the cap cut it to 418px when it needs 466px and the container
+   offers 840px — so it broke in two on every page, inside a box that had room
+   to spare. Letting the container govern is also the robust choice: if the copy
+   ever grows long enough to need wrapping, it will wrap because it has to, not
+   because a number nobody re-checked says so. */
+.rl-foot-note { color: var(--muted); font-size: 12.5px; line-height: 1.55; }
 /* A short document must not leave the footer stranded halfway down the page. */
 body.rl-page { min-height: 100vh; display: flex; flex-direction: column; }
 body.rl-page .rl-doc { flex: 1 0 auto; }
