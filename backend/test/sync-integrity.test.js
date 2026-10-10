@@ -200,7 +200,11 @@ test('large MAPA payload uses the real schema without SQL variable errors', asyn
   assert.equal(stored.prev.threats.length, 1500);
   const row = env.nebo_journal.sqlite.prepare('SELECT bundle FROM pipeline_state').get();
   assert.ok(Buffer.byteLength(row.bundle) < 2_000_000, 'fits the actual D1 row limit');
-  assert.ok(row.bundle.startsWith('gzip:'), 'large data is compressed without dropping records');
+  // Compression used to kick in here. Gzipping a payload this size on every
+  // commit AND every load is what exhausted the 10 ms CPU budget and killed
+  // the cron, so a mass attack is now written as-is; only a payload near the
+  // D1 row limit is worth compressing at all.
+  assert.ok(!row.bundle.startsWith('gzip:'), 'a mass attack is no longer compressed every cycle');
   assert.equal(env.nebo_journal.sqlite.prepare('SELECT COUNT(*) AS n FROM journal').get().n, 1501);
 });
 

@@ -4,6 +4,7 @@ import { protectAlerts, protectThreats } from './protect.js';
 import { fetchOfficial, fetchNeptunAlerts, fetchNeptunThreats, fetchMapa } from './sources.js';
 import { fetchOfficialUkraineAlarm } from './ukrainealarm.js';
 import { loadBundle, saveBundle, meaningfulFp, shouldWrite, recordChecksBatch, journalUpsert, journalEnd } from './store.js';
+import { slimBundle } from './slim.js';
 import { loadRuntime, commitRuntime } from './runtime-state.js';
 import { dispatchPush } from './push.js';
 
@@ -115,7 +116,11 @@ export function reduceCycle(previous, results, startedMs) {
   const changed = !previous || Object.keys(fp).some(k => fp[k] !== previous[k]);
   const dataUpdatedAt = changed ? new Date().toISOString() : previous.snapshot.dataUpdatedAt;
   const pipelineCheckedAt = newest(health.NEPTUN.lastSuccessAt, health.MAPA.lastSuccessAt);
-  return {
+  // Slim BEFORE anything is committed or published: the fused `correlated`
+  // member records and long trails are merge/display-only, and carrying them
+  // through pushed the bundle past the compression threshold, where the
+  // per-cycle gzip cost alone exceeded the CPU budget and killed the cron.
+  return slimBundle({
     ...fp, officialItems, officialActionIndex,
     prev: { alerts: protAlerts.active, threats: protThreats.active },
     ended: { alerts: protAlerts.ended, threats: protThreats.ended },
@@ -126,7 +131,7 @@ export function reduceCycle(previous, results, startedMs) {
       health, alerts: protAlerts.active, events,
       disagreement: detectDisagreement(events, health),
     },
-  };
+  });
 }
 
 export async function runDurablePipeline(env) {

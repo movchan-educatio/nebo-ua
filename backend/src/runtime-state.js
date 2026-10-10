@@ -1,5 +1,6 @@
 // D1 commits the complete cycle atomically. KV remains a budgeted fallback
 // checkpoint; its eventual consistency cannot serialize competing writers.
+import { GZIP_TRIGGER_BYTES } from './slim.js';
 export async function loadRuntime(db) {
   const res = await db.prepare('SELECT bundle FROM pipeline_state WHERE id=1').all();
   const raw = res?.results?.[0]?.bundle;
@@ -13,10 +14,14 @@ export async function loadRuntime(db) {
 
 export async function commitRuntime(db, bundle) {
   let value = JSON.stringify(bundle);
-  // D1 has a 2,000,000-byte row limit. Large source payloads include raw
-  // previous records plus fused views, so compact them before binding.
-  if (new TextEncoder().encode(value).length > 500_000) value = 'gzip:' + await pack(value);
-  if (new TextEncoder().encode(value).length > 1_900_000) throw new Error('Snapshot exceeds D1 row limit');
+  // D1 has a 2,000,000-byte row limit. Compressing 750 KB on every commit AND
+  // every load is what actually killed the cron: it sat comfortably under the
+  // old 500 KB trigger in tests, then real attack volumes crossed it and the
+  // gzip cost alone blew the 10 ms CPU budget. Slimming (src/slim.js) keeps the
+  // common case uncompressed; compression is now only the last resort before
+  // the row limit, where it belongs.
+  if (new TextEncoder().encode(value).length > GZIP_TRIGGER_BYTES) value = 'gzip:' + await pack(value);
+  if (new TextEncoder().encode(value).length > 1_950_000) throw new Error('Snapshot exceeds D1 row limit');
   const result = await db.prepare(`
     INSERT INTO pipeline_state (id, started_at, bundle) VALUES (1, ?, ?)
     ON CONFLICT(id) DO UPDATE SET started_at=excluded.started_at, bundle=excluded.bundle

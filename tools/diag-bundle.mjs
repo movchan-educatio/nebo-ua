@@ -1,15 +1,22 @@
 // Pulls the live pipeline_state bundle, gunzips it and reports what is inside
 // and how big each part is. Read-only diagnostics.
-import { execFileSync } from 'node:child_process';
+//
+// Fetch it first (wrangler's own quoting is easier to get right in the shell):
+//   wrangler.cmd d1 execute nebo-journal --remote --json \
+//     --command "SELECT bundle FROM pipeline_state WHERE id=1;" > tools/_bundle.json
+import fs from 'node:fs';
 import zlib from 'node:zlib';
 
-const raw = execFileSync('wrangler.cmd', [
-  'd1', 'execute', 'nebo-journal', '--remote',
-  '--command', "SELECT bundle FROM pipeline_state WHERE id=1;",
-], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, cwd: 'backend' });
-
-const json = JSON.parse(raw.slice(raw.indexOf('[')));
-const bundleStr = json[0].results[0].bundle;
+const file = 'tools/_bundle.json';
+if (!fs.existsSync(file)) {
+  console.error(`missing ${file} — see the comment at the top of this file`);
+  process.exit(1);
+}
+// PowerShell writes a BOM; strip it before parsing.
+const json = JSON.parse(fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, ''));
+const rows = Array.isArray(json) ? json : (json.result || json.results || []);
+const bundleStr = rows[0]?.results?.[0]?.bundle;
+if (!bundleStr) { console.error('no bundle in response'); process.exit(1); }
 const gz = bundleStr.startsWith('gzip:');
 const text = gz ? zlib.gunzipSync(Buffer.from(bundleStr.slice(5), 'base64')).toString('utf8') : bundleStr;
 const b = JSON.parse(text);
@@ -49,3 +56,22 @@ if (b.prev?.threats?.length) {
     .filter(Number.isFinite).sort((a, c) => a - c);
   if (ages.length) console.log(`eventTime age min/med/max (min): ${ages[0].toFixed(0)} / ${ages[ages.length >> 1].toFixed(0)} / ${ages.at(-1).toFixed(0)}`);
 }
+
+// Where the bytes inside the big arrays actually are.
+function fieldBreakdown(label, arr) {
+  if (!arr?.length) return;
+  const totals = new Map();
+  for (const item of arr) {
+    for (const [k, v] of Object.entries(item)) {
+      totals.set(k, (totals.get(k) || 0) + Buffer.byteLength(JSON.stringify(v ?? null)));
+    }
+  }
+  const total = [...totals.values()].reduce((a, c) => a + c, 0);
+  console.log(`\n${label}: ${arr.length} items, ${(total / 1024).toFixed(1)} KB total, ${(total / arr.length / 1024).toFixed(2)} KB each`);
+  for (const [k, n] of [...totals.entries()].sort((a, c) => c[1] - a[1]).slice(0, 12)) {
+    console.log(`  ${k.padEnd(20)} ${(n / 1024).toFixed(1).padStart(7)} KB  ${((n / total) * 100).toFixed(1).padStart(5)}%`);
+  }
+}
+fieldBreakdown('snapshot.events', b.snapshot?.events);
+fieldBreakdown('snapshot.alerts', b.snapshot?.alerts);
+fieldBreakdown('prev.threats', b.prev?.threats);
