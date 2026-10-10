@@ -13,7 +13,7 @@ import { sourceCards, systemBadge } from '../services/overview.js';
 import { classifyThreat } from '../services/threatClassify.js';
 import {
   haversineKm, bearingDeg, projectRadar, formatDistanceKm, formatBearing,
-  compassUk, accuracyLevel, radarPoint, rangeRings, clusterPoints,
+  compassUk, accuracyLevel, radarPoint, rangeRings,
 } from './geo.js';
 import {
   makeFix, planTransition, interpolateFix, tweenProgress, headingFor,
@@ -394,9 +394,10 @@ function drawFrame(t) {
     ctx.restore();
   }
 
-  // markers: bare glyphs (no discs), clustered when overlapping
+  // Each contact keeps its own type glyph and confirmed position.
   const pts = currentPoints(cssW);
-  const clusters = clusterPoints(pts.map(p => ({ x: p.x * dpr, y: p.y * dpr, data: p })), 30 * dpr);
+  const clusters = pts.map(p => ({ x: p.x * dpr, y: p.y * dpr,
+    members: [{ data: p }] }));
   state._clusters = clusters;
   // Premium sizes: desktop 23px, mobile 20px, selected ring 27px equivalent.
   const sPx = (cssW < 420 ? 20 : 23) * dpr;

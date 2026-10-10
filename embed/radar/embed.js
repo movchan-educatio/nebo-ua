@@ -7,7 +7,7 @@ import { searchUkrainianPlaces } from '../../services/locations.js';
 import { sourceCards, systemBadge } from '../../services/overview.js';
 import {
   haversineKm, bearingDeg, projectRadar, formatDistanceKm, formatBearing,
-  compassUk, accuracyLevel, radarPoint, rangeRings, clusterPoints,
+  compassUk, accuracyLevel, radarPoint, rangeRings,
 } from '../../radar/geo.js';
 import {
   KIND_LABEL, KIND_COLOR, KIND_SYMBOL, normalizeKind, isNew,
@@ -154,7 +154,8 @@ function frame(t) {
     ctx.restore();
   }
   const pts = points(css);
-  const clusters = clusterPoints(pts.map(p => ({ x: p.x * dpr, y: p.y * dpr, data: p })), 26 * dpr);
+  const clusters = pts.map(p => ({ x: p.x * dpr, y: p.y * dpr,
+    members: [{ data: p }] }));
   state._clusters = clusters;
   const sPx = (css < 420 ? 19 : 22) * dpr;
   const now = performance.now();

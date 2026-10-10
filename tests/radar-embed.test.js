@@ -35,7 +35,7 @@ test('embed reuses the same data services and geo math, compact UI present', () 
   assert.ok(js.includes("from '../../services/data.js'"), 'real data service');
   assert.ok(js.includes("from '../../radar/geo.js'") && js.includes("from '../../radar/filters.js'"), 'shared geo + filters');
   assert.ok(js.includes("from '../../services/locations.js'"), 'real city search');
-  assert.ok(js.includes('clusterPoints'), 'clusters overlapping markers');
+  assert.ok(!js.includes('clusterPoints('), 'each target retains its type glyph without clustering');
   assert.ok(js.includes('KIND_LABEL') && js.includes('KIND_COLOR'), 'shared kind presentation');
   const h = read('embed/radar/index.html');
   for (const r of ['25', '50', '100', '200', '300', '500']) assert.ok(h.includes(`data-range="${r}"`), `range ${r}`);
