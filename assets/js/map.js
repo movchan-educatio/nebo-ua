@@ -69,7 +69,13 @@ const DANGER_STYLE = {
   // fully, a thin light outline separates neighbours. No glow, no neon.
   oblastCritical: { color:'#FFFFFF', weight:1.0, opacity:0.55, fillColor:'#C62839', fillOpacity:0.95 },
   oblastElevated: { color:'#FFFFFF', weight:1.0, opacity:0.55, fillColor:'#D9A441', fillOpacity:0.95 },
-  neutral:        { color:'#3E5468', weight:0.8, opacity:0.8, fillColor:'#16233A', fillOpacity:0.9 },
+  // The neutral style is the fill for every oblast with no alert, so it is the
+  // surface the basemap has to be seen through. It used to be a near-black navy
+  // at 0.9: on a dark map that blended into the tiles, but the moment the tiles
+  // became light the same opacity turned them into an opaque grey slab that hid
+  // the map entirely. Opacity is tuned for the backdrop, so both changed
+  // together. Alert fills stay at 0.95 — those are meant to dominate.
+  neutral:        { color:'#64748B', weight:0.8, opacity:0.75, fillColor:'#CBD5E1', fillOpacity:0.22 },
 };
 
 // ── Unified threat visual registry ──────────────────────────────────────────
@@ -585,7 +591,7 @@ export function createSituationMap(el,onSelect){
     critical: { color:'#FFFFFF', weight:1.0, opacity:0.55, fillColor:'#B01F30', fillOpacity:.96 },
     high:     { color:'#FFFFFF', weight:0.9, opacity:0.5, fillColor:'#D9A441', fillOpacity:.95 },
     medium:   { color:'#FFFFFF', weight:0.8, opacity:0.4, fillColor:'#A87C22', fillOpacity:.92 },
-    calm:     { color:'#8FB0C9', weight:0.6, opacity:0.28, fillColor:'#000000', fillOpacity:0 },
+    calm:     { color:'#64748B', weight:0.6, opacity:0.28, fillColor:'#000000', fillOpacity:0 },
   };
   function setAlertShapes(items){
     ashapes.clearLayers();
@@ -604,7 +610,7 @@ export function createSituationMap(el,onSelect){
         for(const ring of r.rings||[])L.polyline(ring,{color:col,weight:1.2,opacity:.6,interactive:false}).addTo(shapes);
       }else{
         // Calm raions: extremely subtle, only visible at high zoom
-        for(const ring of r.rings||[])L.polyline(ring,{color:'#1a3a4a',weight:.6,opacity:.15,interactive:false}).addTo(shapes);
+        for(const ring of r.rings||[])L.polyline(ring,{color:'#94A3B8',weight:.6,opacity:.15,interactive:false}).addTo(shapes);
       }
     }
   }
@@ -627,7 +633,7 @@ export function createSituationMap(el,onSelect){
     lastUser=(p&&Number.isFinite(p.lat)&&Number.isFinite(p.lon))?p:null;
     user.clearLayers();
     if(!p||!Number.isFinite(p.lat)||!Number.isFinite(p.lon))return;
-    if(Number.isFinite(p.acc))L.circle([p.lat,p.lon],{radius:Math.max(30,p.acc),color:'#66c7ff',weight:1,opacity:.5,fillOpacity:.08,interactive:false}).addTo(user);
+    if(Number.isFinite(p.acc))L.circle([p.lat,p.lon],{radius:Math.max(30,p.acc),color:'#477FE0',weight:1,opacity:.5,fillOpacity:.08,interactive:false}).addTo(user);
     L.marker([p.lat,p.lon],{icon:userIcon(),interactive:false,zIndexOffset:1000}).addTo(user);
   }
 
@@ -703,9 +709,9 @@ export function createRadarMap(el,onSelect){
     pending=null;
     layer.clearLayers();rings.clearLayers();vectors.clearLayers();guard.clearLayers();
     if(!lastC||Math.abs(lastC[0]-center[0])>0.05||Math.abs(lastC[1]-center[1])>0.05){map.setView(center,6);lastC=center}
-    for(const km of rangeRings(opts.range||100))L.circle(center,{radius:km*1000,color:'#66c7ff',weight:1,opacity:.18,fill:false,interactive:false}).addTo(rings);
-    if(Number.isFinite(opts.guardKm)&&opts.guardKm>0)L.circle(center,{radius:opts.guardKm*1000,color:'#ff6f7d',weight:1.6,opacity:.6,dashArray:'8 8',fill:false,interactive:false}).addTo(guard);
-    L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#66c7ff',fillOpacity:1,weight:2}).addTo(rings);
+    for(const km of rangeRings(opts.range||100))L.circle(center,{radius:km*1000,color:'#477FE0',weight:1,opacity:.18,fill:false,interactive:false}).addTo(rings);
+    if(Number.isFinite(opts.guardKm)&&opts.guardKm>0)L.circle(center,{radius:opts.guardKm*1000,color:'#EF3F36',weight:1.6,opacity:.6,dashArray:'8 8',fill:false,interactive:false}).addTo(guard);
+    L.circleMarker(center,{radius:5,color:'#fff',fillColor:'#477FE0',fillOpacity:1,weight:2}).addTo(rings);
     events.filter(e=>plotworthy(e)).slice(0,300).forEach(e=>{
       L.marker([e.lat,e.lon],{icon:blipIcon(e),category:e.category,threatKind:classifyThreat(e),pane:'threatPane'}).on('click',()=>onSelect(e)).addTo(layer);
       const tier=accuracyTier(e);
@@ -722,7 +728,7 @@ export function createRadarMap(el,onSelect){
   function setSatellite(on){if(on){satellite.addTo(map);map.getContainer().classList.add('satellite-on')}else{if(map.hasLayer(satellite))map.removeLayer(satellite);map.getContainer().classList.remove('satellite-on')}}
   function setRadarRegions(g,alerts){
     if(!visible()){ pending=Object.assign({},pending,{geo:g}); return; }
-    borders.clearLayers();if(!g||!g.features)return;L.geoJSON(g,{style:{color:'#7fa8c9',weight:1.2,fillColor:'#0d2635',fillOpacity:.1}}).addTo(borders)}
+    borders.clearLayers();if(!g||!g.features)return;L.geoJSON(g,{style:{color:'#64748B',weight:1.2,fillColor:'#CBD5E1',fillOpacity:.1}}).addTo(borders)}
   function setAlertFills(items){applyAlertFills(items);}
   function applyAlertFills(items){
     if(!visible()){ pending=Object.assign({},pending,{fills:items}); return; }
@@ -809,6 +815,6 @@ function pinIcon(){return L.divIcon({className:'',html:`<div class="radar-pin" t
 function windIcon(w,to){const o=Math.min(0.85,0.3+w.speedKmh/80);return L.divIcon({className:'',html:`<div class="wind-arrow" style="--w:${to}deg;opacity:${o.toFixed(2)}"><svg viewBox="0 0 24 24"><path d="M4 12h14M13 6l6 6-6 6"/></svg><b>${w.speedKmh}</b></div>`,iconSize:[44,44],iconAnchor:[22,22]})}
 function raionDotIcon(st){return L.divIcon({className:'',html:'<div class="raion-dot st-'+(st||'calm')+'"></div>',iconSize:[14,14],iconAnchor:[7,7]})}
 function reportIcon(){return L.divIcon({className:'',html:`<div class="user-report" title="Локальна мітка"><span>R</span></div>`,iconSize:[28,28],iconAnchor:[14,14]})}
-function graticule(){const lines=[];for(let lon=20;lon<=42;lon+=2)lines.push([[43,lon],[53,lon]]);for(let lat=44;lat<=52;lat+=2)lines.push([[lat,20],[lat,42]]);return lines.map(l=>L.polyline(l,{color:'#66c7ff',weight:1,opacity:.16,interactive:false}))}
+function graticule(){const lines=[];for(let lon=20;lon<=42;lon+=2)lines.push([[43,lon],[53,lon]]);for(let lat=44;lat<=52;lat+=2)lines.push([[lat,20],[lat,42]]);return lines.map(l=>L.polyline(l,{color:'#477FE0',weight:1,opacity:.16,interactive:false}))}
 
 export{META,iconFor,THREAT_SIZE,NEBO_ATTRIBUTION,rangeRings,RANGE_PRESETS};

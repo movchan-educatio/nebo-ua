@@ -102,7 +102,7 @@ export function createScope(canvas, { onSelect } = {}) {
     const cx = W / 2, cy = H / 2, R = Math.min(W, H) / 2 - 6;
     sctx.clearRect(0, 0, W, H);
     const bg = sctx.createRadialGradient(cx, cy, Math.min(10, Math.max(0, R - 1)), cx, cy, Math.max(1, R));
-    bg.addColorStop(0, '#050D14'); bg.addColorStop(1, '#02070B');
+    bg.addColorStop(0, '#EAF7F0'); bg.addColorStop(1, '#D6EEE0');
     sctx.fillStyle = bg;
     sctx.beginPath(); sctx.arc(cx, cy, R, 0, 7); sctx.fill();
     try{sctx.save();
@@ -118,7 +118,7 @@ export function createScope(canvas, { onSelect } = {}) {
             if (idx === 0) sctx.moveTo(ox, oy); else sctx.lineTo(ox, oy);
           });
           sctx.closePath();
-          sctx.strokeStyle = 'rgba(214,255,232,0.24)';
+          sctx.strokeStyle = 'rgba(22,163,106,0.24)';
           sctx.lineWidth = 0.8;
           sctx.stroke();
         }
@@ -148,7 +148,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const f = km / S.range;
       const outer = i === ringSet.length - 1;
       sctx.globalAlpha = outer ? 1 : 0.7;
-      sctx.strokeStyle = outer ? 'rgba(236,255,246,0.92)' : 'rgba(214,255,232,0.5)';
+      sctx.strokeStyle = outer ? 'rgba(15,122,78,0.92)' : 'rgba(22,163,106,0.5)';
       sctx.lineWidth = outer ? 1.6 : 1.1;
       sctx.beginPath(); sctx.arc(cx, cy, R * f, 0, 7); sctx.stroke();
       sctx.globalAlpha = outer ? 0.75 : 0.5;
@@ -176,7 +176,7 @@ export function createScope(canvas, { onSelect } = {}) {
       const major = a % 30 === 0;
       const r0 = R - (a % 90 === 0 ? 9 : major ? 6 : 3), rad = (a - 90) * Math.PI / 180;
       sctx.globalAlpha = 0.55; sctx.lineWidth = 1;
-      sctx.strokeStyle = 'rgba(230,255,242,0.82)';
+      sctx.strokeStyle = 'rgba(15,122,78,0.82)';
       sctx.beginPath();
       sctx.moveTo(cx + Math.cos(rad) * r0, cy + Math.sin(rad) * r0);
       sctx.lineTo(cx + Math.cos(rad) * R, cy + Math.sin(rad) * R);
@@ -200,17 +200,17 @@ export function createScope(canvas, { onSelect } = {}) {
     let g;
     if (typeof ctx.createConicGradient === 'function') {
       g = ctx.createConicGradient(-0.5, 0, 0);
-      g.addColorStop(0, 'rgba(214,255,232,0)');
-      g.addColorStop(0.85, 'rgba(214,255,232,0.14)');
+      g.addColorStop(0, 'rgba(22,163,106,0)');
+      g.addColorStop(0.85, 'rgba(22,163,106,0.14)');
       g.addColorStop(1, 'rgba(230,255,243,0.5)');
       ctx.fillStyle = g;
     } else {
-      ctx.fillStyle = 'rgba(214,255,232,0.10)';
+      ctx.fillStyle = 'rgba(22,163,106,0.10)';
     }
     // Sector beam ≈20°: bright leading edge, gradual fade behind.
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, R, -0.35, 0); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(150,255,195,0.75)'; ctx.lineWidth = 1.5;
-    ctx.shadowColor = 'rgba(230,255,242,0.82)'; ctx.shadowBlur = 6;
+    ctx.strokeStyle = 'rgba(22,163,106,0.75)'; ctx.lineWidth = 1.5;
+    ctx.shadowColor = 'rgba(15,122,78,0.82)'; ctx.shadowBlur = 6;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(R, 0); ctx.stroke();
     ctx.shadowBlur = 0;
     ctx.restore();
@@ -242,7 +242,7 @@ export function createScope(canvas, { onSelect } = {}) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ectx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ectx.globalCompositeOperation = 'destination-out';
-    ectx.fillStyle = 'rgba(0,0,0,0.22)';
+    ectx.fillStyle = 'rgba(20,38,61,0.14)';
     ectx.fillRect(0, 0, W, H);
     ectx.globalCompositeOperation = 'source-over';
     const size = Math.min(W, H);
@@ -340,7 +340,7 @@ export function createScope(canvas, { onSelect } = {}) {
       ctx.strokeStyle = 'rgba(255,111,125,0.55)'; ctx.setLineDash([7, 7]);
       ctx.beginPath(); ctx.arc(W / 2, H / 2, gr, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     }
-    ctx.fillStyle = '#eaf6ff';
+    ctx.fillStyle = '#14263D';
     ctx.font = '10px system-ui';
     // No text labels on the scope: the legend already explains the iconography,
     // and the map/detail cards carry the names. Keeps the radar clean.
@@ -351,10 +351,10 @@ export function createScope(canvas, { onSelect } = {}) {
     for (const [txt, x, y] of [['Пн', cxm, cym - Rm + 12], ['Пд', cxm, cym + Rm - 6], ['Сх', cxm + Rm - 12, cym + 4], ['Зх', cxm - Rm + 5, cym + 4]]) {
       const w = ctx.measureText(txt).width + 8;
       ctx.globalAlpha = 0.85;
-      ctx.fillStyle = '#02120a';
+      ctx.fillStyle = '#FFFFFF';
       ctx.fillRect(x - w / 2, y - 10, w, 15);
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#e6fff2';
+      ctx.fillStyle = '#14263D';
       ctx.fillText(txt, x - w / 2 + 4, y + 1);
     }
     const cx0 = W / 2, cy0 = H / 2, RR = Math.min(W, H) / 2 - 6;
@@ -368,7 +368,7 @@ export function createScope(canvas, { onSelect } = {}) {
     }
     if (edgeNear) {
       const { p } = edgeNear;
-      ctx.globalAlpha = 0.85; ctx.fillStyle = '#9fd8f5'; ctx.font = '10px system-ui';
+      ctx.globalAlpha = 0.85; ctx.fillStyle = '#14263D'; ctx.font = '10px system-ui';
       const t = (p.distKm < 10 ? p.distKm.toFixed(1).replace('.', ',') : Math.round(p.distKm)) + ' км';
       ctx.textAlign = 'center';
       ctx.fillText('Найближча поза радіусом: ' + t, cx0, cy0 + RR - 10);
@@ -383,19 +383,19 @@ export function createScope(canvas, { onSelect } = {}) {
       const p = project(S.pin.lat, S.pin.lon, S.center, S.range, size);
       if (p.inside) {
         const ox = (W - size) / 2 + p.x, oy = (H - size) / 2 + p.y;
-        ctx.fillStyle = '#66c7ff';
+        ctx.fillStyle = '#477FE0';
         ctx.save(); ctx.translate(ox, oy); ctx.rotate(Math.PI / 4);
         ctx.fillRect(-5, -5, 10, 10); ctx.restore();
-        ctx.fillStyle = '#dff2ff'; ctx.fillText(S.pin.label || '', ox + 9, oy - 8);
+        ctx.fillStyle = '#14263D'; ctx.fillText(S.pin.label || '', ox + 9, oy - 8);
       }
     }
     // Own position: small cyan/white dot with a subtle pulse. Never a big glow.
     const pulse = reduced ? 0 : (0.5 + 0.5 * Math.sin(t / 600));
-    ctx.fillStyle = '#66c7ff';
+    ctx.fillStyle = '#477FE0';
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 3.5, 0, 7); ctx.fill();
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 3.5, 0, 7); ctx.stroke();
-    ctx.strokeStyle = `rgba(102,199,255,${0.2 + 0.25 * pulse})`; ctx.lineWidth = 1;
+    ctx.strokeStyle = `rgba(71,127,224,${0.2 + 0.25 * pulse})`; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.arc(W / 2, H / 2, 8 + 3 * pulse, 0, 7); ctx.stroke();
     if (!reduced) drawSweep();
   }

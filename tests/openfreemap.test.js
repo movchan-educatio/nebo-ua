@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { OPENFREEMAP, NEBO_ATTRIBUTION, NEBO_DARK_STYLE_URL, FALLBACK_RASTER_URL, shouldUseVector, vectorStyleSpec } from '../assets/js/basemap.js';
+import { OPENFREEMAP, NEBO_ATTRIBUTION, NEBO_LIGHT_STYLE_URL, FALLBACK_RASTER_URL, shouldUseVector, vectorStyleSpec } from '../assets/js/basemap.js';
 import { META, getThreatVisual, rangeRings, RANGE_PRESETS } from '../assets/js/map.js';
 import { haversineKm, bearingDeg, project } from '../assets/js/scope.js';
 import { territorialDanger } from '../services/districts.js';
@@ -9,7 +9,9 @@ import { classifyThreat, accuracyTier, shouldShowHeading } from '../services/thr
 
 // ── OpenFreeMap stack identity (TZ §1, §33, §40) ─────────────────────────────
 test('OpenFreeMap endpoints are official, never invented', () => {
-  assert.equal(OPENFREEMAP.styleUrl, 'https://tiles.openfreemap.org/styles/dark');
+  // positron, not dark: the /nebo/ surface is light, and the dark fork's whole
+  // premise was a colour scheme this page no longer uses.
+  assert.equal(OPENFREEMAP.styleUrl, 'https://tiles.openfreemap.org/styles/positron');
   assert.equal(OPENFREEMAP.tilesUrl, 'https://tiles.openfreemap.org/planet');
   assert.equal(OPENFREEMAP.siteUrl, 'https://openfreemap.org/');
   assert.equal(OPENFREEMAP.schemaUrl, 'https://www.openmaptiles.org/');
@@ -22,45 +24,107 @@ test('attribution keeps OpenFreeMap + OpenMapTiles + OpenStreetMap', () => {
   assert.ok(NEBO_ATTRIBUTION.includes('OpenFreeMap'));
 });
 
-test('nebo dark style URL is base-independent (no hardcoded /nebo-ua/)', () => {
-  assert.ok(!NEBO_DARK_STYLE_URL.includes('/nebo-ua/') || NEBO_DARK_STYLE_URL.endsWith('assets/data/nebo-dark.json'));
-  assert.ok(NEBO_DARK_STYLE_URL.endsWith('assets/data/nebo-dark.json'));
+test('nebo light style URL is base-independent (no hardcoded /nebo-ua/)', () => {
+  assert.ok(!NEBO_LIGHT_STYLE_URL.includes('/nebo-ua/') || NEBO_LIGHT_STYLE_URL.endsWith('assets/data/nebo-light.json'));
+  assert.ok(NEBO_LIGHT_STYLE_URL.endsWith('assets/data/nebo-light.json'));
 });
 
-test('nebo-dark.json: valid v8 style on OpenMapTiles planet source', async () => {
-  const raw = await readFile('assets/data/nebo-dark.json', 'utf8');
+test('nebo-light.json: valid v8 style on OpenMapTiles planet source', async () => {
+  const raw = await readFile('assets/data/nebo-light.json', 'utf8');
   const style = JSON.parse(raw);
   assert.equal(style.version, 8);
   assert.equal(style.sources.openmaptiles.type, 'vector');
   assert.equal(style.sources.openmaptiles.url, 'https://tiles.openfreemap.org/planet');
   assert.ok(String(style.glyphs).includes('tiles.openfreemap.org'));
-});
-
-test('nebo-dark.json: ultra-dark background + muted palette (TZ §3)', async () => {
-  const style = JSON.parse(await readFile('assets/data/nebo-dark.json', 'utf8'));
-  const byId = Object.fromEntries(style.layers.map((l) => [l.id, l]));
-  assert.equal(byId.background.paint['background-color'], '#02070B');
-  assert.equal(byId.water.paint['fill-color'], '#02080D');
-  const country = byId.boundary_country.paint['line-color'];
-  assert.equal(country, '#233440');
-  // No light/white basemap layer may compete with operational data.
+  // Every layer must point at a source that actually exists, or MapLibre throws
+  // on the first frame and the map silently never appears.
   for (const l of style.layers) {
-    const paints = JSON.stringify(l.paint || {});
-    assert.ok(!paints.includes('#ffffff') && !paints.includes('#fff'), `layer ${l.id} must not be white`);
+    assert.ok(!l.source || style.sources[l.source], `layer ${l.id} references a missing source`);
+    assert.ok(l.id && l.type, `layer ${JSON.stringify(l.id)} is malformed`);
   }
 });
 
-test('nebo-dark.json: no POI / shop / tourism noise (TZ §4)', async () => {
-  const style = JSON.parse(await readFile('assets/data/nebo-dark.json', 'utf8'));
-  const ids = style.layers.map((l) => l.id).join(' ');
-  assert.ok(!ids.includes('poi'), 'no poi layers, official dark style has none either');
-  assert.ok(!/shop|cafe|restaurant|tourism|aerodrome/i.test(ids), 'no commercial/tourism layers');
+// The basemap must never be the most saturated thing on screen. That is the
+// whole reason it was retuned, so it is asserted rather than assumed.
+const lum = (c) => {
+  const m = String(c).match(/#([0-9a-f]{6})/i) || String(c).match(/(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/);
+  if (!m) return null;
+  const [r, g, b] = m[1].length === 6
+    ? [m[1].slice(0, 2), m[1].slice(2, 4), m[1].slice(4, 6)].map((h) => parseInt(h, 16))
+    : [m[1], m[2], m[3]].map(Number);
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+};
+
+test('nebo-light.json: light background, no dark layer left behind', async () => {
+  const style = JSON.parse(await readFile('assets/data/nebo-light.json', 'utf8'));
+  const byId = Object.fromEntries(style.layers.map((l) => [l.id, l]));
+  const bg = lum(byId.background.paint['background-color']);
+  assert.ok(bg !== null && bg > 0.85, `background must be light, got ${bg}`);
+  // A stray dark fill is how a "light" map ends up with a black lake.
+  for (const l of style.layers) {
+    const fill = l.paint && l.paint['fill-color'];
+    if (fill !== undefined && !Array.isArray(fill)) {
+      const l2 = lum(fill);
+      assert.ok(l2 === null || l2 > 0.5, `layer ${l.id} has a dark fill ${fill}`);
+    }
+  }
+});
+
+test('nebo-light.json: labels recede, and stay readable', async () => {
+  const style = JSON.parse(await readFile('assets/data/nebo-light.json', 'utf8'));
+  const symbols = style.layers.filter((l) => l.type === 'symbol');
+  assert.ok(symbols.length > 0, 'place labels are still present');
+  for (const l of symbols) {
+    const colour = l.paint && l.paint['text-color'];
+    if (colour === undefined) continue; // shield icons carry no text colour
+    const v = lum(colour);
+    // Muted: dark enough to read on a light map, never pure black.
+    assert.ok(v === null || (v > 0.15 && v < 0.85), `layer ${l.id} label is not muted: ${colour}`);
+    // Legible: a muted label without a halo disappears into the map it sits on.
+    assert.ok(l.paint['text-halo-color'] !== undefined, `layer ${l.id} lost its halo`);
+  }
+});
+
+test('nebo-light.json: no POI / shop / tourism noise (TZ §4)', async () => {
+  const style = JSON.parse(await readFile('assets/data/nebo-light.json', 'utf8'));
+  const ids = style.layers.map((l) => l.id);
+  // Matched on layer semantics, not on the substring "poi": a crude substring
+  // check reports water_name_pOIint_label as a POI layer, which it is not.
+  assert.ok(!ids.some((id) => /^(poi|.*_poi)$/i.test(id)), 'no POI layers, official positron style has none either');
+  assert.ok(
+    !style.layers.some((l) => /^(poi|shop|cafe|restaurant|tourism|attraction|leisure)(_|$)/i.test(l['source-layer'] || '')),
+    'no commercial/tourism source layers',
+  );
+  // aerodrome_label is deliberately KEPT, unlike in the dark fork. On an air
+  // threat radar the airfields are the subject, not scenery: dropping the layer
+  // would remove information the user came for. It is held to the same muted
+  // label rule as everything else, checked above.
+  assert.ok(ids.includes('airport'), 'airfield labels stay — they are operational context here');
+  assert.equal(style.layers.find((l) => l.id === 'airport')['source-layer'], 'aerodrome_label');
+});
+
+// The retuning rule, kept honest: anything that can only appear above the map's
+// own maximum zoom is dead weight in the file and in every frame.
+test('nebo-light.json: carries nothing the map cannot reach', async () => {
+  const mapSrc = await readFile('assets/js/map.js', 'utf8');
+  const maxZoom = Number((mapSrc.match(/maxZoom:(\d+)/) || [])[1]);
+  assert.ok(Number.isFinite(maxZoom), 'the map still declares a max zoom');
+  const style = JSON.parse(await readFile('assets/data/nebo-light.json', 'utf8'));
+  for (const l of style.layers) {
+    assert.ok(l.minzoom === undefined || l.minzoom <= maxZoom, `layer ${l.id} starts at z${l.minzoom}, map stops at z${maxZoom}`);
+  }
+  // positron declares Natural Earth shaded relief that no layer uses.
+  const used = new Set(style.layers.map((l) => l.source).filter(Boolean));
+  for (const name of Object.keys(style.sources)) {
+    assert.ok(used.has(name), `source ${name} is declared but never used`);
+  }
 });
 
 test('raster fallback stays OSM when vector is unavailable (TZ §38)', () => {
   assert.ok(FALLBACK_RASTER_URL.includes('tile.openstreetmap.org'));
   assert.equal(shouldUseVector(), false); // Node has no WebGL → must degrade, never throw
   assert.equal(vectorStyleSpec().attribution, NEBO_ATTRIBUTION);
+  assert.ok(vectorStyleSpec().style.endsWith('assets/data/nebo-light.json'));
 });
 
 // ── Unified threat visuals (TZ §29) ─────────────────────────────────────────

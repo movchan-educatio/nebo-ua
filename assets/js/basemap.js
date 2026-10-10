@@ -1,5 +1,11 @@
 // OpenFreeMap / OpenMapTiles / OpenStreetMap basemap for Небо.UA.
 //
+// Light by design: a threat radar is an instrument, and an instrument does not
+// compete with its own chrome. The basemap says where something is; the red
+// threat layer says what it is. So geography stays — water, boundaries, major
+// roads — labels recede, and detail that only exists to orient a walker rather
+// than a radar is dropped entirely (see tools/nebo-light-style.mjs).
+//
 // Map engine stays Leaflet: all oblast/raion polygons, markers, clusters,
 // trails, GPS/Home and popups remain Leaflet layers. Only the visual
 // background switches from OSM raster tiles to the OpenFreeMap vector style
@@ -11,7 +17,7 @@
 // the basemap — it lives in separate Leaflet panes above it.
 
 export const OPENFREEMAP = {
-  styleUrl: 'https://tiles.openfreemap.org/styles/dark',
+  styleUrl: 'https://tiles.openfreemap.org/styles/positron',
   tilesUrl: 'https://tiles.openfreemap.org/planet',
   siteUrl: 'https://openfreemap.org/',
   schemaUrl: 'https://www.openmaptiles.org/',
@@ -25,9 +31,10 @@ export const NEBO_ATTRIBUTION =
   ' · © <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a>' +
   ' · <a href="https://openfreemap.org/" target="_blank" rel="noopener">OpenFreeMap</a>';
 
-// Local premium-dark fork of the official OpenFreeMap dark style.
+// Local premium-light fork of the official OpenFreeMap positron style.
 // Module-relative so it works from /, /nebo-ua/, /dev/, widget/...
-export const NEBO_DARK_STYLE_URL = new URL('../data/nebo-dark.json', import.meta.url).href;
+// Regenerate with: node tools/nebo-light-style.mjs
+export const NEBO_LIGHT_STYLE_URL = new URL('../data/nebo-light.json', import.meta.url).href;
 
 export const FALLBACK_RASTER_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
@@ -46,7 +53,7 @@ export function shouldUseVector() {
 
 // Pure helper (unit-tested): style object the map layer should use.
 export function vectorStyleSpec() {
-  return { style: NEBO_DARK_STYLE_URL, attribution: NEBO_ATTRIBUTION };
+  return { style: NEBO_LIGHT_STYLE_URL, attribution: NEBO_ATTRIBUTION };
 }
 
 // Attach the basemap to a Leaflet map instance.
@@ -77,7 +84,7 @@ export async function attachBasemap(map) {
     const L = window.L;
     if (typeof L.maplibreGL !== 'function') throw new Error('maplibre-gl-leaflet factory not found');
     if (typeof L.DistanceGrid !== 'function') throw new Error('Leaflet instance mismatch (markercluster)');
-    const layer = L.maplibreGL({ style: NEBO_DARK_STYLE_URL, attribution: NEBO_ATTRIBUTION });
+    const layer = L.maplibreGL({ style: NEBO_LIGHT_STYLE_URL, attribution: NEBO_ATTRIBUTION });
     layer.addTo(map);
     map.getContainer()?.classList.add('basemap-vector');
     // If the vector style/tiles fail after attach, keep the app alive with raster.
@@ -101,7 +108,7 @@ export async function attachBasemap(map) {
       await loadVectorLibs();
       const L = window.L;
       if (typeof L.maplibreGL !== 'function') throw new Error('maplibre-gl-leaflet factory not found (retry)');
-      const layer = L.maplibreGL({ style: NEBO_DARK_STYLE_URL, attribution: NEBO_ATTRIBUTION });
+      const layer = L.maplibreGL({ style: NEBO_LIGHT_STYLE_URL, attribution: NEBO_ATTRIBUTION });
       layer.addTo(map);
       map.getContainer()?.classList.add('basemap-vector');
       return 'vector';

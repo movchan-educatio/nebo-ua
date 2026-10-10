@@ -39,7 +39,7 @@ const ago = (d) => {
 
 const state = {
   snapshot: null, geo: null, regionsDir: [], lastSuccess: null,
-  detail: 'country', base: 'dark', layers: { satellite: false },
+  detail: 'country', base: 'light', layers: { satellite: false },
   tracks: createStore(), audio: new AudioAlerts(), notifier: new NotificationAlerts(),
   timeline: [], timelinePrimed: false,
 };
@@ -54,7 +54,7 @@ function tickClock() {
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────
-// Theme toggle removed: the app ships one consistent dark theme (the approved
+// One theme, and it is light. The cleanup below only clears state left behind
 // reference). Any previously stored 'light' preference is cleared so nobody is
 // stuck on the old, inconsistent light skin.
 function setupTheme() {
@@ -142,7 +142,7 @@ function renderSources(health) {
 // ── Threats feed ──────────────────────────────────────────────────────────
 function threatIcon(kind) {
   const v = getThreatVisual({ kind });
-  return `<svg style="color:${v.color || '#8ca4b3'}"><use href="/assets/brand/threat-icons.svg#${v.icon || 'other'}"/></svg>`;
+  return `<svg style="color:${v.color || '#64748B'}"><use href="/assets/brand/threat-icons.svg#${v.icon || 'other'}"/></svg>`;
 }
 function durStr(t) {
   const ms = Date.now() - new Date(t).getTime();
@@ -160,7 +160,7 @@ function renderThreats(events) {
     const isAir = /тривога|AIR/i.test(r.subtype || '') || r.kind === 'missile' || r.kind === 'ballistic';
     return `
     <button class="threat-row" data-lat="${r.lat}" data-lon="${r.lon}" data-id="${esc(r.id)}">
-      <span class="threat-ico" style="background:#ffffff0d">${threatIcon(r.kind)}</span>
+      <span class="threat-ico" style="background:rgba(71,127,224,.10)">${threatIcon(r.kind)}</span>
       <span><b>${esc(r.region || r.district || 'Невідома територія')}</b>
       <small class="${isAir ? 'threat-type-air' : 'threat-type-other'}">${esc(r.subtype || r.kind)} · ${esc(r.source || '')}</small>
       <time>${r.eventTime ? esc(clock(r.eventTime)) + ' · ' + esc(durStr(r.eventTime)) : '—'}</time></span>
@@ -230,8 +230,8 @@ function renderLayerPanel() {
   if (close) close.onclick = () => { p.hidden = true; };
   p.querySelectorAll('input').forEach(i => i.onchange = () => {
     const k = i.dataset.layer;
-    if (k === 'satellite') { applyBasemap(i.checked ? 'sat' : 'dark'); if (i.checked) p.querySelector('[data-layer="relief"]').checked = false; return; }
-    if (k === 'relief') { applyBasemap(i.checked ? 'relief' : 'dark'); if (i.checked) p.querySelector('[data-layer="satellite"]').checked = false; return; }
+    if (k === 'satellite') { applyBasemap(i.checked ? 'sat' : 'light'); if (i.checked) p.querySelector('[data-layer="relief"]').checked = false; return; }
+    if (k === 'relief') { applyBasemap(i.checked ? 'relief' : 'light'); if (i.checked) p.querySelector('[data-layer="satellite"]').checked = false; return; }
     mapUI.toggle(k, i.checked);
   });
 }
@@ -277,7 +277,7 @@ function renderLegend() {
   const territory = [
     ['#D9A441', 'Повітряна тривога'],
     ['#C62839', 'Підвищена небезпека'],
-    ['#16233A', 'Немає тривоги'],
+    ['#94A3B8', 'Немає тривоги'],
   ];
   const kinds = ['shahed', 'uav', 'fpv', 'recon', 'missile', 'ballistic', 'kab', 'aviation', 'other'];
   const KIND_LABEL = {
@@ -638,7 +638,7 @@ async function showHistory(oblast = null, district = null) {
   }
   const cands = dir.filter(r => !oblast || (r.regionName || '').includes(oblast.replace(' область', ''))).slice(0, 12);
   body.innerHTML = `<label class="micro" for="histRegion">Територія</label>
-    <select id="histRegion" style="width:100%;min-height:44px;background:#08121a;color:var(--text);border:1px solid var(--line);border-radius:11px;margin:6px 0 10px">${cands.map(r => `<option value="${esc(r.regionId)}">${esc(r.regionName)} (${esc(r.regionType || '')})</option>`).join('')}</select>
+    <select id="histRegion" style="width:100%;min-height:44px;background:#FFFFFF;color:var(--text);border:1px solid var(--line);border-radius:11px;margin:6px 0 10px">${cands.map(r => `<option value="${esc(r.regionId)}">${esc(r.regionName)} (${esc(r.regionType || '')})</option>`).join('')}</select>
     <div id="histList"><p class="micro">Оберіть територію.</p></div>`;
   $('#histRegion').onchange = async (e) => {
     const list = $('#histList');
